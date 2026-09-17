@@ -1,0 +1,21 @@
+{
+  "name": "NUBSEN — Absensi Karyawan",
+  "short_name": "NUBSEN",
+  "description": "Aplikasi absensi karyawan modern: check-in selfie + GPS, riwayat, izin, dan cuti.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A1D57",
+  "theme_color": "#0A1D57",
+  "lang": "id",
+  "dir": "ltr",
+  "categories": ["productivity", "business"],
+  "icons": [
+    { "src": "/logo.png", "sizes": "any", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,33 @@
+# Render Blueprint — backend NUBSEN (Express + node:sqlite).
+# Cara pakai: Render Dashboard → New + → Blueprint → pilih repo GitHub Anda →
+# Render membaca file ini dan membuat Web Service secara otomatis.
+services:
+  - type: web
+    name: nubsen-backend
+    runtime: node
+    # ⚠️ Plan "free" TIDAK mendukung persistent disk: data SQLite & foto akan
+    # hilang setiap restart/redeploy. Untuk produksi gunakan plan berbayar
+    # (starter) yang mendukung disk di bawah, atau pindah DB ke Turso.
+    plan: starter
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      # node:sqlite butuh Node >= 24 (tanpa flag eksperimental).
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      # Batasi CORS ke domain frontend Anda (kosong = terbuka untuk semua).
+      - key: CORS_ORIGINS
+        value: https://nubsen.vercel.app
+      # Simpan DB & unggahan di persistent disk agar tidak hilang.
+      - key: DATA_DIR
+        value: /var/data/db
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+    disk:
+      name: nubsen-data
+      mountPath: /var/data
+      sizeGB: 1

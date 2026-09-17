@@ -1,0 +1,19 @@
+{
+  "appId": "id.nubsen.absensi",
+  "appName": "NUBSEN",
+  "webDir": "dist",
+  "server": {
+    "url": "https://nubsen.vercel.app",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "backgroundColor": "#0A1D57",
+      "showSpinner": false
+    }
+  }
+}

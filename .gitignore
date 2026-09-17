@@ -1,0 +1,29 @@
+# Dependensi
+node_modules/
+server/node_modules/
+
+# Hasil build
+dist/
+
+# Runtime backend (database SQLite & file unggahan)
+server/data/
+server/uploads/
+server/*.log
+
+# Variabel lingkungan & konfigurasi hosting (jangan di-commit)
+.env
+.env.local
+.env.*.local
+.vercel/
+
+# Proyek Android (Capacitor) — hanya output build yang diabaikan
+android/.gradle/
+android/app/build/
+android/build/
+capacitor.config.local.json
+*.keystore
+*.jks
+
+# APK hasil build (kirim manual ke HP, tidak perlu di-commit)
+*.apk
+*.aab

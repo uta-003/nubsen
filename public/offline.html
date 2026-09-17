@@ -1,0 +1,44 @@
+﻿<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0A1D57" />
+    <title>NUBSEN â€” Luring</title>
+    <style>
+      * { margin: 0; box-sizing: border-box; }
+      body {
+        min-height: 100vh; display: grid; place-items: center;
+        font-family: Inter, system-ui, sans-serif; padding: 24px;
+        background: linear-gradient(160deg, #eef2ff, #f5f3ff);
+        color: #1e293b; text-align: center;
+      }
+      .card {
+        background: #fff; border-radius: 2rem; padding: 2.5rem 2rem; max-width: 22rem;
+        box-shadow: 0 20px 50px rgba(79, 70, 229, 0.15);
+      }
+      .emoji { font-size: 3rem; }
+      h1 { font-size: 1.15rem; font-weight: 800; margin: 0.75rem 0 0.4rem; }
+      p { font-size: 0.85rem; color: #64748b; line-height: 1.6; }
+      button {
+        margin-top: 1.25rem; border: 0; cursor: pointer;
+        background: linear-gradient(90deg, #6366f1, #7c3aed); color: #fff;
+        font-weight: 700; font-size: 0.85rem; padding: 0.75rem 1.5rem;
+        border-radius: 1rem; box-shadow: 0 10px 25px rgba(99, 102, 241, 0.35);
+      }
+      button:active { transform: scale(0.96); }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="emoji">ðŸ“¡</div>
+      <h1>Anda sedang luring</h1>
+      <p>
+        Halaman ini tidak tersedia dari cache. Periksa koneksi internet Anda,
+        lalu coba muat ulang.
+      </p>
+      <button onclick="location.reload()">Muat Ulang</button>
+    </div>
+  </body>
+</html>
+
