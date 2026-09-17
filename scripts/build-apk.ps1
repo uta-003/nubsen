@@ -1,4 +1,4 @@
-# Membangun APK debug NUBSEN tanpa perlu membuka Android Studio.
+﻿# Membangun APK debug NUBSEN tanpa perlu membuka Android Studio.
 # Pakai:  npm run android:apk
 # Hasil:  NUBSEN-debug.apk di folder root proyek.
 
@@ -6,8 +6,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 
 # 1) JDK: Gradle 8.2.1 (Capacitor 6) butuh JDK 17.
-#    Prioritas: JDK 17 portabel di %LOCALAPPDATA%\NubsenTools →
-#    JAVA_HOME yang sudah diset → JBR bawaan Android Studio (JDK 25, sering tidak cocok).
+#    Prioritas: JDK 17 portabel di %LOCALAPPDATA%\NubsenTools ->
+#    JAVA_HOME yang sudah diset -> JBR bawaan Android Studio (JDK 25, sering tidak cocok).
 $portable = Get-ChildItem "$env:LOCALAPPDATA\NubsenTools" -Directory -ErrorAction SilentlyContinue |
   Where-Object { $_.Name -like 'jdk-17*' } | Select-Object -First 1
 if ($portable) {
@@ -55,5 +55,5 @@ if (Test-Path $apk) {
   Write-Host "`nAPK siap: $tujuan" -ForegroundColor Green
   Write-Host 'Kirim berkas ini ke HP Android lalu install (izinkan sumber tidak dikenal).' -ForegroundColor Cyan
 } else {
-  Write-Error 'APK tidak ditemukan — periksa pesan error Gradle di atas.'
+  Write-Error 'APK tidak ditemukan - periksa pesan error Gradle di atas.'
 }

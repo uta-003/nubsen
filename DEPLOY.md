@@ -65,8 +65,37 @@ git push -u origin main
 
 ---
 
-## 3. Langkah 2 — Deploy backend ke Render
+## 2b. Cara tercepat — skrip otomatis `scripts/deploy-all.ps1`
 
+Satu perintah menangani GitHub → Render → Vercel → CORS → domain APK:
+
+```powershell
+cd C:\Users\Afriani\.cline\data\workspaces\chat\absensi-app
+.\scripts\deploy-all.ps1 -GitHubToken ghp_xxx -VercelToken vercel_xxx -RenderApiKey rnd_xxx
+```
+
+Token yang dibutuhkan:
+
+| Token | Cara membuat | Hak akses |
+|---|---|---|
+| **GitHub PAT** | https://github.com/settings/tokens → *Generate new token (classic)* | centang **`repo`** |
+| **Vercel Token** | https://vercel.com/account/tokens → *Create* | scope akun Anda |
+| **Render API Key** *(opsional)* | https://dashboard.render.com/u/settings#api-keys → *Create API Key* | — |
+
+Tanpa `-RenderApiKey`, langkah Render dilewati dan Anda membuat service lewat
+dashboard (Cara A di bawah), lalu jalankan ulang skrip dengan
+`-BackendUrl https://xxx.onrender.com`.
+
+Uji dulu tanpa efek samping (hanya menampilkan rencana):
+
+```powershell
+.\scripts\deploy-all.ps1 -GitHubToken x -VercelToken y -DryRun
+```
+
+---
+
+
+## 3. Langkah 2 — Deploy backend ke Render
 ### Cara A — Blueprint (paling mudah)
 1. Buka **https://dashboard.render.com** → **New +** → **Blueprint**.
 2. Pilih repo `nubsen` → Render membaca `render.yaml` dan membuat service

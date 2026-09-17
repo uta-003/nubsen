@@ -1,4 +1,4 @@
-# Mengubah URL aplikasi Android (server.url di capacitor.config.json).
+﻿# Mengubah URL aplikasi Android (server.url di capacitor.config.json).
 # Contoh:  npm run android:url -- https://nubsen.vercel.app
 param([Parameter(Mandatory = $true)][string]$Url)
 
