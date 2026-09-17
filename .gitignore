@@ -16,6 +16,9 @@ server/*.log
 .env.*.local
 .vercel/
 
+# Contoh variabel lingkungan TETAP di-commit agar mudah ditiru orang lain
+!.env.example
+
 # Proyek Android (Capacitor) — hanya output build yang diabaikan
 android/.gradle/
 android/app/build/
@@ -29,3 +32,5 @@ capacitor.config.local.json
 *.aab
 .vercel
 .env*
+
+# file runtime lokal.n.server-pid.txt

@@ -4,7 +4,10 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/:path*", "destination": "/index.html" }],
+  "regions": ["iad1"],
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/backend?asal=$1" }
+  ],
   "headers": [
     {
       "source": "/sw.js",

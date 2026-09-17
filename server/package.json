@@ -10,6 +10,7 @@
     "test": "node uji-api.mjs"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "cors": "^2.8.5",
     "express": "^4.21.1",
     "multer": "^2.0.1"
