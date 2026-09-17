@@ -27,3 +27,5 @@ capacitor.config.local.json
 # APK hasil build (kirim manual ke HP, tidak perlu di-commit)
 *.apk
 *.aab
+.vercel
+.env*

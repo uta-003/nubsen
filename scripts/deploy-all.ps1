@@ -186,11 +186,18 @@ if ($DryRun) {
   }
 
   Info 'Menghubungkan & men-deploy (build Vite ~1 menit)...'
-  npx vercel link --yes --project $ProjectName --token $VercelToken 2>&1 | Out-Null
-  $outDeploy = npx vercel deploy --prod --yes --token $VercelToken 2>&1 | Out-String
+  # Pakai CLI vercel yang sudah terpasang bila ada; jika tidak, fallback ke npx.
+  $pakaiNpx = -not (Get-Command vercel -ErrorAction SilentlyContinue)
+  $awal = if ($pakaiNpx) { @('vercel') } else { @() }
+  $bin = if ($pakaiNpx) { 'npx' } else { 'vercel' }
+  & $bin @awal link --yes --project $ProjectName --token $VercelToken 2>&1 | Out-Null
+  $outDeploy = & $bin @awal deploy --prod --yes --token $VercelToken 2>&1 | Out-String
   $m = [regex]::Match($outDeploy, 'https://[a-zA-Z0-9\.\-]+\.vercel\.app')
   if ($m.Success) { $frontendUrl = $m.Value; Sukses "Frontend live: $frontendUrl" }
-  else { Peringatan 'URL frontend tidak terdeteksi dari keluaran CLI - cek dashboard Vercel.' }
+  else {
+    Peringatan 'URL frontend tidak terdeteksi dari keluaran CLI.'
+    Info (($outDeploy.Trim() -split "`n") | Select-Object -Last 6 | Out-String)
+  }
 }
 
 # ---------------------------------------------------------------------------
