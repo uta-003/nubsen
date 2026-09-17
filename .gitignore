@@ -33,4 +33,5 @@ capacitor.config.local.json
 .vercel
 .env*
 
-# file runtime lokal.n.server-pid.txt
+# file runtime lokal
+.server-pid.txt
