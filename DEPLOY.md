@@ -67,6 +67,11 @@ git push -u origin main
 
 ## 2b. Cara tercepat — skrip otomatis `scripts/deploy-all.ps1`
 
+> ⚠️ **Agar setiap `git push` otomatis tayang**: hubungkan repo di dashboard
+> Vercel → proyek **nubsen** → **Settings → Git → connect** `uta-003/nubsen`,
+> lalu **Deployments → Redeploy** pada commit terbaru. Tanpa ini, perubahan baru
+> hanya masuk GitHub dan **tidak otomatis tayang** di `nubsen.vercel.app`.
+
 Satu perintah menangani GitHub → Render → Vercel → CORS → domain APK:
 
 ```powershell
