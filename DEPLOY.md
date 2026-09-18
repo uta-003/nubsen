@@ -71,6 +71,31 @@ git push -u origin main
 > Vercel → proyek **nubsen** → **Settings → Git → connect** `uta-003/nubsen`,
 > lalu **Deployments → Redeploy** pada commit terbaru. Tanpa ini, perubahan baru
 > hanya masuk GitHub dan **tidak otomatis tayang** di `nubsen.vercel.app`.
+>
+> Langkah rincinya (sekali saja):
+>
+> 1. Vercel → proyek **nubsen** → **Settings** → **Git** → **Connect Git
+>    Repository** → pilih **GitHub** → **Connect** (instal *Vercel for GitHub*
+>    bila diminta).
+> 2. Bila `uta-003/nubsen` **tidak muncul** di daftar repo: akun GitHub pemilik
+>    repo berbeda dari akun yang login di Vercel, jadi buka
+>    **GitHub → Settings → Applications → Vercel → Configure → Repository
+>    access** (atau tautan *Adjust GitHub App Permissions* pada dialog Vercel)
+>    lalu izinkan repo tersebut, dan tekan **Refresh** di dialog Vercel.
+> 3. Pilih repo → **Connect**. Tab **Deployments** akan memuat deployment baru
+>    untuk commit terakhir; bila belum ada, klik **⋯ → Redeploy** pada commit
+>    yang dituju (mis. `edf42e3`).
+> 4. Pastikan **Root Directory** = `./` dan **Framework Preset** = *Vite*
+>    (terbaca dari `vercel.json`: `buildCommand` `npm run build`,
+>    `outputDirectory` `dist`).
+>
+> Cara memastikan deploy benar-benar baru: nama bundel ber-hash di `index.html`
+> harus berubah, mis.
+>
+> ```powershell
+> (Invoke-WebRequest https://nubsen.vercel.app/ -UseBasicParsing).Content -match '/assets/(index-[^"]+\.js)'
+> $Matches[1]   # harus sama dengan nama berkas di dist/assets/ hasil npm run build
+> ```
 
 Satu perintah menangani GitHub → Render → Vercel → CORS → domain APK:
 
@@ -302,3 +327,7 @@ Pekerjaan ini cukup besar (menyentuh seluruh query) tetapi hasilnya
 | Data hilang setelah beberapa lama | Backend Render memakai plan **free** (tanpa disk) → lihat §3 / §8 |
 | `Cannot find module node:sqlite` | Node di server < 24 — set env `NODE_VERSION=24` |
 | Perubahan env tidak berefek | Di Vercel: **Redeploy**. Di Render: **Manual Deploy → Clear build cache & deploy** |
+| Sudah `git push` tapi `nubsen.vercel.app` tidak berubah | Repo belum tersambung ke proyek Vercel (commit tidak punya status deployment). Ikuti §2b langkah 1–3; pastikan nama bundel `index-*.js` di `index.html` berubah |
+| **"Lokasi gagal diperbarui" / "Izin lokasi belum diberikan" di dalam APK** | `AndroidManifest.xml` wajib memuat `ACCESS_FINE_LOCATION` & `ACCESS_COARSE_LOCATION` — tanpanya Capacitor membalas *DENIED* ke WebView dan GPS mati total. Verifikasi: `npm run android:cek` (memeriksa izin di manifest, manifest gabungan Gradle, dan di dalam APK memakai `aapt2`). Setelah update, **uninstall–install ulang** APK lalu izinkan lokasi saat diminta |
+| Koordinat tampil tapi tekan **Perbarui** tidak berubah | Sejak perbaikan terakhir kegagalan selalu tampil sebagai banner kuning di kartu *Lokasi Anda*; bila muncul, aktifkan GPS/izin lalu tekan **Perbarui** lagi (permintaan diulang dengan akurasi jaringan setelah GPS presisi gagal) |
+| Ikon APK masih ikon Capacitor | Jalankan `npm run android:ikon` lalu `npm run android:cek` (26 berkas harus cocok) dan `npm run android:apk`; lalu **uninstall** aplikasi lama agar launcher tidak memakai ikon ter-cache |
