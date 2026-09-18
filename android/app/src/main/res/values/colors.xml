@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Warna brand NUBSEN — dirujuk styles.xml (colorPrimary/PrimaryDark/Accent).
+     Navy #0A1D57 sama dengan warna mark logo & latar adaptive icon,
+     indigo #4F46E5 sama dengan aksen utama aplikasi web. -->
+<resources>
+    <color name="colorPrimary">#0A1D57</color>
+    <color name="colorPrimaryDark">#061236</color>
+    <color name="colorAccent">#4F46E5</color>
+</resources>
