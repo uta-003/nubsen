@@ -26,15 +26,19 @@ if ($jdk17) {
 } else {
   Write-Warning 'JDK 17 tidak ditemukan. Lihat DEPLOY.md §6 untuk cara memasangnya.'
 }
-if ($env:JAVA_HOME) { $env:PATH = (Join-Path $env:JAVA_HOME 'bin') + ';' + $env:PATH }
-Write-Host "JAVA_HOME = $env:JAVA_HOME"
-# `java -version` menulis ke stderr; dengan ErrorActionPreference=Stop itu dianggap
-# error yang menghentikan skrip, jadi bagian ini dijalankan dalam mode Continue.
-$eapLama = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-$versiJava = (& (Join-Path $env:JAVA_HOME 'bin\java.exe') -version 2>&1 | Select-Object -First 1)
-$ErrorActionPreference = $eapLama
-Write-Host "Versi Java: $versiJava"
+if ($env:JAVA_HOME) {
+  $env:PATH = (Join-Path $env:JAVA_HOME 'bin') + ';' + $env:PATH
+  # `java -version` menulis ke stderr; dengan ErrorActionPreference=Stop itu dianggap
+  # error yang menghentikan skrip, jadi bagian ini dijalankan dalam mode Continue.
+  $eapLama = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  $versiJava = (& (Join-Path $env:JAVA_HOME 'bin\java.exe') -version 2>&1 | Select-Object -First 1)
+  $ErrorActionPreference = $eapLama
+  Write-Host "Versi Java: $versiJava"
+} else {
+  Write-Error 'JDK 17 tidak ditemukan — Gradle 8.2 tidak bisa jalan. Pasang JDK 17 (lihat DEPLOY.md §6).'
+  exit 1
+}
 
 # 2) Android SDK (local.properties juga menyimpan sdk.dir; ini hanya cadangan).
 if (-not $env:ANDROID_HOME) {
