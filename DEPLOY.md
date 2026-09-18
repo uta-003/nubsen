@@ -67,12 +67,18 @@ git push -u origin main
 
 ## 2b. Cara tercepat — skrip otomatis `scripts/deploy-all.ps1`
 
-> ⚠️ **Agar setiap `git push` otomatis tayang**: hubungkan repo di dashboard
-> Vercel → proyek **nubsen** → **Settings → Git → connect** `uta-003/nubsen`,
-> lalu **Deployments → Redeploy** pada commit terbaru. Tanpa ini, perubahan baru
-> hanya masuk GitHub dan **tidak otomatis tayang** di `nubsen.vercel.app`.
+> ✓ **Sudah tersambung**: proyek Vercel **nubsen** kini terhubung ke repo
+> `uta-003/nubsen` (perintahnya:
+> `vercel git connect https://github.com/uta-003/nubsen.git`), jadi **setiap
+> `git push` ke `main` otomatis tayang** di `nubsen.vercel.app`. Bila tautan itu
+> pernah putus, jalankan perintah yang sama atau sambungkan lewat dashboard:
+> **Settings → Git → Connect Git Repository**.
 >
-> Langkah rincinya (sekali saja):
+> Sebelum tersambung, deployment hanya lahir dari CLI (`source=cli`) sehingga
+> push ke GitHub **tidak** mengubah situs. Ciri tautan masih putus: tab
+> **Deployments** di GitHub tidak pernah memuat deployment untuk commit Anda.
+>
+> Langkah alternatif (bila perlu menyambung ulang lewat dashboard):
 >
 > 1. Vercel → proyek **nubsen** → **Settings** → **Git** → **Connect Git
 >    Repository** → pilih **GitHub** → **Connect** (instal *Vercel for GitHub*
@@ -96,6 +102,20 @@ git push -u origin main
 > (Invoke-WebRequest https://nubsen.vercel.app/ -UseBasicParsing).Content -match '/assets/(index-[^"]+\.js)'
 > $Matches[1]   # harus sama dengan nama berkas di dist/assets/ hasil npm run build
 > ```
+
+### Deploy manual dari komputer (CLI Vercel)
+
+Dipakai bila ingin menerbitkan tanpa menunggu push, atau saat tautan Git putus:
+
+```powershell
+npx vercel login                  # sekali per komputer (alur device-code: buka tautan lalu Approve)
+npx vercel link --project nubsen  # menulis .vercel/project.json (di-gitignore)
+npx vercel deploy --prod --yes    # build di server Vercel, otomatis dialiaskan ke nubsen.vercel.app
+```
+
+Hasil nyata 18 Sep 2026 18:34 WIB: deployment `nubsen-ct33nrdbx-uta6.vercel.app`
+(READY, `source=cli`) dialiaskan ke `https://nubsen.vercel.app`, dan bundel
+`index-WOJLUoJg.js` langsung muncul di situs live.
 
 Satu perintah menangani GitHub → Render → Vercel → CORS → domain APK:
 
@@ -363,7 +383,7 @@ Pekerjaan ini cukup besar (menyentuh seluruh query) tetapi hasilnya
 | Data hilang setelah beberapa lama | Backend Render memakai plan **free** (tanpa disk) → lihat §3 / §8 |
 | `Cannot find module node:sqlite` | Node di server < 24 — set env `NODE_VERSION=24` |
 | Perubahan env tidak berefek | Di Vercel: **Redeploy**. Di Render: **Manual Deploy → Clear build cache & deploy** |
-| Sudah `git push` tapi `nubsen.vercel.app` tidak berubah | Repo belum tersambung ke proyek Vercel (commit tidak punya status deployment). Ikuti §2b langkah 1–3; pastikan nama bundel `index-*.js` di `index.html` berubah |
+| Sudah `git push` tapi `nubsen.vercel.app` tidak berubah | Tautan Git putus — sambungkan ulang dengan `npx vercel git connect https://github.com/uta-003/nubsen.git` (§2b), atau terbitkan langsung `npx vercel deploy --prod --yes`. Pastikan nama bundel `index-*.js` di `index.html` berubah |
 | **"Lokasi gagal diperbarui" / "Izin lokasi belum diberikan" di dalam APK** | `AndroidManifest.xml` wajib memuat `ACCESS_FINE_LOCATION` & `ACCESS_COARSE_LOCATION` — tanpanya Capacitor membalas *DENIED* ke WebView dan GPS mati total. Verifikasi: `npm run android:cek` (memeriksa izin di manifest, manifest gabungan Gradle, dan di dalam APK memakai `aapt2`). Setelah update, **uninstall–install ulang** APK lalu izinkan lokasi saat diminta |
 | Koordinat tampil tapi tekan **Perbarui** tidak berubah | Sejak perbaikan terakhir kegagalan selalu tampil sebagai banner kuning di kartu *Lokasi Anda*; bila muncul, aktifkan GPS/izin lalu tekan **Perbarui** lagi (permintaan diulang dengan akurasi jaringan setelah GPS presisi gagal) |
 | Ikon APK masih ikon Capacitor | Jalankan `npm run android:ikon` lalu `npm run android:cek` (26 berkas harus cocok) dan `npm run android:apk`; lalu **uninstall** aplikasi lama agar launcher tidak memakai ikon ter-cache |
