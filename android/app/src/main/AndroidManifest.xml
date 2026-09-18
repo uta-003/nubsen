@@ -38,4 +38,21 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- IZIN LOKASI — WAJIB untuk GPS/geofence.
+         WebView Android hanya menampilkan GPS bila izin ini terdaftar di manifest:
+         Capacitor memanggil checkSelfPermission(ACCESS_FINE/COARSE_LOCATION) dan
+         menolak permintaan geolocation (callback false) bila izin tidak ada di
+         manifest, sehingga aplikasi menampilkan "Lokasi gagal diperbarui".
+         Jangan dihapus — lihat juga scripts/cek-ikon-android.ps1. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- IZIN KAMERA — untuk selfie absensi (getUserMedia di WebView). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Perangkat tanpa GPS/kamera tetap boleh memasang aplikasi (fitur opsional). -->
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.location.network" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 </manifest>

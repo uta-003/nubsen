@@ -3,18 +3,45 @@
 // Nominatim (OpenStreetMap) — gratis, tanpa API key. Jika gagal (offline),
 // tetap tampilkan koordinat.
 
-export function getPosition() {
+// Pesan kegagalan GPS yang bisa ditindaklanjuti pengguna.
+// GeolocationPositionError: 1 = izin ditolak, 2 = posisi tak tersedia, 3 = timeout.
+export function pesanErrorLokasi(err) {
+  if (err?.code === 1) {
+    return 'Izin lokasi belum diberikan. Buka Setelan → Aplikasi → NUBSEN → Izin → Lokasi → Izinkan, lalu tekan Perbarui.'
+  }
+  if (err?.code === 2) {
+    return 'Sinyal GPS tidak tersedia. Nyalakan Lokasi/GPS di HP lalu tekan Perbarui.'
+  }
+  if (err?.code === 3) {
+    return 'Pencarian GPS melebihi batas waktu. Coba lagi di tempat terbuka.'
+  }
+  return err?.message || 'Lokasi gagal diperbarui. Coba lagi.'
+}
+
+// Satu permintaan posisi (dibungkus Promise agar bisa di-await).
+function mintaPosisi(opsi) {
   return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) {
-      reject(new Error('Perangkat tidak mendukung GPS'))
-      return
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 12000,
-      maximumAge: 0,
-    })
+    navigator.geolocation.getCurrentPosition(resolve, reject, opsi)
   })
+}
+
+// Catatan APK Android: GPS hanya berfungsi bila AndroidManifest.xml memuat
+// ACCESS_FINE_LOCATION & ACCESS_COARSE_LOCATION. Tanpa itu Capacitor menolak
+// permintaan geolocation dari WebView dan aplikasi menampilkan
+// "Lokasi gagal diperbarui" (dijaga oleh scripts/cek-ikon-android.ps1).
+export async function getPosition() {
+  if (!('geolocation' in navigator)) {
+    throw new Error('Perangkat tidak mendukung GPS')
+  }
+  try {
+    // 1) Akurasi tinggi (GPS murni) — dipakai untuk verifikasi geofence 20 m.
+    return await mintaPosisi({ enableHighAccuracy: true, timeout: 12000, maximumAge: 0 })
+  } catch (err) {
+    // 2) Izin ditolak → tidak ada gunanya diulang. Selain itu (sinyal lemah di
+    //    dalam gedung / kehabisan waktu) ulangi dengan akurasi jaringan.
+    if (err?.code === 1) throw err
+    return mintaPosisi({ enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 })
+  }
 }
 
 export async function reverseGeocode(lat, lon) {

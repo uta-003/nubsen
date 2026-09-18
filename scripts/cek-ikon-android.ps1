@@ -1,5 +1,7 @@
-# Memeriksa ikon & splash NUBSEN: dimensi berkas di android/app/src/main/res
-# serta kesesuaiannya dengan yang benar-benar masuk ke dalam APK.
+# Memeriksa aset Android NUBSEN: dimensi ikon & splash di
+# android/app/src/main/res, kesesuaiannya dengan yang masuk ke dalam APK, dan
+# kelengkapan izin (GPS & kamera) di AndroidManifest.xml beserta di dalam APK —
+# izin lokasi yang hilang membuat GPS mati ("Lokasi gagal diperbarui").
 # Pakai:  powershell -ExecutionPolicy Bypass -File scripts\cek-ikon-android.ps1
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
@@ -54,6 +56,37 @@ foreach ($f in @('values\colors.xml', 'mipmap-anydpi-v26\ic_launcher.xml', 'mipm
   else { Write-Host "  HILANG  $f" -ForegroundColor Red; $salah++ }
 }
 
+# Izin Android wajib: GPS butuh ACCESS_FINE/COARSE_LOCATION, selfie butuh CAMERA.
+# Tanpa izin terdaftar, Capacitor menolak permintaan lokasi dari WebView sehingga
+# aplikasi menampilkan "Lokasi gagal diperbarui".
+Write-Host '== Izin di AndroidManifest.xml ==' -ForegroundColor Cyan
+$manifestSumber = Join-Path $root 'android\app\src\main\AndroidManifest.xml'
+$izinWajib = @(
+  'android.permission.INTERNET',
+  'android.permission.ACCESS_COARSE_LOCATION',
+  'android.permission.ACCESS_FINE_LOCATION',
+  'android.permission.CAMERA'
+)
+$manifestIsi = if (Test-Path $manifestSumber) { Get-Content $manifestSumber -Raw } else { '' }
+foreach ($izin in $izinWajib) {
+  if ($manifestIsi -match [regex]::Escape($izin)) { Write-Host "  OK      $izin" -ForegroundColor Green }
+  else { Write-Host "  HILANG  $izin" -ForegroundColor Red; $salah++ }
+}
+
+# Manifest gabungan hasil Gradle: membuktikan izin benar-benar ikut saat build.
+$gab = Get-ChildItem (Join-Path $root 'android\app\build\intermediates') -Recurse -Filter 'AndroidManifest.xml' -ErrorAction SilentlyContinue |
+  Where-Object { $_.FullName -match 'merged_manifest' } | Select-Object -First 1
+if ($gab) {
+  Write-Host '== Izin di manifest gabungan (intermediates) ==' -ForegroundColor Cyan
+  $isiGab = Get-Content $gab.FullName -Raw
+  foreach ($izin in $izinWajib) {
+    if ($isiGab -match [regex]::Escape($izin)) { Write-Host "  OK      $izin" -ForegroundColor Green }
+    else { Write-Host "  HILANG  $izin" -ForegroundColor Red; $salah++ }
+  }
+} else {
+  Write-Host '  (manifest gabungan belum ada - jalankan build untuk memeriksanya)' -ForegroundColor Yellow
+}
+
 if (-not (Test-Path $apk)) {
   Write-Host "`nAPK belum ada ($apk) - jalankan npm run android:apk dulu." -ForegroundColor Yellow
   exit $salah
@@ -80,6 +113,27 @@ $zip.Dispose()
 Write-Host ("  {0} berkas di APK COCOK dengan res/, {1} bermasalah" -f $sama, $beda) -ForegroundColor $(if ($beda -eq 0) { 'Green' } else { 'Red' })
 $salah += $beda
 
-if ($salah -eq 0) { Write-Host "`nSemua ikon & splash NUBSEN OK." -ForegroundColor Green }
-else { Write-Host "`nAda $salah masalah - jalankan scripts\buat-ikon-android.ps1 lalu build ulang." -ForegroundColor Red }
+# Izin yang benar-benar tercatat di dalam APK (bukti izin ikut ter-package) —
+# dibaca dari berkas APK memakai aapt2 bawaan Android SDK.
+$aapt2 = Get-ChildItem 'C:\Android\build-tools', 'C:\Android\Sdk\build-tools' -Directory -ErrorAction SilentlyContinue |
+  Sort-Object -Property Name -Descending |
+  ForEach-Object { Join-Path $_.FullName 'aapt2.exe' } |
+  Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($aapt2) {
+  Write-Host '== Izin di dalam APK (aapt2 dump badging) ==' -ForegroundColor Cyan
+  $badging = & $aapt2 dump badging $apk 2>$null
+  foreach ($izin in $izinWajib) {
+    if ($badging | Where-Object { $_ -match [regex]::Escape($izin) }) {
+      Write-Host "  OK      $izin" -ForegroundColor Green
+    } else {
+      Write-Host "  HILANG  $izin" -ForegroundColor Red
+      $salah++
+    }
+  }
+} else {
+  Write-Host '  (aapt2 tidak ditemukan - pemeriksaan izin di APK dilewati)' -ForegroundColor Yellow
+}
+
+if ($salah -eq 0) { Write-Host "`nSemua ikon, splash & izin NUBSEN OK." -ForegroundColor Green }
+else { Write-Host "`nAda $salah masalah - jalankan scripts\buat-ikon-android.ps1 lalu build ulang (periksa juga AndroidManifest.xml)." -ForegroundColor Red }
 exit $salah

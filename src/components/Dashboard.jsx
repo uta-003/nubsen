@@ -3,7 +3,7 @@ import { MapPin, LogIn, LogOut, Navigation, Clock3, Loader2, CalendarCheck2, Bel
 import { formatJam, formatTanggalLengkap, formatTanggalPendek, sapaanWaktu, durasiKerja, toISODate } from '../utils/date'
 import { ambilCuaca, sapaanCuaca } from '../utils/cuaca'
 import { detailLibur, labelJenisPendek, liburBerikutnya } from '../utils/liburIndonesia'
-import { ambilLokasi, statusGeofence, KANTOR } from '../utils/geo'
+import { ambilLokasi, statusGeofence, KANTOR, pesanErrorLokasi } from '../utils/geo'
 import StatusBadge from './StatusBadge'
 import SelfieModal from './SelfieModal'
 import KartuStatistik from './Statistik'
@@ -56,8 +56,8 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
     setLokasiError(null)
     try {
       setLokasi(await ambilLokasi())
-    } catch {
-      setLokasiError('Gagal mengambil lokasi. Aktifkan izin GPS pada browser.')
+    } catch (err) {
+      setLokasiError(pesanErrorLokasi(err))
     } finally {
       setCariLokasi(false)
     }
