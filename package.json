@@ -13,7 +13,8 @@
     "android:sync": "npm run build && cap sync android",
     "android:apk": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-apk.ps1",
     "android:cek": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/cek-ikon-android.ps1",
-    "android:ikon": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/buat-ikon-android.ps1"
+    "android:ikon": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/buat-ikon-android.ps1",
+    "android:rilis": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/rilis-apk.ps1"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.2",

@@ -21,6 +21,7 @@ Panduan lengkap ada di **[`DEPLOY.md`](./DEPLOY.md)**. Ringkasnya:
 | **Frontend → Vercel** | `vercel login` → `vercel --prod` (isi env `VITE_BACKEND_URL`) |
 | **Backend → Render** | Import repo → Render membaca `render.yaml` (rootDir `server`, disk persisten) |
 | **Android (APK)** | `npm run android:url -- https://<domain>.vercel.app` → `npm run android:apk` |
+| **Bagikan APK** | `npm run android:rilis` membuat **GitHub Release** + mengunggah APK, tautan unduh bisa dibuka di HP |
 | **PWA (tanpa APK)** | Buka domain Vercel di Chrome Android → *Tambahkan ke layar utama* |
 
 Frontend & backend di-hosting terpisah karena Vercel bersifat serverless

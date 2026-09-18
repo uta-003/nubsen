@@ -240,12 +240,48 @@ Skrip `scripts/build-apk.ps1` otomatis: build web → `cap sync` → Gradle
 `assembleDebug`, lalu menyalin hasilnya menjadi **`NUBSEN-debug.apk`** di root
 proyek. Kirim berkas itu ke HP → izinkan "Install dari sumber tidak dikenal".
 
+###  Bagikan APK lewat GitHub Releases (`npm run android:rilis`)
+
+APK **tidak** ikut git (`.gitignore`: `*.apk`) agar riwayat repo tetap ramping.
+Untuk membagikannya ke karyawan, unggah sebagai *GitHub Release* — tautan unduh
+bisa langsung dibuka di HP:
+
+```powershell
+npm run android:apk     # bangun APK terbaru
+npm run android:rilis   # buat rilis + unggah APK (butuh token GitHub)
+```
+
+Skrip `scripts/rilis-apk.ps1`:
+
+| Hal | Keterangan |
+|---|---|
+| Token | Diambil dari `-GitHubToken`, env `GITHUB_TOKEN`, atau kredensial git yang sudah tersimpan (dipakai untuk `git push`). Scope yang dibutuhkan: `repo` |
+| Repo | Terdeteksi otomatis dari `git remote origin`, atau isi `-Repo pengguna/nama-repo` |
+| Tag | Default `v1.0.0`; ganti dengan `-Tag v1.0.1`. Bila tag sudah ada, APK lama pada rilis itu diganti |
+| Uji kering | `.\scripts\rilis-apk.ps1 -Pratinjau` (tidak membuat rilis/unggahan) |
+
+Contoh rilis versi baru:
+
+```powershell
+.\scripts\rilis-apk.ps1 -Tag v1.0.1
+```
+
+Tautan unduh langsung untuk dibagikan ke karyawan:
+
+```
+https://github.com/uta-003/nubsen/releases/latest/download/NUBSEN-debug.apk
+```
+
+> Catatan: ini **build debug** (belum untuk Play Store). Karena `server.url`
+> menunjuk ke domain Vercel, isi aplikasi di HP tetap otomatis terbaru setiap
+> kali web di-deploy ulang.
+
 ### ⚙️ Catatan toolchain (sudah divalidasi di komputer ini ✔)
 
 | Kebutuhan | Status di komputer Anda | Solusi yang dipakai |
 |---|---|---|
 | Node 24 | ✔ v24.19.0 | langsung dipakai |
-| Android SDK | ✔ `%LOCALAPPDATA%\Android\Sdk` | `ANDROID_HOME` di-set oleh skrip |
+| Android SDK | ✔ `C:\Android` (dibaca dari `android/local.properties` → `sdk.dir`) | `ANDROID_HOME` di-set oleh skrip; `build-apk.ps1` juga mencari `%LOCALAPPDATA%\Android\Sdk` |
 | **JDK 17** | ✖ hanya JRE 8 & JDK 25 (JBR Android Studio) | JDK 17 **portabel** diunduh ke `%LOCALAPPDATA%\NubsenTools\jdk-17.0.20.1+1` (tanpa admin) — Gradle 8.2.1 tidak kompatibel dengan JDK 25 |
 
 Kalau JDK portabel itu terhapus, pasang ulang dengan:
