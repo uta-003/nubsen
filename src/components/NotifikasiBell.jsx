@@ -2,9 +2,45 @@ import { useEffect, useState } from 'react'
 import { Bell } from 'lucide-react'
 import * as api from '../api'
 
+const KUNCI_TERLIHAT = 'absenku.notif.terlihat'
+
+// Notifikasi yang layak muncul sebagai pemberitahuan peramban (OS): perubahan
+// jadwal, pengumuman penting, serta KEPUTUSAN pengajuan (izin/cuti & lembur
+// disetujui/ditolak) — bukan konfirmasi pengiriman milik user sendiri.
+const layakPemberitahuan = (n) =>
+  n.jenis === 'jadwal' || n.jenis === 'penting' || /disetujui|ditolak/i.test(n.judul || '')
+
+// Tampilkan pemberitahuan peramban (OS) — via Service Worker bila tersedia
+// (jalan juga saat tab di latar belakang), fallback ke Notification halaman
+// (mode dev tanpa SW). Berisik hanya untuk yang penting: jadwal & penting.
+async function kirimPemberitahuan(n) {
+  const body = [n.judul, n.pesan].filter(Boolean).join('\n')
+  const opsi = {
+    body,
+    icon: '/logo-icon.png',
+    badge: '/icons/icon-192.png',
+    tag: `notif-${n.id}`, // dedupe: notifikasi yang sama tak menumpuk
+    data: { url: `${self.location.origin}/#notifikasi` },
+  }
+  try {
+    if (navigator.serviceWorker) {
+      const reg = await navigator.serviceWorker.getRegistration()
+      if (reg) {
+        await reg.showNotification('NUBSEN', opsi)
+        return
+      }
+    }
+  } catch { /* SW tidak siap — jatuh ke fallback halaman */ }
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('NUBSEN', { body, tag: opsi.tag })
+  }
+}
+
 // Lonceng notifikasi dengan badge jumlah belum dibaca.
 // Sinkron INSTAN lewat event 'absenku:notif' (dipicu halaman Notifikasi saat dibaca),
 // plus polling cadangan tiap 30 detik untuk notifikasi baru dari admin.
+// Notifikasi BARU bertipe 'jadwal'/'penting' juga muncul sebagai pemberitahuan
+// peramban (lihat kirimPemberitahuan) — posisi baca terakhir disimpan lokal.
 export default function NotifikasiBell({ onClick }) {
   const [belum, setBelum] = useState(0)
 
@@ -13,16 +49,32 @@ export default function NotifikasiBell({ onClick }) {
     const cek = () =>
       api
         .getNotifikasi()
-        .then((d) => hidup && setBelum(d.belumDibaca))
+        .then((d) => {
+          if (!hidup) return
+          setBelum(d.belumDibaca)
+          // ---- Pemberitahuan peramban untuk item baru (sejak cek terakhir) ----
+          const items = d.items || []
+          if (items.length === 0) return
+          const idMaks = Math.max(...items.map((n) => n.id))
+          let terlihat = 0
+          try { terlihat = Number(localStorage.getItem(KUNCI_TERLIHAT) || 0) } catch { /* abaikan */ }
+          const baru = items.filter((n) => n.id > terlihat && layakPemberitahuan(n))
+          try { localStorage.setItem(KUNCI_TERLIHAT, String(Math.max(terlihat, idMaks))) } catch { /* abaikan */ }
+          if (terlihat === 0) return // kunjungan pertama: jangan banjir notifikasi lama
+          for (const n of baru.slice(0, 3)) kirimPemberitahuan(n)
+        })
         .catch(() => {})
     const onSinkron = (e) => setBelum(e.detail?.belumDibaca ?? 0)
     cek()
     window.addEventListener('absenku:notif', onSinkron)
+    // Pemicu pemeriksaan manual (uji/probe atau pembaruan lain) tanpa menunggu 30 dtk.
+    window.addEventListener('absenku:cek-notif', cek)
     const t = setInterval(cek, 30000)
     return () => {
       hidup = false
       clearInterval(t)
       window.removeEventListener('absenku:notif', onSinkron)
+      window.removeEventListener('absenku:cek-notif', cek)
     }
   }, [])
 

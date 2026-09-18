@@ -159,11 +159,40 @@ await req(`/api/admin/leaves/${idCuti}`, { method: 'PUT', token: tA, body: { sta
 const cutiDisetujui = (await req('/api/profile', { token: tB })).data.sisaCuti
 cek('cuti Disetujui memotong kuota', cutiDisetujui === cutiAwal - 3, `${cutiDitolak} → ${cutiDisetujui}`)
 
-// ---- 6. Absensi: check-in karyawan + koreksi & hapus oleh admin ----
-const hariIni = (() => {
+// ---- 5c. Jadwal kerja (hari kerja) & laporan kehadiran ----
+const tanggalISO = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-})()
+}
+const hariIniUji = tanggalISO()
+
+const jadwal0 = (await req('/api/admin/jadwal', { token: tA })).data
+cek('admin lihat jadwal (jam + hari kerja)', !!jadwal0?.jamMasukBatas && Array.isArray(jadwal0?.hariKerja), `hari kerja: ${jadwal0?.hariKerja?.join(',')}`)
+
+const setJadwal = (hariKerja) => req('/api/admin/jadwal', { method: 'PUT', token: tA, body: { jamMasukBatas: jadwal0.jamMasukBatas, jamPulang: jadwal0.jamPulang, hariKerja } })
+
+const ubahJadwal = await setJadwal([1, 2, 3, 4, 5, 6])
+cek('ubah hari kerja (Sen–Sab)', ubahJadwal.status === 200 && ubahJadwal.data?.hariKerja?.length === 6, `→ ${ubahJadwal.data?.hariKerja?.join(',')}`)
+
+cek('hari kerja kosong → 400', (await setJadwal([])).status === 400)
+cek('hari kerja tidak valid → 400', (await setJadwal([9])).status === 400)
+cek('jam jadwal tidak valid → 400', (await req('/api/admin/jadwal', { method: 'PUT', token: tA, body: { jamMasukBatas: '25:00', jamPulang: '17:00' } })).status === 400)
+
+const lap = await req(`/api/admin/reports?dari=${hariIniUji.slice(0, 7)}-01&sampai=${hariIniUji}`, { token: tA })
+cek('laporan kehadiran admin', lap.status === 200 && Array.isArray(lap.data?.baris) && lap.data?.ringkasan?.totalKaryawan > 0, `hari kerja=${lap.data?.hariKerja}, karyawan=${lap.data?.ringkasan?.totalKaryawan}`)
+cek('laporan memakai hari kerja dari jadwal', lap.data?.hariKerjaHari?.length === 6, lap.data?.hariKerjaHari?.join(','))
+cek('laporan punya rekap departemen', Array.isArray(lap.data?.rekap) && lap.data.rekap.length > 0, `${lap.data?.rekap?.length} departemen`)
+cek('laporan punya kolom hadirLibur', lap.data?.ringkasan?.hadirLibur != null && lap.data.baris.every((r) => r.hadirLibur != null))
+cek('reports non-admin → 403', (await req('/api/admin/reports', { token: tB })).status === 403)
+cek('reports tanggal salah → 400', (await req('/api/admin/reports?dari=17-09-2026', { token: tA })).status === 400)
+cek('reports dari > sampai → 400', (await req(`/api/admin/reports?dari=${hariIniUji}&sampai=${hariIniUji.slice(0, 7)}-01`, { token: tA })).status === 400)
+
+// Kembalikan jadwal ke pengaturan awal agar data demo tidak berubah.
+const kembali = await setJadwal(jadwal0.hariKerja)
+cek('jadwal dikembalikan seperti semula', kembali.status === 200 && kembali.data?.hariKerja?.join(',') === jadwal0.hariKerja.join(','), kembali.data?.hariKerja?.join(','))
+
+// ---- 6. Absensi: check-in karyawan + koreksi & hapus oleh admin ----
+const hariIni = hariIniUji
 // Bersihkan catatan absensi hari ini agar uji bisa diulang berkali-kali.
 const bersihkanHariIni = async (empId) => {
   const rows = (await req(`/api/admin/attendance?employeeId=${empId}`, { token: tA })).data || []
@@ -182,8 +211,29 @@ cek('check-in duplikat → 409', (await req('/api/attendance/check-in', { method
 const absJauh = await req('/api/attendance/check-in', { method: 'POST', token: tUji, body: { lat: -6.1770000, lon: 106.9000000, alamat: 'Luar area', selfie: null } })
 cek('check-in luar radius ditandai', absJauh.status === 200 && absJauh.data?.diLuarArea === true, `jarak=${absJauh.data?.jarak} m`)
 
+// Absensi di luar hari kerja harus ditandai hariLibur: hari ini sengaja dikeluarkan
+// dari daftar hari kerja, lalu jadwal dikembalikan setelah pengujian.
+const hariIniIdx = new Date(`${hariIni}T00:00:00Z`).getUTCDay()
+await setJadwal([0, 1, 2, 3, 4, 5, 6].filter((n) => n !== hariIniIdx))
+await bersihkanHariIni(loginUji.data.karyawan.id)
+const absLibur = await req('/api/attendance/check-in', { method: 'POST', token: tUji, body: { lat: -6.1765782, lon: 106.899041, alamat: 'Kantor Pusat', selfie: null } })
+cek('check-in di luar hari kerja ditandai hariLibur', absLibur.status === 200 && absLibur.data?.hariLibur === true, `keterangan="${absLibur.data?.keterangan}"`)
+
+// Laporan hari itu harus 0 hari kerja dan mencatat absensi tadi sebagai Hadir Libur.
+const lapLibur = await req(`/api/admin/reports?dari=${hariIni}&sampai=${hariIni}`, { token: tA })
+cek('laporan hari libur: hariKerja=0 & hadirLibur terisi', lapLibur.data?.hariKerja === 0 && lapLibur.data?.ringkasan?.hadirLibur >= 1, `hariKerja=${lapLibur.data?.hariKerja} hadirLibur=${lapLibur.data?.ringkasan?.hadirLibur} persen=${lapLibur.data?.ringkasan?.persen}%`)
+await setJadwal(jadwal0.hariKerja)
+await bersihkanHariIni(loginUji.data.karyawan.id)
+
 const keluar = await req('/api/attendance/check-out', { method: 'POST', token: tB, body: { lat: -6.1765782, lon: 106.899041, alamat: 'Kantor Pusat' } })
 cek('check-out karyawan', keluar.status === 200 && !!keluar.data?.checkOut)
+
+// Data masuk & pulang tersimpan TERPISAH: check-out tidak menimpa detail masuk.
+const histHariIni = await req(`/api/attendance/history?dari=${hariIni}&sampai=${hariIni}`, { token: tB })
+const recHari = (histHariIni.data || []).find((r) => r.tanggal === hariIni && r.checkOut)
+cek('riwayat: detail masuk utuh setelah check-out', !!recHari?.lokasi && !!recHari?.selfie !== undefined, `lokasi=${JSON.stringify(recHari?.lokasi)}`)
+cek('riwayat: data pulang terpisah (lokasiPulang)', recHari?.lokasiPulang != null && recHari?.jarakPulang != null, `jarakPulang=${recHari?.jarakPulang} m`)
+cek('riwayat: field selfiePulang tersedia', 'selfiePulang' in (recHari || {}))
 
 const daftarAbsAdmin = await req(`/api/admin/attendance?employeeId=${budi.data.karyawan.id}`, { token: tA })
 const barisAbs = daftarAbsAdmin.data.find((a) => a.tanggal === masuk.data.tanggal)

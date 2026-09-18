@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search } from 'lucide-react'
+import { muatPustakaEkspor } from '../utils/ekspor'
 import * as api from '../api'
 import { formatTanggalPendek } from '../utils/date'
 
 // Tab admin: [id, label, ikon] — tampil sebagai grid ikon rapi 4 kolom.
 const TABS = [
   ['ringkasan', 'Ringkasan', LayoutDashboard],
+  ['laporan', 'Laporan', FileSpreadsheet],
   ['jadwal', 'Jadwal', Clock],
   ['karyawan', 'Karyawan', Users],
   ['absensi', 'Absensi', CalendarCheck2],
@@ -64,41 +66,43 @@ export default function Admin({ user, onBack }) {
       <div className="mb-4 flex items-center gap-3">
         <button
           onClick={onBack}
-          className="grid h-11 w-11 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition active:scale-90 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition active:scale-90 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
           aria-label="Kembali ke aplikasi"
         >
           <ArrowLeft size={20} />
         </button>
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight">Panel Admin</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{user?.nama} • akses penuh semua data</p>
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-extrabold tracking-tight sm:text-xl">Panel Admin</h1>
+          <p className="truncate text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">{user?.nama} • akses penuh semua data</p>
         </div>
       </div>
 
       {/* Tab animasi: grid ikon rapi 4 kolom — semua tab selalu tampil, tidak ada yang tersembunyi.
-          Chip masuk bertahap (stagger), tile aktif ber-pop dengan gradasi brand. */}
-      <div className="mb-4 grid grid-cols-4 gap-2">
+          Chip masuk bertahap (stagger), tile aktif ber-pop dengan gradasi brand. Label panjang
+          dipotong (truncate) supaya 8 tab tetap rapi di layar ponsel sempit. */}
+      <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-2">
         {TABS.map(([id, label, Icon], i) => {
           const aktif = tab === id
           return (
             <button
               key={id}
               onClick={() => pilihTab(id)}
+              aria-current={aktif ? 'page' : undefined}
               style={{ animationDelay: `${i * 40}ms` }}
-              className={`animate-fade-in flex flex-col items-center gap-1.5 rounded-2xl border py-3 transition active:scale-95 ${
+              className={`animate-fade-in flex min-w-0 flex-col items-center gap-1 rounded-2xl border px-1 py-2.5 transition active:scale-95 sm:gap-1.5 sm:py-3 ${
                 aktif
                   ? 'animate-pop border-transparent bg-gradient-to-br from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/30'
                   : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
               }`}
             >
               <span
-                className={`grid h-8 w-8 place-items-center rounded-xl ${
+                className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${
                   aktif ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600 dark:bg-slate-800 dark:text-indigo-300'
                 }`}
               >
                 <Icon size={16} />
               </span>
-              <span className="text-[10px] font-bold leading-none">{label}</span>
+              <span className="w-full truncate text-center text-[9px] font-bold leading-none sm:text-[10px]">{label}</span>
             </button>
           )
         })}
@@ -107,6 +111,7 @@ export default function Admin({ user, onBack }) {
       {/* Konten bertransisi (slide-up) setiap kali tab diganti */}
       <div key={tab} className="animate-slide-up">
         {tab === 'ringkasan' && <Ringkasan />}
+        {tab === 'laporan' && <Laporan />}
         {tab === 'jadwal' && <KelolaJadwal />}
         {tab === 'karyawan' && <KelolaKaryawan />}
         {tab === 'absensi' && <KelolaAbsensi />}
@@ -118,24 +123,41 @@ export default function Admin({ user, onBack }) {
   )
 }
 
-// Kelola jadwal kerja: jam masuk (batas Terlambat) & jam pulang — tersimpan di server
-// dan langsung dipakai seluruh karyawan (status, countdown, pengingat).
+// Nama hari untuk pemilih hari kerja (indeks = getDay(): 0 = Minggu).
+const NAMA_HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
+
+// Kelola jadwal kerja: jam masuk (batas Terlambat), jam pulang, dan hari kerja —
+// tersimpan di server dan langsung dipakai seluruh karyawan (status, countdown,
+// pengingat) serta perhitungan hari kerja pada laporan kehadiran.
 function KelolaJadwal() {
   const [form, setForm] = useState({ jamMasukBatas: '', jamPulang: '' })
+  const [hariKerja, setHariKerja] = useState([])
   const [pesan, setPesan] = useState(null)
   const [simpan, setSimpan] = useState(false)
 
   useEffect(() => {
-    api.adminGetJadwal().then((d) => setForm({ jamMasukBatas: d.jamMasukBatas, jamPulang: d.jamPulang })).catch(() => {})
+    api.adminGetJadwal()
+      .then((d) => {
+        setForm({ jamMasukBatas: d.jamMasukBatas, jamPulang: d.jamPulang })
+        setHariKerja(Array.isArray(d.hariKerja) ? d.hariKerja : [1, 2, 3, 4, 5])
+      })
+      .catch(() => {})
   }, [])
 
   const simpanJadwal = async () => {
     setSimpan(true)
     setPesan(null)
     try {
-      const d = await api.adminUpdateJadwal(form.jamMasukBatas, form.jamPulang)
+      const d = await api.adminUpdateJadwal(form.jamMasukBatas, form.jamPulang, hariKerja)
       setForm({ jamMasukBatas: d.jamMasukBatas, jamPulang: d.jamPulang })
-      setPesan({ ok: true, teks: `Jadwal tersimpan — masuk batas ${d.jamMasukBatas}, pulang ${d.jamPulang}. Semua karyawan langsung memakai jadwal baru.` })
+      setHariKerja(Array.isArray(d.hariKerja) ? d.hariKerja : hariKerja)
+      const labelHari = (d.hariKerja || hariKerja).map((n) => NAMA_HARI[n]).join(', ')
+      // Konfirmasi eksplisit soal broadcast: admin tahu apakah karyawan benar-benar
+      // dapat notifikasi perubahan jadwal (tidak dikirim bila tak ada yang berubah).
+      const soalNotif = d.notifikasiDikirim
+        ? 'Notifikasi perubahan sudah dikirim ke seluruh karyawan.'
+        : 'Tidak ada nilai yang berubah, jadi notifikasi tidak dikirim.'
+      setPesan({ ok: true, teks: `Jadwal tersimpan — masuk batas ${d.jamMasukBatas}, pulang ${d.jamPulang}, hari kerja ${labelHari}. Semua karyawan langsung memakai jadwal baru. ${soalNotif}` })
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
     } finally {
@@ -144,7 +166,9 @@ function KelolaJadwal() {
   }
 
   const ubah = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
-  const siapSimpan = /^([01]\d|2[0-3]):[0-5]\d$/.test(form.jamMasukBatas) && /^([01]\d|2[0-3]):[0-5]\d$/.test(form.jamPulang)
+  const alihHari = (n) =>
+    setHariKerja((h) => (h.includes(n) ? h.filter((x) => x !== n) : [...h, n].sort((a, b) => a - b)))
+  const siapSimpan = /^([01]\d|2[0-3]):[0-5]\d$/.test(form.jamMasukBatas) && /^([01]\d|2[0-3]):[0-5]\d$/.test(form.jamPulang) && hariKerja.length > 0
 
   return (
     <div className="animate-fade-in space-y-4">
@@ -160,6 +184,28 @@ function KelolaJadwal() {
             <input type="time" value={form.jamPulang} onChange={ubah('jamPulang')} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800" />
           </label>
         </div>
+        <div>
+          <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-400">Hari Kerja</span>
+          {/* Tujuh hari dibuat merata satu baris (flex-1 + min-w-0) supaya tetap
+              rapi di layar ponsel sempit 320 px tanpa terpotong/berdesakan. */}
+          <div className="flex gap-1 sm:gap-1.5">
+            {NAMA_HARI.map((nama, n) => (
+              <button
+                key={nama}
+                type="button"
+                onClick={() => alihHari(n)}
+                aria-pressed={hariKerja.includes(n)}
+                className={`h-11 min-w-0 flex-1 rounded-xl px-0 text-[11px] font-bold transition sm:text-xs ${
+                  hariKerja.includes(n)
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                }`}
+              >
+                {nama}
+              </button>
+            ))}
+          </div>
+        </div>
         <button onClick={simpanJadwal} disabled={!siapSimpan || simpan} className="btn-primary w-full disabled:opacity-40">
           {simpan ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Simpan Jadwal
         </button>
@@ -167,7 +213,8 @@ function KelolaJadwal() {
       <p className="rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
         ⏰ <b>Cara kerja:</b> check-in setelah <b>Jam Masuk (Batas)</b> otomatis berstatus <b>Terlambat</b> (dihitung di server,
         tahan manipulasi jam HP). Countdown di Beranda, pengingat notifikasi, dan tulisan &quot;Batas:&quot; langsung mengikuti jadwal ini
-        untuk semua karyawan. Format 24 jam HH:MM.
+        untuk semua karyawan. Format 24 jam HH:MM. Pilihan <b>Hari Kerja</b> dipakai untuk menghitung hari kerja pada laporan
+        kehadiran (Laporan) — pilih <b>Sen–Sab</b> bila perusahaan bekerja enam hari.
       </p>
     </div>
   )
@@ -207,6 +254,7 @@ function KelolaKaryawan() {
     nama: '', nip: '', jabatan: '', departemen: '', email: '', telepon: '', cutiTahunan: 12, pin: '', isAdmin: false,
   }
   const [data, setData] = useState([])
+  const [cari, setCari] = useState('')
   const [memuat, setMemuat] = useState(true)
   const [form, setForm] = useState(kosong)
   const [editId, setEditId] = useState(null)
@@ -278,12 +326,14 @@ function KelolaKaryawan() {
 
       {tampilForm && (
         <form onSubmit={simpan} className="card mb-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          {/* Satu kolom di ponsel sempit, dua kolom mulai sm — label panjang tidak
+              lagi memaksa input menjadi sempit/berdesakan. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div><label className="label">Nama *</label><input className="input" value={form.nama} onChange={(e) => set('nama', e.target.value)} required /></div>
             <div><label className="label">NIP</label><input className="input" value={form.nip} onChange={(e) => set('nip', e.target.value)} /></div>
             <div><label className="label">Jabatan</label><input className="input" value={form.jabatan} onChange={(e) => set('jabatan', e.target.value)} /></div>
             <div><label className="label">Departemen</label><input className="input" value={form.departemen} onChange={(e) => set('departemen', e.target.value)} /></div>
-            <div className="col-span-2"><label className="label">Email *</label><input type="email" className="input" value={form.email} onChange={(e) => set('email', e.target.value)} required /></div>
+            <div className="sm:col-span-2"><label className="label">Email *</label><input type="email" className="input" value={form.email} onChange={(e) => set('email', e.target.value)} required /></div>
             <div><label className="label">Telepon</label><input className="input" value={form.telepon} onChange={(e) => set('telepon', e.target.value)} /></div>
             <div><label className="label">Cuti/Tahun</label><input type="number" min="0" className="input" value={form.cutiTahunan} onChange={(e) => set('cutiTahunan', Number(e.target.value))} /></div>
             <div><label className="label">{editId ? 'PIN Baru (opsional)' : 'PIN (default 123456)'}</label><input className="input" maxLength={6} value={form.pin} onChange={(e) => set('pin', e.target.value.replace(/\D/g, ''))} placeholder="••••••" /></div>
@@ -300,13 +350,29 @@ function KelolaKaryawan() {
       {memuat ? (
         <p className="text-xs text-slate-400">Memuat…</p>
       ) : (
-        <div className="space-y-3 pb-2">
-          {data.map((k) => (
+        <>
+          {/* Pencarian karyawan — filter nama/email/jabatan/departemen/NIP langsung di klien */}
+          <div className="relative mb-2">
+            <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={cari}
+              onChange={(e) => setCari(e.target.value)}
+              className="input !py-2.5 !pl-10 text-sm"
+              placeholder="Cari nama, email, jabatan…"
+            />
+          </div>
+          <p className="mb-2 text-[11px] font-medium text-slate-400">
+            {data.filter((k) => [k.nama, k.email, k.jabatan, k.departemen, k.nip].some((v) => (v || '').toLowerCase().includes(cari.trim().toLowerCase()))).length} dari {data.length} karyawan
+          </p>
+          <div className="space-y-3 pb-2">
+            {data
+              .filter((k) => [k.nama, k.email, k.jabatan, k.departemen, k.nip].some((v) => (v || '').toLowerCase().includes(cari.trim().toLowerCase())))
+              .map((k) => (
             <div key={k.id} className="card p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 text-sm font-bold">
-                    {k.nama}
+                  <p className="flex min-w-0 items-center gap-1.5 text-sm font-bold">
+                    <span className="truncate">{k.nama}</span>
                     {k.isAdmin && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:bg-violet-500/15 dark:text-violet-300">ADMIN</span>}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">{k.jabatan || '—'} • {k.departemen || '—'}</p>
@@ -318,8 +384,9 @@ function KelolaKaryawan() {
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
@@ -368,8 +435,8 @@ function KelolaAbsensi() {
     <div className="animate-fade-in">
       <BannerPesan pesan={pesan} />
 
-      <div className="card mb-4 grid grid-cols-3 gap-2">
-        <div><label className="label">Karyawan</label>
+      <div className="card mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="col-span-2 sm:col-span-1"><label className="label">Karyawan</label>
           <select className="input !px-3" value={filter.employeeId} onChange={(e) => setFilter((f) => ({ ...f, employeeId: e.target.value }))}>
             <option value="">Semua</option>
             {karyawan.map((k) => <option key={k.id} value={k.id}>{k.nama}</option>)}
@@ -377,7 +444,7 @@ function KelolaAbsensi() {
         </div>
         <div><label className="label">Dari</label><input type="date" className="input !px-3" value={filter.dari} onChange={(e) => setFilter((f) => ({ ...f, dari: e.target.value }))} /></div>
         <div><label className="label">Sampai</label><input type="date" className="input !px-3" value={filter.sampai} onChange={(e) => setFilter((f) => ({ ...f, sampai: e.target.value }))} /></div>
-        <button onClick={() => muat()} className="btn-primary col-span-3 !py-2.5">Terapkan Filter</button>
+        <button onClick={() => muat()} className="btn-primary col-span-2 !py-2.5 sm:col-span-3">Terapkan Filter</button>
       </div>
 
       {memuat ? (
@@ -390,10 +457,10 @@ function KelolaAbsensi() {
             edit?.id === a.id ? (
               <div key={a.id} className="card space-y-2 p-4 ring-1 ring-indigo-300 dark:ring-indigo-500/40">
                 <p className="text-sm font-bold">{a.nama} — {formatTanggalPendek(a.tanggal)}</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <input type="time" className="input !px-3" value={edit.checkIn || ''} onChange={(e) => setEdit({ ...edit, checkIn: e.target.value })} />
                   <input type="time" className="input !px-3" value={edit.checkOut || ''} onChange={(e) => setEdit({ ...edit, checkOut: e.target.value })} />
-                  <select className="input !px-3" value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>
+                  <select className="input col-span-2 !px-3 sm:col-span-1" value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>
                     {['Hadir', 'Terlambat', 'Izin', 'Alpha'].map((s) => <option key={s}>{s}</option>)}
                   </select>
                 </div>
@@ -662,7 +729,7 @@ function KelolaNotifikasi() {
       {edit && (
         <form onSubmit={simpanEdit} className="card mb-4 space-y-3 ring-2 ring-indigo-300 dark:ring-indigo-500/40">
           <p className="text-sm font-bold">✏️ Edit pengumuman • {edit.total} penerima</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="label">Jenis</label>
               <select className="input" value={edit.jenis} onChange={(e) => setEdit((s) => ({ ...s, jenis: e.target.value }))}>
@@ -698,7 +765,7 @@ function KelolaNotifikasi() {
               {karyawan.map((k) => <option key={k.id} value={k.id}>👤 {k.nama}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div><label className="label">Jenis</label>
               <select className="input" value={form.jenis} onChange={(e) => set('jenis', e.target.value)}>
                 <option value="pengumuman">📢 Pengumuman</option>
@@ -780,5 +847,288 @@ function KelolaNotifikasi() {
 
 
 
+
+
+// Tab Laporan — rekap kehadiran per karyawan pada satu periode, lengkap dengan
+// export Excel (XLSX: sheet Ringkasan + satu sheet per departemen) dan PDF.
+const KOLOM_LAPORAN = ['Nama', 'NIP', 'Jabatan', 'Departemen', 'Hadir', 'Terlambat', 'Hadir Libur', 'Izin', 'Sakit', 'Cuti', 'Alpha', 'Lembur (jam)', 'Hari Kerja', '% Kehadiran']
+
+// Satu baris tabel dari data karyawan (dipakai tabel UI, sheet Excel, dan PDF).
+function barisLaporan(r) {
+  return [r.nama, r.nip, r.jabatan, r.departemen, r.hadir, r.terlambat, r.hadirLibur, r.izin, r.sakit, r.cuti, r.alpha, r.lembur, r.hariKerja, `${r.persen}%`]
+}
+
+const namaBerkasLaporan = (data, ekstensi) => `laporan-kehadiran-${data.dari}_sd_${data.sampai}.${ekstensi}`
+
+// Nama sheet Excel maksimal 31 karakter & tanpa karakter terlarang; nama ganda diberi nomor.
+function namaSheetExcel(departemen, dipakai) {
+  const dasar = (departemen || 'Tanpa Departemen').replace(/[/\\*?:[\]]/g, ' ').trim().slice(0, 28) || 'Departemen'
+  let nama = dasar
+  let n = 2
+  while (dipakai.has(nama.toLowerCase())) nama = `${dasar} (${n++})`
+  dipakai.add(nama.toLowerCase())
+  return nama
+}
+
+function Laporan() {
+  const hariIniISO = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  const [dari, setDari] = useState(`${hariIniISO().slice(0, 7)}-01`) // default: awal bulan berjalan
+  const [sampai, setSampai] = useState(hariIniISO)
+  const [dept, setDept] = useState('') // '' = semua departemen
+  const [daftarDept, setDaftarDept] = useState([])
+  const [data, setData] = useState(null)
+  const [memuat, setMemuat] = useState(true)
+  const [pesan, setPesan] = useState(null)
+  const [ekspor, setEkspor] = useState('') // 'xlsx' | 'pdf' saat proses
+
+  const muat = () => {
+    setMemuat(true)
+    setPesan(null)
+    api.adminLaporan({ dari, sampai, departemen: dept || undefined })
+      .then(setData)
+      .catch((e) => setPesan({ ok: false, teks: e.message }))
+      .finally(() => setMemuat(false))
+  }
+
+  useEffect(() => {
+    api.adminKaryawan()
+      .then((list) => setDaftarDept([...new Set(list.map((k) => k.departemen || '-'))].filter(Boolean).sort()))
+      .catch(() => {})
+    muat()
+  }, [])
+
+  const adaData = !!data?.baris?.length
+  const kehadiranWarna = (p) =>
+    p >= 90 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
+      : p >= 75 ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
+        : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400'
+
+  // ---------- Export Excel (XLSX) ----------
+  const eksporExcel = async () => {
+    if (!adaData) return
+    setEkspor('xlsx')
+    try {
+      // Pustaka xlsx dimuat di sini (bukan saat aplikasi dibuka) agar bundel awal ringan.
+      const { XLSX } = await muatPustakaEkspor()
+      const wb = XLSX.utils.book_new()
+      const lebarKolom = [{ wch: 22 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, ...Array(10).fill({ wch: 12 })]
+
+      // Sheet Ringkasan — semua karyawan + baris TOTAL.
+      const semua = [
+        KOLOM_LAPORAN,
+        ...data.baris.map(barisLaporan),
+        ['TOTAL', '', '', '', data.ringkasan.hadir, data.ringkasan.terlambat, data.ringkasan.hadirLibur, data.ringkasan.izin, data.ringkasan.sakit, data.ringkasan.cuti, data.ringkasan.alpha, data.ringkasan.lembur, data.hariKerja, `${data.ringkasan.persen}%`],
+      ]
+      const wsSemua = XLSX.utils.aoa_to_sheet(semua)
+      wsSemua['!cols'] = lebarKolom
+      XLSX.utils.book_append_sheet(wb, wsSemua, 'Ringkasan')
+
+      // Satu sheet per departemen (plus baris TOTAL departemen).
+      const dipakai = new Set(['ringkasan'])
+      const grup = new Map()
+      for (const r of data.baris) {
+        if (!grup.has(r.departemen)) grup.set(r.departemen, [])
+        grup.get(r.departemen).push(r)
+      }
+      for (const [namaDept, list] of grup) {
+        const target = data.hariKerja * list.length
+        const masuk = list.reduce((t, r) => t + r.hadir + r.terlambat, 0)
+        const jumlah = (k) => list.reduce((t, r) => t + r[k], 0)
+        const sheet = [
+          KOLOM_LAPORAN,
+          ...list.map(barisLaporan),
+          ['TOTAL', '', '', '', jumlah('hadir'), jumlah('terlambat'), jumlah('hadirLibur'), jumlah('izin'), jumlah('sakit'), jumlah('cuti'), jumlah('alpha'), Math.round(jumlah('lembur') * 10) / 10, data.hariKerja, `${target ? Math.min(100, Math.round((masuk / target) * 100)) : 0}%`],
+        ]
+        const ws = XLSX.utils.aoa_to_sheet(sheet)
+        ws['!cols'] = lebarKolom
+        XLSX.utils.book_append_sheet(wb, ws, namaSheetExcel(namaDept, dipakai))
+      }
+
+      XLSX.writeFile(wb, namaBerkasLaporan(data, 'xlsx'))
+      setPesan({ ok: true, teks: `Excel berhasil diunduh (${grup.size + 1} sheet).` })
+    } catch (e) {
+      setPesan({ ok: false, teks: `Gagal membuat Excel: ${e.message}` })
+    } finally {
+      setEkspor('')
+    }
+  }
+
+  // ---------- Export PDF ----------
+  const eksporPdf = async () => {
+    if (!adaData) return
+    setEkspor('pdf')
+    try {
+      // jsPDF + autoTable juga dimuat saat diperlukan saja.
+      const { jsPDF, autoTable } = await muatPustakaEkspor()
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+      doc.setFontSize(14)
+      doc.text('Laporan Kehadiran Karyawan — NUBSEN', 40, 36)
+      doc.setFontSize(9)
+      doc.setTextColor(90)
+      const labelHari = (data.hariKerjaHari || []).map((n) => NAMA_HARI[n]).join('/')
+      doc.text(`Periode: ${formatTanggalPendek(data.dari)} s.d. ${formatTanggalPendek(data.sampai)}   •   Hari kerja: ${data.hariKerja} hari${labelHari ? ` (${labelHari})` : ''}   •   Departemen: ${data.departemen || 'Semua'}`, 40, 52)
+
+      autoTable(doc, {
+        startY: 66,
+        head: [KOLOM_LAPORAN],
+        body: data.baris.map(barisLaporan),
+        styles: { fontSize: 7, cellPadding: 2.5 },
+        headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [244, 245, 251] },
+      })
+
+      // Rekap per departemen (dihitung di server, dikirim sebagai data.rekap).
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 24,
+        head: [['Departemen', 'Karyawan', 'Hadir', 'Terlambat', 'Hadir Libur', 'Izin', 'Sakit', 'Cuti', 'Alpha', 'Lembur (jam)', '% Kehadiran']],
+        body: (data.rekap || []).map((g) => [g.departemen, g.karyawan, g.hadir, g.terlambat, g.hadirLibur, g.izin, g.sakit, g.cuti, g.alpha, g.lembur, `${g.persen}%`]),
+        styles: { fontSize: 7.5, cellPadding: 3 },
+        headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: 'bold' },
+      })
+
+      doc.save(namaBerkasLaporan(data, 'pdf'))
+      setPesan({ ok: true, teks: 'PDF berhasil diunduh.' })
+    } catch (e) {
+      setPesan({ ok: false, teks: `Gagal membuat PDF: ${e.message}` })
+    } finally {
+      setEkspor('')
+    }
+  }
+
+  const clsInput = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800'
+  const kartu = [
+    ['👥', data?.ringkasan?.totalKaryawan, 'Karyawan'],
+    ['📅', data?.hariKerja, 'Hari Kerja'],
+    ['📈', data?.ringkasan?.persen != null ? `${data.ringkasan.persen}%` : null, 'Rata-rata Hadir'],
+    ['✅', data?.ringkasan?.hadir, 'Hadir'],
+    ['⏰', data?.ringkasan?.terlambat, 'Terlambat'],
+    ['🌴', data?.ringkasan?.hadirLibur, 'Hadir Libur'],
+    ['❌', data?.ringkasan?.alpha, 'Alpha'],
+    ['📄', data?.ringkasan?.izin, 'Izin'],
+    ['🏖️', data?.ringkasan?.cuti, 'Cuti'],
+    ['🤒', data?.ringkasan?.sakit, 'Sakit'],
+    ['⏱️', data?.ringkasan?.lembur, 'Jam Lembur'],
+  ]
+
+  return (
+    <div className="animate-fade-in space-y-4">
+      <BannerPesan pesan={pesan} />
+
+      {/* Filter periode & departemen */}
+      <div className="card space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-400">Dari Tanggal</span>
+            <input type="date" value={dari} onChange={(e) => setDari(e.target.value)} className={clsInput} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-400">Sampai Tanggal</span>
+            <input type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} className={clsInput} />
+          </label>
+        </div>
+        <label className="block">
+          <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-400">Departemen</span>
+          <select value={dept} onChange={(e) => setDept(e.target.value)} className={clsInput}>
+            <option value="">Semua Departemen</option>
+            {daftarDept.map((d) => <option key={d} value={d === '-' ? '' : d}>{d}</option>)}
+          </select>
+        </label>
+        <button onClick={muat} disabled={memuat} className="btn-primary w-full disabled:opacity-40">
+          {memuat ? <Loader2 size={16} className="animate-spin" /> : <Filter size={16} />} Tampilkan Laporan
+        </button>
+      </div>
+
+      {/* Ringkasan angka */}
+      {adaData && (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+          {kartu.map(([emoji, angka, label]) => (
+            <div key={label} className="card p-2.5 text-center">
+              <p className="text-base leading-none">{emoji}</p>
+              <p className="mt-1 text-sm font-extrabold leading-none">{angka ?? '—'}</p>
+              <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tombol export */}
+      {adaData && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button onClick={eksporExcel} disabled={!!ekspor} className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 transition active:scale-95 disabled:opacity-40">
+            {ekspor === 'xlsx' ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />} Excel (XLSX)
+          </button>
+          <button onClick={eksporPdf} disabled={!!ekspor} className="flex items-center justify-center gap-2 rounded-2xl bg-rose-600 py-3 text-sm font-bold text-white shadow-lg shadow-rose-500/25 transition active:scale-95 disabled:opacity-40">
+            {ekspor === 'pdf' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} PDF
+          </button>
+        </div>
+      )}
+
+      {/* Tabel rekap per karyawan */}
+      {memuat && !adaData ? (
+        <p className="card flex items-center justify-center gap-2 py-8 text-sm text-slate-400"><Loader2 size={16} className="animate-spin" /> Memuat laporan…</p>
+      ) : !adaData ? (
+        <p className="card py-8 text-center text-xs text-slate-400">
+          Belum ada data pada filter ini — ubah periode/departemen lalu tekan Tampilkan Laporan.
+        </p>
+      ) : (
+        <div className="card tabel-geser p-0">
+          <table className="w-full min-w-[720px] whitespace-nowrap text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:border-slate-800">
+                <th className="px-3 py-2.5">Karyawan</th>
+                <th className="px-2 py-2.5">Departemen</th>
+                <th className="px-2 py-2.5 text-center">Hadir</th>
+                <th className="px-2 py-2.5 text-center">Telat</th>
+                <th className="px-2 py-2.5 text-center">Libur</th>
+                <th className="px-2 py-2.5 text-center">Izin</th>
+                <th className="px-2 py-2.5 text-center">Sakit</th>
+                <th className="px-2 py-2.5 text-center">Cuti</th>
+                <th className="px-2 py-2.5 text-center">Alpha</th>
+                <th className="px-2 py-2.5 text-center">Lembur</th>
+                <th className="px-3 py-2.5 text-center">Kehadiran</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.baris.map((r) => (
+                <tr key={r.id} className="border-b border-slate-50 last:border-0 dark:border-slate-800/60">
+                  <td className="px-3 py-2.5">
+                    <p className="font-bold text-slate-700 dark:text-slate-200">{r.nama}</p>
+                    <p className="text-[10px] text-slate-400">{r.nip} • {r.jabatan}</p>
+                  </td>
+                  <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400">{r.departemen}</td>
+                  <td className="px-2 py-2.5 text-center font-bold text-emerald-600 dark:text-emerald-400">{r.hadir}</td>
+                  <td className="px-2 py-2.5 text-center font-bold text-amber-600 dark:text-amber-400">{r.terlambat}</td>
+                  <td className="px-2 py-2.5 text-center text-teal-600 dark:text-teal-400">{r.hadirLibur}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-500 dark:text-slate-400">{r.izin}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-500 dark:text-slate-400">{r.sakit}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-500 dark:text-slate-400">{r.cuti}</td>
+                  <td className="px-2 py-2.5 text-center font-bold text-rose-600 dark:text-rose-400">{r.alpha}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-500 dark:text-slate-400">{r.lembur}j</td>
+                  <td className="px-3 py-2.5 text-center">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${kehadiranWarna(r.persen)}`}>{r.persen}%</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {adaData && (
+        <p className="text-center text-[10px] font-semibold text-slate-400 sm:hidden">← Geser tabel ke samping untuk melihat kolom lain →</p>
+      )}
+
+      <p className="rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
+        📊 <b>Cara hitung:</b> Hari kerja mengikuti pengaturan <b>Hari Kerja</b> di tab Jadwal (contoh Senin–Jumat) pada rentang terpilih.
+        <b> % Kehadiran</b> = (Hadir + Terlambat) ÷ Hari Kerja. Absensi di luar hari kerja tercatat pada kolom <b>Hadir Libur</b> dan
+        tidak menambah persentase. Izin/Sakit/Cuti dihitung dari pengajuan yang tidak ditolak (hari tumpang-tindih periode); lembur dari pengajuan yang
+        <b> Disetujui</b>. Alpha = hari kerja − masuk − izin. Excel berisi sheet <b>Ringkasan</b> + satu sheet per departemen.
+      </p>
+    </div>
+  )
+}
 
 

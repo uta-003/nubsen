@@ -116,7 +116,7 @@ export default function SelfieModal({ open, mode = 'in', onClose, onCapture, lok
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 animate-fade-in sm:items-center">
-      <div className="w-full max-w-md animate-slide-up rounded-t-[2rem] bg-white p-5 shadow-2xl dark:bg-slate-900 sm:rounded-[2rem]">
+      <div className="max-h-[92vh] w-full max-w-md animate-slide-up overflow-y-auto rounded-t-[2rem] bg-white p-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] shadow-2xl dark:bg-slate-900 sm:rounded-[2rem] sm:pb-5">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">

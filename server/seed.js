@@ -1,4 +1,4 @@
-import { db, hashPin } from './db.js'
+import { db, hashPin, hariKerjaAktif } from './db.js'
 import { toISODate } from './utils/waktu.js'
 
 // Seed data demo — aman dijalankan berulang (INSERT hanya bila belum ada).
@@ -64,14 +64,16 @@ async function seedRiwayat() {
   const jumlah = (await db.get('SELECT COUNT(*) AS n FROM attendance'))?.n ?? 0
   if (jumlah > 0) return
 
-  // Riwayat contoh 14 hari ke belakang (skip hari Minggu).
+  // Riwayat contoh 14 hari ke belakang — hanya pada HARI KERJA sesuai pengaturan
+  // jadwal (default Senin–Jumat), supaya data demo konsisten dengan laporan.
+  const hariAktif = new Set(await hariKerjaAktif())
   const contoh = ['Hadir', 'Hadir', 'Terlambat', 'Hadir', 'Izin', 'Hadir', 'Alpha', 'Hadir', 'Hadir', 'Terlambat']
   const hariIni = new Date()
   let idx = 0
   for (let i = 1; i <= 14; i++) {
     const d = new Date(hariIni)
     d.setDate(d.getDate() - i)
-    if (d.getDay() === 0) continue
+    if (!hariAktif.has(d.getDay())) continue
     const status = contoh[(i * 3) % contoh.length]
     const checkIn = status === 'Hadir' ? `07:5${(i * 7) % 9}` : status === 'Terlambat' ? `09:0${i % 9}` : '-'
     const checkOut = status === 'Hadir' || status === 'Terlambat' ? `17:0${(i * 5) % 9}` : '-'

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Bell, Info, CalendarPlus, Clock4, CalendarCheck2, CheckCheck, Loader2, Megaphone, AlertTriangle,
+  Bell, Info, CalendarPlus, Clock4, CalendarCheck2, CheckCheck, Loader2, Megaphone, AlertTriangle, CalendarClock,
 } from 'lucide-react'
 import { getNotifikasi, tandaiNotifikasiDibaca } from '../api'
 
@@ -8,8 +8,9 @@ const JENIS = {
   pengumuman: { Icon: Megaphone, warna: 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400', label: 'Pengumuman' },
   penting: { Icon: AlertTriangle, warna: 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400', label: 'Penting' },
   info: { Icon: Info, warna: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300', label: 'Info' },
-  lembur: { Icon: Clock4, warna: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400' },
-  izin: { Icon: CalendarPlus, warna: 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400' },
+  jadwal: { Icon: CalendarClock, warna: 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400', label: 'Jadwal' },
+  lembur: { Icon: Clock4, warna: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400', label: 'Lembur' },
+  izin: { Icon: CalendarPlus, warna: 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400', label: 'Izin / Cuti' },
   absensi: { Icon: CalendarCheck2, warna: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400' },
 }
 
@@ -87,7 +88,15 @@ export default function Notifikasi() {
       {memuat ? (
         <p className="text-xs text-slate-400">Memuat…</p>
       ) : items.length === 0 ? (
-        <p className="card py-10 text-center text-xs text-slate-400">Belum ada notifikasi.</p>
+        <div className="card flex flex-col items-center gap-2 py-10 text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-3xl bg-indigo-50 text-indigo-400 dark:bg-indigo-500/10">
+            <Bell size={26} />
+          </span>
+          <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Belum ada notifikasi</p>
+          <p className="max-w-[16rem] text-xs leading-relaxed text-slate-400">
+            Pengumuman dari admin serta update izin &amp; lembur Anda akan muncul di sini.
+          </p>
+        </div>
       ) : (
         <div className="space-y-3 pb-2">
           {items.map((n) => {

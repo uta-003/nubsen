@@ -20,8 +20,8 @@ export default function Toast({ toast, onClose }) {
   }
   const { bg, Icon } = GAYA[toast.type] || GAYA.success
   return (
-    <div className="fixed inset-x-0 top-4 z-50 mx-auto max-w-md px-4">
-      <div className={`flex items-center gap-2.5 rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-xl animate-slide-up ${bg}`}>
+    <div className="pointer-events-none fixed inset-x-0 top-[max(env(safe-area-inset-top),1rem)] z-50 mx-auto max-w-md px-4">
+      <div className={`pointer-events-auto flex items-center gap-2.5 rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-xl animate-slide-up ${bg}`}>
         <Icon size={18} />
         <span className="flex-1">{toast.pesan}</span>
         <button onClick={onClose} aria-label="Tutup notifikasi">

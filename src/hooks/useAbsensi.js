@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
+import { tambahAntrean, adalahGalatJaringan } from '../utils/luring'
 
 // Hanya untuk tampilan UI & fallback; validasi status authoritative di server.
 export const JAM_MASUK_BATAS = '08:15'
-export const JADWAL_DEFAULT = { jamMasukBatas: '08:15', jamPulang: '17:00' }
+// Batas jam masuk & jam pulang (fallback tampilan) + hari kerja 0 = Minggu … 6 = Sabtu.
+// Sumber kebenaran tetap GET /api/jadwal (dapat diubah admin pada tab Jadwal).
+export const JADWAL_DEFAULT = { jamMasukBatas: '08:15', jamPulang: '17:00', hariKerja: [1, 2, 3, 4, 5] }
 
 // Fallback profil saat server tidak terjangkau (tampilan tetap informatif).
 export const USER_DEFAULT = {
@@ -55,30 +58,68 @@ export function useAbsensi(enabled = true) {
     }
   }, [])
 
+  // Mutasi absen: bila server tak terjangkau → masuk ANTRIAN LURING (lihat
+  // utils/luring.js) dan terapkan optimistik di UI, lalu tersinkron otomatis
+  // saat kembali online. Mengembalikan { luring: true } sebagai penanda.
   const catatCheckIn = useCallback(
     async ({ jam, lokasi, selfie }) => {
-      const rec = await api.checkIn({ jam, lokasi, selfie })
-      setState((s) => ({ ...s, today: rec }))
-      segarkan()
-      return rec
+      try {
+        const rec = await api.checkIn({ jam, lokasi, selfie })
+        setState((s) => ({ ...s, today: rec }))
+        segarkan()
+        return rec
+      } catch (e) {
+        if (adalahGalatJaringan(e)) {
+          tambahAntrean('checkin', { jam, lokasi, selfie })
+          setState((s) => ({
+            ...s,
+            today: { ...(s.today || { tanggal: '' }), checkIn: jam, status: 'Hadir', keterangan: '⏳ Menunggu sinkron (luring)', luring: true },
+          }))
+          return { luring: true }
+        }
+        throw e
+      }
     },
     [segarkan],
   )
 
   const catatCheckOut = useCallback(
     async ({ jam, lokasi, selfie }) => {
-      const rec = await api.checkOut({ jam, lokasi, selfie })
-      setState((s) => ({ ...s, today: rec }))
-      segarkan()
-      return rec
+      try {
+        const rec = await api.checkOut({ jam, lokasi, selfie })
+        setState((s) => ({ ...s, today: rec }))
+        segarkan()
+        return rec
+      } catch (e) {
+        if (adalahGalatJaringan(e)) {
+          tambahAntrean('checkout', { jam, lokasi, selfie })
+          setState((s) => ({
+            ...s,
+            today: { ...(s.today || { tanggal: '' }), checkOut: jam, keterangan: '⏳ Menunggu sinkron (luring)', luring: true },
+          }))
+          return { luring: true }
+        }
+        throw e
+      }
     },
     [segarkan],
   )
 
   const ajukanIzin = useCallback(
     async (form) => {
-      await api.createLeave(form)
-      await segarkan()
+      try {
+        await api.createLeave(form)
+        await segarkan()
+        return { luring: false }
+      } catch (e) {
+        // Berkas lampiran aman mengantre: File disimpan di IndexedDB (bukan
+        // localStorage) dan disambung kembali saat sinkron (lihat luring.js).
+        if (adalahGalatJaringan(e)) {
+          await tambahAntrean('izin', form)
+          return { luring: true }
+        }
+        throw e
+      }
     },
     [segarkan],
   )

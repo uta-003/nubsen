@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { db, KANTOR, hashPin, getJadwal } from './db.js'
+import { db, KANTOR, hashPin, getJadwal, hariKerjaAktif, HARI_KERJA_DEFAULT } from './db.js'
 import { toISODate, jamSekarang } from './utils/waktu.js'
 
 // Jarak antar dua koordinat (meter) — formula Haversine.
@@ -22,11 +22,19 @@ export function toClient(row) {
     checkOut: row.check_out || null,
     status: row.status,
     keterangan: row.keterangan || '',
+    // Data absen MASUK (lokasi + geofence saat check-in)
     lokasi: row.lat == null ? null : { lat: row.lat, lon: row.lon, alamat: row.alamat || null },
     selfie: row.selfie || null,
-    lampiran: row.lampiran || null,
     diLuarArea: row.di_luar_area == null ? null : !!row.di_luar_area,
     jarak: row.jarak ?? null,
+    // Data absen PULANG (lokasi + geofence saat check-out) — terpisah dari masuk
+    lokasiPulang: row.lat_out == null ? null : { lat: row.lat_out, lon: row.lon_out, alamat: row.alamat_out || null },
+    selfiePulang: row.selfie_out || null,
+    diLuarAreaPulang: row.di_luar_area_out == null ? null : !!row.di_luar_area_out,
+    jarakPulang: row.jarak_out ?? null,
+    lampiran: row.lampiran || null,
+    // true bila absensi jatuh di luar hari kerja (mis. Sabtu/Minggu).
+    hariLibur: !!row.hari_libur,
   }
 }
 
@@ -35,6 +43,8 @@ export function leaveToClient(row) {
   return {
     id: row.id, jenis: row.jenis, mulai: row.mulai, selesai: row.selesai,
     keterangan: row.keterangan || '', lampiran: row.lampiran || null, status: row.status,
+    // Waktu pengajuan dibuat — ditampilkan pada Riwayat Pengajuan Izin/Cuti.
+    dibuat: row.created_at || null,
   }
 }
 
@@ -72,6 +82,17 @@ export async function login(email, pin) {
 
 export async function logout(token) {
   await db.run('DELETE FROM sessions WHERE token = ?', [token])
+}
+
+// Ganti PIN oleh karyawan sendiri: verifikasi PIN lama → simpan hash PIN baru.
+// Return { ok, alasan? } agar route bisa menerjemahkannya menjadi HTTP 400.
+export async function ubahPin(employeeId, pinLama, pinBaru) {
+  const e = await db.get('SELECT id, pin_hash FROM employees WHERE id = ?', [employeeId])
+  if (!e || !e.pin_hash || e.pin_hash !== hashPin(String(pinLama))) return { ok: false, alasan: 'PIN lama salah.' }
+  if (!/^\d{6}$/.test(String(pinBaru))) return { ok: false, alasan: 'PIN baru harus tepat 6 angka.' }
+  if (String(pinBaru) === String(pinLama)) return { ok: false, alasan: 'PIN baru harus berbeda dari PIN lama.' }
+  await db.run('UPDATE employees SET pin_hash = ? WHERE id = ?', [hashPin(String(pinBaru)), employeeId])
+  return { ok: true }
 }
 
 export async function employeeByToken(token) {
@@ -306,6 +327,173 @@ export async function setStatusLembur(id, status) {
 export async function hapusLembur(id) {
   await db.run('DELETE FROM overtime WHERE id = ?', [id])
 }
+// ---------- Panel Admin: laporan kehadiran (export Excel/PDF) ----------
+// Hari kerja = hari yang aktif pada pengaturan jadwal (default Senin–Jumat) dalam
+// rentang [dari..sampai] inklusif. Hari libur nasional tidak dikurangkan otomatis —
+// admin cukup menyesuaikan periode laporan.
+function hitungHariKerja(dari, sampai, hariAktif = HARI_KERJA_DEFAULT) {
+  const mulai = new Date(`${dari}T00:00:00Z`)
+  const akhir = new Date(`${sampai}T00:00:00Z`)
+  if (Number.isNaN(mulai.getTime()) || Number.isNaN(akhir.getTime()) || mulai > akhir) return 0
+  const aktif = new Set(hariAktif)
+  let n = 0
+  for (let d = new Date(mulai); d <= akhir; d.setUTCDate(d.getUTCDate() + 1)) {
+    if (aktif.has(d.getUTCDay())) n += 1
+  }
+  return n
+}
+
+// Jumlah hari tumpang-tindih rentang [a..b] dengan [mulai..selesai] (string ISO).
+function hariTumpangTindih(a, b, mulai, selesai) {
+  const dariS = a > mulai ? a : mulai
+  const sampaiS = b < selesai ? b : selesai
+  const ms = new Date(`${sampaiS}T00:00:00Z`) - new Date(`${dariS}T00:00:00Z`)
+  return ms < 0 ? 0 : Math.round(ms / 86400000) + 1
+}
+
+// Selisih dua jam 'HH:MM' dalam jam desimal (lembur lintas tengah malam tetap dihitung).
+function selisihJam(mulai, selesai) {
+  const keMenit = (s) => {
+    const [j, m] = String(s || '').split(':').map(Number)
+    return (j || 0) * 60 + (m || 0)
+  }
+  let menit = keMenit(selesai) - keMenit(mulai)
+  if (menit < 0) menit += 24 * 60
+  return menit / 60
+}
+
+// Laporan rekap kehadiran per karyawan untuk satu periode. Sumber data:
+// attendance (Hadir/Terlambat), leaves (Izin/Sakit/Cuti, bukan Ditolak, dipotong
+// tepi rentang), overtime Disetujui (total jam). Alpha = hari kerja − masuk − izin.
+export async function laporanKehadiran({ dari, sampai, departemen } = {}) {
+  const hariIni = toISODate()
+  const mulai = dari || `${hariIni.slice(0, 7)}-01` // default: awal bulan berjalan
+  const selesai = sampai || hariIni
+  // Hari kerja mengikuti pengaturan jadwal admin (mis. Senin–Jumat atau Senin–Sabtu).
+  const hariAktif = await hariKerjaAktif()
+  const hariKerja = hitungHariKerja(mulai, selesai, hariAktif)
+
+  let sqlKaryawan = 'SELECT id, nama, nip, jabatan, departemen FROM employees'
+  const params = []
+  if (departemen) {
+    sqlKaryawan += " WHERE LOWER(COALESCE(departemen, '')) = LOWER(?)"
+    params.push(departemen)
+  }
+  sqlKaryawan += " ORDER BY COALESCE(departemen, ''), nama"
+  const karyawan = await db.all(sqlKaryawan, params)
+
+  const baris = []
+  for (const e of karyawan) {
+    const [att, leaves, lembur] = await Promise.all([
+      db.get(
+        `SELECT
+           COALESCE(SUM(CASE WHEN status = 'Hadir' AND COALESCE(hari_libur, 0) = 0 THEN 1 ELSE 0 END), 0) AS hadir,
+           COALESCE(SUM(CASE WHEN status = 'Terlambat' AND COALESCE(hari_libur, 0) = 0 THEN 1 ELSE 0 END), 0) AS terlambat,
+           COALESCE(SUM(CASE WHEN status IN ('Hadir','Terlambat') AND COALESCE(hari_libur, 0) = 1 THEN 1 ELSE 0 END), 0) AS hadirLibur,
+           COALESCE(SUM(CASE WHEN status = 'Izin' THEN 1 ELSE 0 END), 0) AS izin
+         FROM attendance WHERE employee_id = ? AND tanggal >= ? AND tanggal <= ?`,
+        [e.id, mulai, selesai],
+      ),
+      db.all(
+        `SELECT jenis, mulai, selesai FROM leaves
+         WHERE employee_id = ? AND status <> 'Ditolak' AND mulai <= ? AND selesai >= ?`,
+        [e.id, selesai, mulai],
+      ),
+      db.all(
+        `SELECT jam_mulai, jam_selesai FROM overtime
+         WHERE employee_id = ? AND status = 'Disetujui' AND tanggal >= ? AND tanggal <= ?`,
+        [e.id, mulai, selesai],
+      ),
+    ])
+
+    let izin = att?.izin || 0 // hari berstatus izin yang tercatat langsung di absensi
+    let sakit = 0
+    let cuti = 0
+    for (const l of leaves) {
+      const hari = hariTumpangTindih(l.mulai, l.selesai, mulai, selesai)
+      const jenis = (l.jenis || '').toLowerCase()
+      if (jenis.startsWith('cuti')) cuti += hari
+      else if (jenis.startsWith('sakit')) sakit += hari
+      else izin += hari
+    }
+    const lemburJam = lembur.reduce((t, o) => t + selisihJam(o.jam_mulai, o.jam_selesai), 0)
+
+    const hadir = att?.hadir || 0
+    const terlambat = att?.terlambat || 0
+    // Absensi di luar hari kerja (mis. masuk hari Sabtu) dipisahkan agar tidak
+    // menggelembungkan % kehadiran.
+    const hadirLibur = att?.hadirLibur || 0
+    const masuk = hadir + terlambat
+    const alpha = Math.max(0, hariKerja - masuk - izin - sakit - cuti)
+    const persen = hariKerja ? Math.min(100, Math.round((masuk / hariKerja) * 100)) : 0
+    baris.push({
+      id: e.id,
+      nama: e.nama,
+      nip: e.nip || '-',
+      jabatan: e.jabatan || '-',
+      departemen: e.departemen || '-',
+      hadir,
+      terlambat,
+      hadirLibur,
+      izin,
+      sakit,
+      cuti,
+      alpha,
+      lembur: Math.round(lemburJam * 10) / 10,
+      lemburKali: lembur.length,
+      hariKerja,
+      persen,
+    })
+  }
+
+  const total = (k) => baris.reduce((t, r) => t + r[k], 0)
+  const targetHari = hariKerja * (baris.length || 1)
+  return {
+    dari: mulai,
+    sampai: selesai,
+    departemen: departemen || null,
+    hariKerja,
+    hariKerjaHari: hariAktif, // angka 0–6 (0 = Minggu) untuk label "Sen, Sel, …" di UI
+    baris,
+    ringkasan: {
+      totalKaryawan: baris.length,
+      hadir: total('hadir'),
+      terlambat: total('terlambat'),
+      hadirLibur: total('hadirLibur'),
+      izin: total('izin'),
+      sakit: total('sakit'),
+      cuti: total('cuti'),
+      alpha: total('alpha'),
+      lembur: Math.round(total('lembur') * 10) / 10,
+      persen: targetHari ? Math.min(100, Math.round((total('hadir') + total('terlambat')) / targetHari * 100)) : 0,
+    },
+    rekap: rekapDepartemen(baris),
+  }
+}
+
+// Rekap per departemen untuk tabel kedua di PDF/sheet Ringkasan.
+export function rekapDepartemen(baris = []) {
+  const grup = new Map()
+  for (const r of baris) {
+    const k = r.departemen || '-'
+    if (!grup.has(k)) grup.set(k, { departemen: k, karyawan: 0, hadir: 0, terlambat: 0, hadirLibur: 0, izin: 0, sakit: 0, cuti: 0, alpha: 0, lembur: 0, target: 0, masuk: 0 })
+    const g = grup.get(k)
+    g.karyawan += 1
+    g.hadir += r.hadir
+    g.terlambat += r.terlambat
+    g.hadirLibur += r.hadirLibur
+    g.izin += r.izin
+    g.sakit += r.sakit
+    g.cuti += r.cuti
+    g.alpha += r.alpha
+    g.lembur += r.lembur
+    g.target += r.hariKerja
+    g.masuk += r.hadir + r.terlambat
+  }
+  return [...grup.values()]
+    .map((g) => ({ ...g, lembur: Math.round(g.lembur * 10) / 10, persen: g.target ? Math.min(100, Math.round((g.masuk / g.target) * 100)) : 0 }))
+    .sort((a, b) => a.departemen.localeCompare(b.departemen))
+}
 
 // ---------- Panel Admin: notifikasi & pengumuman ----------
 // Pengumuman dikelompokkan (1 kartu per grup) lengkap dengan hitungan
@@ -390,7 +578,13 @@ export async function catatCheckIn({ employeeId = 1, lokasi = {}, selfieUrl = nu
   const jam = jamSekarang()
   const { jamMasukBatas } = await getJadwal() // jadwal aktif dari settings (admin bisa ubah)
   const status = jam > jamMasukBatas ? 'Terlambat' : 'Hadir'
-  const keterangan = status === 'Terlambat' ? `Check-in melewati batas ${jamMasukBatas}` : ''
+  // Absensi di luar hari kerja ditandai agar laporan tidak menghitungnya sebagai
+  // hari kerja (mis. masuk hari Sabtu pada perusahaan Senin–Jumat).
+  const aktif = await hariKerjaAktif()
+  const hariLibur = aktif.includes(new Date(`${tanggal}T00:00:00Z`).getUTCDay()) ? 0 : 1
+  const keterangan = hariLibur
+    ? 'Absensi di luar hari kerja'
+    : status === 'Terlambat' ? `Check-in melewati batas ${jamMasukBatas}` : ''
 
   // Geofence: hitung jarak ke kantor pusat (authoritative di server).
   let diLuar = null
@@ -401,15 +595,15 @@ export async function catatCheckIn({ employeeId = 1, lokasi = {}, selfieUrl = nu
   }
 
   await db.run(
-    `INSERT INTO attendance (employee_id, tanggal, check_in, status, keterangan, lat, lon, alamat, selfie, di_luar_area, jarak)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO attendance (employee_id, tanggal, check_in, status, keterangan, lat, lon, alamat, selfie, di_luar_area, jarak, hari_libur)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (employee_id, tanggal) DO UPDATE SET
        check_in = excluded.check_in, status = excluded.status, keterangan = excluded.keterangan,
        lat = excluded.lat, lon = excluded.lon, alamat = excluded.alamat, selfie = excluded.selfie,
-       di_luar_area = excluded.di_luar_area, jarak = excluded.jarak`,
+       di_luar_area = excluded.di_luar_area, jarak = excluded.jarak, hari_libur = excluded.hari_libur`,
     [
       employeeId, tanggal, jam, status, keterangan,
-      lokasi.lat ?? null, lokasi.lon ?? null, lokasi.alamat ?? null, selfieUrl, diLuar, jarak,
+      lokasi.lat ?? null, lokasi.lon ?? null, lokasi.alamat ?? null, selfieUrl, diLuar, jarak, hariLibur,
     ],
   )
   return getToday(employeeId)
@@ -419,13 +613,22 @@ export async function catatCheckOut({ employeeId = 1, lokasi = {}, selfieUrl = n
   const existing = await getToday(employeeId)
   if (!existing?.check_in) return { error: 'Belum check-in hari ini.' }
   if (existing.check_out) return { error: 'Sudah check-out hari ini.' }
+  // Geofence untuk absen pulang dihitung terpisah — data masuk TIDAK disentuh,
+  // sehingga jam masuk + detail + foto masuk tetap tersimpan utuh di riwayat.
+  let diLuar = null
+  let jarak = null
+  if (lokasi.lat != null && lokasi.lon != null) {
+    jarak = Math.round(haversineM(lokasi.lat, lokasi.lon, KANTOR.lat, KANTOR.lon))
+    diLuar = jarak > KANTOR.radiusM ? 1 : 0
+  }
   await db.run(
-    `UPDATE attendance SET check_out = ?, lat = ?, lon = ?,
-       alamat = COALESCE(?, alamat), selfie = COALESCE(?, selfie)
+    `UPDATE attendance SET check_out = ?, lat_out = ?, lon_out = ?,
+       alamat_out = COALESCE(?, alamat_out), selfie_out = COALESCE(?, selfie_out),
+       di_luar_area_out = ?, jarak_out = ?
      WHERE employee_id = ? AND tanggal = ?`,
     [
       jamSekarang(), lokasi.lat ?? null, lokasi.lon ?? null,
-      lokasi.alamat ?? null, selfieUrl, employeeId, existing.tanggal,
+      lokasi.alamat ?? null, selfieUrl, diLuar, jarak, employeeId, existing.tanggal,
     ],
   )
   return getToday(employeeId)
@@ -437,16 +640,22 @@ export async function listHistory({ dari, sampai, status } = {}, employeeId = 1)
   const params = [employeeId]
   if (dari) { sql += ' AND tanggal >= ?'; params.push(dari) }
   if (sampai) { sql += ' AND tanggal <= ?'; params.push(sampai) }
-  const absensi = (await db.all(sql, params)).map(toClient)
+  const absensi = (await db.all(sql, params)).map((r) => ({ ...toClient(r), sumber: 'absensi' }))
 
   let sqlL = 'SELECT * FROM leaves WHERE employee_id = ?'
   const paramsL = [employeeId]
   if (dari) { sqlL += ' AND mulai >= ?'; paramsL.push(dari) }
   if (sampai) { sqlL += ' AND mulai <= ?'; paramsL.push(sampai) }
+  // `sumber: 'izin'` menandai baris TURUNAN dari pengajuan izin (bukan catatan
+  // absensi). Dipakai Dashboard untuk statistik, namun disaring keluar oleh
+  // halaman Riwayat (bottom-nav) yang khusus menampilkan riwayat absensi saja —
+  // riwayat pengajuan izin kini ada di halaman Izin/Cuti.
   const izin = (await db.all(sqlL, paramsL)).map((l) => ({
     tanggal: l.mulai, checkIn: '-', checkOut: '-', status: 'Izin',
     keterangan: `${l.jenis}: ${l.keterangan || ''} (pengajuan ${l.status})`,
     lokasi: null, selfie: null, lampiran: l.lampiran || null,
+    lokasiPulang: null, selfiePulang: null, diLuarAreaPulang: null, jarakPulang: null,
+    sumber: 'izin',
   }))
 
   let merged = [...absensi, ...izin]
@@ -463,6 +672,15 @@ export async function createLeave({ employeeId = 1, jenis, mulai, selesai, keter
   )
   // Simpan id pengajuan SEBELUM ada operasi lain (id harus pasti).
   const id = info.lastInsertRowid
+
+  // Konfirmasi ke kotak masuk karyawan (sejajar dengan pengajuan lembur) supaya
+  // jejak pengajuan selalu terlihat walau halaman ditutup.
+  await kirimNotifikasi({
+    employeeId,
+    judul: '📝 Pengajuan izin/cuti terkirim',
+    pesan: `${jenis} ${mulai} s.d. ${selesai} sedang menunggu persetujuan admin.`,
+    jenis: 'izin',
+  })
 
   // Jika rentang izin mencakup hari ini → status kehadiran hari ini menjadi "Izin".
   const hariIni = toISODate()

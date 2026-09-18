@@ -1,12 +1,26 @@
 import { useMemo, useState } from 'react'
-import { History as HistoryIcon, Filter, MapPin, Paperclip, Info, Download, ChevronRight } from 'lucide-react'
+import { History as HistoryIcon, Filter, MapPin, Paperclip, Info, Download, ChevronRight, PartyPopper } from 'lucide-react'
 import { formatTanggalLengkap } from '../utils/date'
+import { detailLibur } from '../utils/liburIndonesia'
 import { assetUrl } from '../api'
 import StatusBadge from './StatusBadge'
 import RiwayatDetail from './RiwayatDetail'
 import KalenderBulan from './KalenderBulan'
 
 const STATUS_LIST = ['Semua', 'Hadir', 'Terlambat', 'Izin', 'Alpha']
+// Warna angka rekap & aksen kiri kartu per status — hierarki visual instan.
+const WARNA_REKAP = {
+  Hadir: 'text-emerald-600 dark:text-emerald-400',
+  Terlambat: 'text-amber-600 dark:text-amber-400',
+  Izin: 'text-sky-600 dark:text-sky-400',
+  Alpha: 'text-rose-600 dark:text-rose-400',
+}
+const AKSEN_REKAP = {
+  Hadir: 'bg-emerald-500',
+  Terlambat: 'bg-amber-500',
+  Izin: 'bg-sky-500',
+  Alpha: 'bg-rose-500',
+}
 
 export default function Riwayat({ history }) {
   const [status, setStatus] = useState('Semua')
@@ -15,14 +29,19 @@ export default function Riwayat({ history }) {
   const [detail, setDetail] = useState(null)
   const [tab, setTab] = useState('daftar') // 'daftar' | 'kalender'
 
+  // Baris turunan pengajuan izin (sumber 'izin') dikeluarkan dari seluruh
+  // riwayat bottom-nav — tab ini KHUSUS riwayat absensi. Riwayat pengajuan
+  // izin/cuti (semua jenis & status) ada di halaman Pengajuan → Izin/Cuti.
+  const absensi = useMemo(() => history.filter((h) => h.sumber !== 'izin'), [history])
+
   const data = useMemo(
     () =>
-      history
+      absensi
         .filter((h) => (status === 'Semua' ? true : h.status === status))
         .filter((h) => (dari ? h.tanggal >= dari : true))
         .filter((h) => (sampai ? h.tanggal <= sampai : true))
         .sort((a, b) => b.tanggal.localeCompare(a.tanggal)),
-    [history, status, dari, sampai],
+    [absensi, status, dari, sampai],
   )
 
   // Unduh data sesuai filter aktif sebagai CSV (pemisah ';' ramah Excel id-ID).
@@ -49,10 +68,10 @@ export default function Riwayat({ history }) {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-4 flex items-end justify-between">
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight">Riwayat Absensi</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{data.length} catatan ditemukan</p>
+      <div className="mb-4 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-extrabold tracking-tight">Riwayat Absensi</h1>
+          <p className="truncate text-sm text-slate-500 dark:text-slate-400">{data.length} catatan ditemukan</p>
         </div>
         <button
           onClick={exportCSV}
@@ -62,12 +81,18 @@ export default function Riwayat({ history }) {
         </button>
       </div>
 
-      {/* Rekap cepat sesuai filter aktif */}
-      <div className="mb-4 grid grid-cols-4 gap-2 text-center">
-        {['Hadir', 'Terlambat', 'Izin', 'Alpha'].map((s) => (
-          <div key={s} className="rounded-2xl bg-white p-2.5 shadow-soft dark:bg-slate-900">
-            <p className="text-lg font-extrabold">{data.filter((h) => h.status === s).length}</p>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{s}</p>
+      {/* Rekap cepat sesuai filter aktif — angka berwarna + entri beranimasi */}
+      <div className="mb-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+        {['Hadir', 'Terlambat', 'Izin', 'Alpha'].map((s, i) => (
+          <div
+            key={s}
+            className="animate-rise min-w-0 rounded-2xl bg-white p-2.5 shadow-soft dark:bg-slate-900"
+            style={{ animationDelay: `${i * 50}ms` }}
+          >
+            <p className={`text-lg font-extrabold leading-none ${WARNA_REKAP[s]}`}>{data.filter((h) => h.status === s).length}</p>
+            <p className="mt-1 flex items-center justify-center gap-1 truncate text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              <i className={`h-1.5 w-1.5 rounded-full ${AKSEN_REKAP[s]}`} /> {s}
+            </p>
           </div>
         ))}
       </div>
@@ -99,7 +124,9 @@ export default function Riwayat({ history }) {
         <div className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
           <Filter size={15} className="text-indigo-500" /> Filter
         </div>
-        <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
+        {/* Filter status: dibiarkan membungkus (wrap) agar semua pilihan tetap
+            terlihat di layar ponsel sempit — tidak ada chip yang terpotong. */}
+        <div className="flex flex-wrap gap-2">
           {STATUS_LIST.map((s) => (
             <button
               key={s}
@@ -128,22 +155,31 @@ export default function Riwayat({ history }) {
 
       {/* Daftar riwayat */}
       {data.length === 0 ? (
-        <div className="card flex flex-col items-center gap-2 py-10 text-center">
-          <HistoryIcon size={36} className="text-slate-300 dark:text-slate-600" />
+        <div className="card animate-rise flex flex-col items-center gap-2 py-10 text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-3xl bg-slate-100 text-slate-300 dark:bg-slate-800 dark:text-slate-600">
+            <HistoryIcon size={26} />
+          </span>
           <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Tidak ada catatan</p>
           <p className="text-xs text-slate-400">Coba ubah filter status atau rentang tanggal.</p>
         </div>
       ) : (
         <div className="space-y-3 pb-2">
-          {data.map((h) => (
+          {data.map((h, i) => (
             <div
               key={h.tanggal + h.keterangan}
               onClick={() => setDetail(h)}
-              className="card cursor-pointer p-4 transition hover:-translate-y-0.5 hover:shadow-lg hover:ring-1 hover:ring-indigo-200 dark:hover:ring-indigo-500/30"
+              style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}
+              className="card animate-rise relative cursor-pointer overflow-hidden p-4 pl-5 transition hover:-translate-y-0.5 hover:shadow-lg hover:ring-1 hover:ring-indigo-200 dark:hover:ring-indigo-500/30"
             >
+              <span aria-hidden className={`absolute inset-y-0 left-0 w-1.5 ${AKSEN_REKAP[h.status] || 'bg-slate-300 dark:bg-slate-600'}`} />
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm font-bold">{formatTanggalLengkap(new Date(h.tanggal))}</p>
+                  {detailLibur(h.tanggal) && (
+                    <p className="mt-0.5 flex items-start gap-1 text-[11px] font-semibold text-rose-500 dark:text-rose-400">
+                      <PartyPopper size={11} className="mt-0.5 shrink-0" /> {detailLibur(h.tanggal).nama}
+                    </p>
+                  )}
                   <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">
                     Masuk {h.checkIn} • Pulang {h.checkOut}
                   </p>
@@ -172,6 +208,11 @@ export default function Riwayat({ history }) {
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1.5">
                   <StatusBadge status={h.status} />
+                  {h.hariLibur && (
+                    <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:bg-teal-500/15 dark:text-teal-300">
+                      🌴 Hari libur
+                    </span>
+                  )}
                   <span className="flex items-center text-[10px] font-semibold text-indigo-400">
                     Detail <ChevronRight size={12} />
                   </span>
@@ -184,7 +225,7 @@ export default function Riwayat({ history }) {
 
         </>
       ) : (
-        <KalenderBulan history={history} onSelect={setDetail} />
+        <KalenderBulan history={absensi} onSelect={setDetail} />
       )}
 
       <RiwayatDetail rec={detail} onClose={() => setDetail(null)} />

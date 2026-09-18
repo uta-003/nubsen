@@ -47,9 +47,9 @@ export default function LoginPage({ onLogin }) {
         {/* Logo berdenyut */}
         <div className="mb-6 text-center">
           <img
-            src="/logo.png"
+            src="/logo-icon.png"
             alt="Logo NUBSEN"
-            className="animate-pulse-slow mx-auto h-20 w-20 rounded-[1.75rem] object-cover shadow-xl ring-4 ring-white/70 dark:ring-slate-800"
+            className="animate-pulse-slow mx-auto h-20 w-20 object-contain drop-shadow-lg"
           />
           <h1 className="mt-4 text-2xl font-extrabold tracking-tight">NUBSEN</h1>
           <p className="flex items-center justify-center gap-1 text-xs text-slate-500 dark:text-slate-400">

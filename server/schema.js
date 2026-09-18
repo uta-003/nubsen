@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS attendance (
   selfie       TEXT,
   di_luar_area INTEGER,
   jarak        INTEGER,
+  -- 1 bila absensi dilakukan di luar hari kerja (mis. masuk hari Sabtu/Minggu)
+  hari_libur   INTEGER,
+  -- Data absen PULANG — terpisah agar tidak pernah menimpa data masuk:
+  -- jam masuk & pulang masing-masing punya lokasi + foto selfie sendiri.
+  lat_out          REAL,
+  lon_out          REAL,
+  alamat_out       TEXT,
+  selfie_out       TEXT,
+  di_luar_area_out INTEGER,
+  jarak_out        INTEGER,
   created_at   TEXT DEFAULT (datetime('now')),
   UNIQUE (employee_id, tanggal)
 );
@@ -74,6 +84,16 @@ CREATE TABLE IF NOT EXISTS attendance (
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT
+);
+
+-- Jurnal idempotensi sinkronisasi luring: setiap pengajuan dari antrean
+-- perangkat membawa requestId unik; server menolak memproses dua kali
+-- (koneksi drop setelah terkirim tidak akan menciptakan data ganda).
+CREATE TABLE IF NOT EXISTS sync_log (
+  request_id  TEXT PRIMARY KEY,
+  employee_id INTEGER NOT NULL,
+  jenis       TEXT,
+  created_at  TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS leaves (

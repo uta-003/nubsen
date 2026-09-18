@@ -1,10 +1,18 @@
 import { useMemo, useState } from 'react'
-import { Briefcase, Building2, Mail, Phone, MapPinned, BadgeCheck, Award, Plane, LogOut, HelpCircle, ChevronRight } from 'lucide-react'
+import { Briefcase, Building2, Mail, Phone, MapPinned, BadgeCheck, Award, Plane, LogOut, HelpCircle, ChevronRight, KeyRound, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { USER_DEFAULT } from '../hooks/useAbsensi'
+import * as api from '../api'
 import Bantuan from './Bantuan'
 
-export default function Profil({ user = USER_DEFAULT, history, onLogout }) {
+export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }) {
   const [bantuanOpen, setBantuanOpen] = useState(false)
+  // Warna angka rekap per status — hierarki visual kekinian.
+  const WARNA_STAT = {
+    Hadir: 'text-emerald-600 dark:text-emerald-400',
+    Terlambat: 'text-amber-600 dark:text-amber-400',
+    Izin: 'text-sky-600 dark:text-sky-400',
+    Alpha: 'text-rose-600 dark:text-rose-400',
+  }
   const stats = useMemo(() => {
     const s = { Hadir: 0, Terlambat: 0, Izin: 0, Alpha: 0 }
     history.forEach((h) => { if (s[h.status] !== undefined) s[h.status]++ })
@@ -24,13 +32,48 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout }) {
     { Icon: MapPinned, label: 'Lokasi Kerja', value: user.lokasiKerja },
   ]
 
+  // ---- Ganti PIN (diverifikasi hash PIN lama di server) ----
+  const [pinLama, setPinLama] = useState('')
+  const [pinBaru, setPinBaru] = useState('')
+  const [pinUlang, setPinUlang] = useState('')
+  const [lihatPin, setLihatPin] = useState(false)
+  const [prosesPin, setProsesPin] = useState(false)
+  const [pesanPin, setPesanPin] = useState(null) // { tipe: 'ok' | 'error', teks }
+
+  const kirimPin = async (e) => {
+    e.preventDefault()
+    if (!/^\d{6}$/.test(pinLama) || !/^\d{6}$/.test(pinBaru)) return setPesanPin({ tipe: 'error', teks: 'PIN harus tepat 6 angka.' })
+    if (pinBaru !== pinUlang) return setPesanPin({ tipe: 'error', teks: 'Ulangi PIN baru tidak sama.' })
+    if (pinBaru === pinLama) return setPesanPin({ tipe: 'error', teks: 'PIN baru harus berbeda dari PIN lama.' })
+    setProsesPin(true)
+    setPesanPin(null)
+    try {
+      await api.ubahPin(pinLama, pinBaru)
+      setPesanPin({ tipe: 'ok', teks: 'PIN berhasil diganti — gunakan PIN baru saat login berikutnya.' })
+      toast?.('PIN berhasil diganti 🔒')
+      setPinLama(''); setPinBaru(''); setPinUlang('')
+    } catch (err) {
+      setPesanPin({ tipe: 'error', teks: err.message })
+      toast?.(err.message, 'error')
+    } finally {
+      setProsesPin(false)
+    }
+  }
+
   return (
     <div className="animate-fade-in">
-      {/* Kartu identitas */}
-      <div className="card mb-4 overflow-hidden !p-0">
-        <div className="h-24 bg-gradient-to-r from-indigo-500 via-violet-600 to-fuchsia-600" />
+      {/* Kartu identitas — banner gradien dengan dekorasi blur + avatar pop */}
+      <div className="card animate-rise mb-4 overflow-hidden !p-0">
+        <div className="relative h-24 overflow-hidden bg-gradient-to-r from-indigo-500 via-violet-600 to-fuchsia-600">
+          <span aria-hidden className="absolute -left-6 -top-10 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
+          <span aria-hidden className="absolute -right-8 top-2 h-24 w-24 rounded-full bg-white/15 blur-xl" />
+        </div>
         <div className="-mt-12 px-5 pb-5">
-          <div className="grid h-24 w-24 place-items-center rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-600 text-2xl font-extrabold text-white shadow-lg shadow-indigo-500/40 ring-4 ring-white dark:ring-slate-900">
+          {/* `relative z-10` WAJIB di sini. Banner gradien di atasnya memakai
+              `position: relative`, dan menurut urutan pengecatan CSS elemen
+              berposisi selalu dicat SESUDAH isi statis — tanpa z-index ini
+              banner menutupi huruf inisial avatar (huruf nama "tertimpa biru"). */}
+          <div className="relative z-10 grid h-24 w-24 place-items-center rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-600 text-2xl font-extrabold text-white shadow-lg shadow-indigo-500/40 ring-4 ring-white dark:ring-slate-900">
             {inisial}
           </div>
           <h1 className="mt-3 text-lg font-extrabold tracking-tight">{user.nama}</h1>
@@ -48,23 +91,27 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout }) {
         </div>
       </div>
 
-      {/* Statistik kehadiran */}
-      <div className="card mb-4">
+      {/* Statistik kehadiran — angka berwarna per status */}
+      <div className="card animate-rise mb-4" style={{ animationDelay: '60ms' }}>
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
           <Award size={16} className="text-amber-500" /> Rekap Kehadiran
         </h2>
-        <div className="grid grid-cols-4 gap-2 text-center">
-          {Object.entries(stats).map(([k, v]) => (
-            <div key={k} className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-800">
-              <p className="text-xl font-extrabold">{v}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{k}</p>
+        <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+          {Object.entries(stats).map(([k, v], i) => (
+            <div
+              key={k}
+              className="min-w-0 rounded-2xl bg-slate-50 p-2.5 dark:bg-slate-800 sm:p-3"
+              style={{ animationDelay: `${100 + i * 50}ms` }}
+            >
+              <p className={`text-lg font-extrabold leading-none sm:text-xl ${WARNA_STAT[k] || ''}`}>{v}</p>
+              <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-slate-400">{k}</p>
             </div>
           ))}
         </div>
       </div>
 
       {/* Sisa cuti tahunan */}
-      <div className="card mb-4">
+      <div className="card animate-rise mb-4" style={{ animationDelay: '120ms' }}>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
             <Plane size={16} className="text-sky-500" /> Sisa Cuti Tahunan
@@ -85,7 +132,7 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout }) {
       </div>
 
       {/* Detail kontak */}
-      <div className="card space-y-3">
+      <div className="card animate-rise space-y-3" style={{ animationDelay: '180ms' }}>
         {items.map(({ Icon, label, value }) => (
           <div key={label} className="flex items-center gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400">
@@ -97,6 +144,60 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout }) {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Keamanan — ganti PIN sendiri: verifikasi PIN lama → PIN baru 6 angka */}
+      <div className="card animate-rise mt-4" style={{ animationDelay: '140ms' }}>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+          <KeyRound size={16} className="text-indigo-500" /> Keamanan — Ganti PIN
+        </h2>
+        <form onSubmit={kirimPin} className="space-y-3">
+          {[
+            { label: 'PIN Lama', nilai: pinLama, set: setPinLama, auto: 'current-pin' },
+            { label: 'PIN Baru (6 angka)', nilai: pinBaru, set: setPinBaru, auto: 'new-pin' },
+            { label: 'Ulangi PIN Baru', nilai: pinUlang, set: setPinUlang, auto: 'new-pin2' },
+          ].map(({ label, nilai, set, auto }) => (
+            <div key={label}>
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
+              <div className="relative">
+                <input
+                  className="input !py-2.5 pr-12 font-mono tracking-[0.35em]"
+                  type={lihatPin ? 'text' : 'password'}
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoComplete={auto}
+                  placeholder="••••••"
+                  value={nilai}
+                  onChange={(e) => set(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                />
+                <button
+                  type="button"
+                  onClick={() => setLihatPin((v) => !v)}
+                  aria-label="Tampilkan / sembunyikan PIN"
+                  className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  {lihatPin ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+          ))}
+          {pesanPin && (
+            <p
+              className={`rounded-xl px-3 py-2 text-[11px] font-semibold ${
+                pesanPin.tipe === 'ok'
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+                  : 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400'
+              }`}
+            >
+              {pesanPin.tipe === 'ok' ? '✓ ' : '⚠️ '}
+              {pesanPin.teks}
+            </p>
+          )}
+          <button type="submit" disabled={prosesPin} className="btn-primary w-full !py-2.5 !text-xs">
+            {prosesPin ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+            {prosesPin ? 'Menyimpan…' : 'Simpan PIN Baru'}
+          </button>
+        </form>
       </div>
 
       {/* Pusat bantuan */}
@@ -125,7 +226,7 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout }) {
       </button>
 
       <p className="mt-5 text-center text-[11px] text-slate-400">
-        NUBSEN v2.0 • Login sesi aman • data tersimpan di server SQLite
+        NUBSEN v2.0
       </p>
     </div>
   )

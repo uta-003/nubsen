@@ -5,20 +5,38 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    /* Cegah iOS memperbesar teks otomatis saat ponsel diputar (landscape). */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Latar html = latar body: area overscroll/rubber-band tidak pernah putih. */
+    background-color: rgb(241 245 249); /* slate-100 */
+  }
+  .dark html, html.dark {
+    background-color: rgb(2 6 23); /* slate-950 */
   }
   body {
-    @apply bg-slate-100 text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-100;
+    @apply overflow-x-hidden bg-slate-100 text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-100;
+    /* Cegah pantulan overscroll menampilkan area di luar dokumen. */
+    overscroll-behavior-y: none;
   }
 }
 
 @layer components {
   .card {
-    @apply rounded-3xl bg-white p-5 shadow-soft dark:bg-slate-900 dark:shadow-black/30;
+    @apply rounded-3xl bg-white p-4 shadow-soft dark:bg-slate-900 dark:shadow-black/30 sm:p-5;
+  }
+  /* Wadah tabel lebar: bisa digeser mendatar dengan jari, tanpa memicu
+     scroll halaman. Dipakai mis. tabel Laporan Kehadiran di panel admin. */
+  .tabel-geser {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
   .input {
-    @apply w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition
+    @apply w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition
       placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200
-      dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-indigo-500/30;
+      dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-indigo-500/30 sm:px-4;
   }
   .label {
     @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400;
@@ -66,3 +84,35 @@
   40%, 80% { transform: translateX(8px); }
 }
 .shake { animation: shake-x 0.45s ease-in-out; }
+
+/* ============ Animasi kekinian ============ */
+/* Masuk lembut naik dari bawah — dipakai kartu & baris daftar (stagger via delay). */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-rise { animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Grafik batang tumbuh dari bawah */
+@keyframes grow-bar {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+.bar-anim { transform-origin: bottom; animation: grow-bar 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Mengambang pelan (badge/ikon) */
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-floaty { animation: float-y 3.5s ease-in-out infinite; }
+
+/* Putar lambat (cincin putus-putus tombol absen) */
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.animate-spin-slower { animation: spin-slow 9s linear infinite; }
+
+/* Hormati preferensi pengguna: matikan animasi bila diminta OS */
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise, .animate-fade-in, .animate-slide-up, .bar-anim,
+  .animate-floaty, .animate-spin-slower, .animate-pulse-slow { animation: none; }
+}

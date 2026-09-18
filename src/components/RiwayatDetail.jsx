@@ -1,9 +1,67 @@
-import { X, MapPin, Paperclip, Info, ExternalLink, Camera, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { X, MapPin, Paperclip, Info, ExternalLink, Camera, ShieldAlert, ShieldCheck, LogIn, LogOut } from 'lucide-react'
 import StatusBadge from './StatusBadge'
 import { formatTanggalLengkap, durasiKerja } from '../utils/date'
 import { assetUrl } from '../api'
 
-// Modal detail satu catatan riwayat: selfie, lokasi + Google Maps, geofence, lampiran.
+// Satu blok absen (masuk ATAU pulang): jam, foto selfie, lokasi + geofence + Maps.
+function BlokAbsen({ masuk, jam, lokasi, selfie, diLuarArea, jarak }) {
+  const Label = masuk ? LogIn : LogOut
+  return (
+    <div className="mt-4 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800">
+      <div className="flex items-center justify-between">
+        <p className={`flex items-center gap-1.5 text-xs font-bold ${masuk ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+          <Label size={14} /> {masuk ? 'Absen Masuk' : 'Absen Pulang'}
+        </p>
+        <p className="font-mono text-base font-bold">{jam || '—'}</p>
+      </div>
+
+      {lokasi && (
+        <>
+          <p className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+            <MapPin size={12} className="text-indigo-500" /> Lokasi
+          </p>
+          <p className="mt-0.5 font-mono text-xs">
+            {lokasi.lat}, {lokasi.lon}
+          </p>
+          {lokasi.alamat && <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">{lokasi.alamat}</p>}
+          {diLuarArea != null && (
+            <span
+              className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                diLuarArea
+                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
+                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
+              }`}
+            >
+              {diLuarArea ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
+              {diLuarArea ? `Di luar area kantor (±${jarak} m)` : `Di area kantor (±${jarak} m)`}
+            </span>
+          )}
+          <a
+            href={`https://www.google.com/maps?q=${lokasi.lat},${lokasi.lon}`}
+            target="_blank"
+            rel="noreferrer"
+            className="btn-primary mt-3 w-full !py-2.5 text-xs"
+          >
+            <ExternalLink size={14} /> Buka di Google Maps
+          </a>
+        </>
+      )}
+
+      {selfie && (
+        <div className="mt-3">
+          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+            <Camera size={13} className="text-indigo-500" /> Foto Selfie {masuk ? 'Masuk' : 'Pulang'}
+          </p>
+          <img src={assetUrl(selfie)} alt={`Selfie absen ${masuk ? 'masuk' : 'pulang'}`} className="w-full rounded-2xl object-cover" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Modal detail: jam masuk & pulang masing-masing dengan detail lengkap —
+// foto selfie, koordinat + alamat, status geofence, dan tautan Google Maps.
+// Data masuk & pulang tersimpan TERPISAH di server (kolom khusus masing-masing).
 export default function RiwayatDetail({ rec, onClose }) {
   if (!rec) return null
   const penuh = rec.checkIn && rec.checkOut && rec.checkIn !== '-' && rec.checkOut !== '-'
@@ -13,7 +71,7 @@ export default function RiwayatDetail({ rec, onClose }) {
       onClick={onClose}
     >
       <div
-        className="max-h-[88vh] w-full max-w-md animate-slide-up overflow-y-auto rounded-t-[2rem] bg-white p-5 shadow-2xl dark:bg-slate-900 sm:rounded-[2rem]"
+        className="max-h-[88vh] w-full max-w-md animate-slide-up overflow-y-auto rounded-t-[2rem] bg-white p-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] shadow-2xl dark:bg-slate-900 sm:rounded-[2rem] sm:pb-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">
@@ -65,45 +123,13 @@ export default function RiwayatDetail({ rec, onClose }) {
           </a>
         )}
 
-        {rec.lokasi && (
-          <div className="mt-4 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800">
-            <p className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
-              <MapPin size={14} className="text-indigo-500" /> Lokasi Absen
-            </p>
-            <p className="mt-1 font-mono text-xs">
-              {rec.lokasi.lat}, {rec.lokasi.lon}
-            </p>
-            {rec.lokasi.alamat && <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{rec.lokasi.alamat}</p>}
-            {rec.diLuarArea != null && (
-              <span
-                className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                  rec.diLuarArea
-                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
-                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
-                }`}
-              >
-                {rec.diLuarArea ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
-                {rec.diLuarArea ? `Di luar area kantor (±${rec.jarak} m)` : `Di area kantor (±${rec.jarak} m)`}
-              </span>
-            )}
-            <a
-              href={`https://www.google.com/maps?q=${rec.lokasi.lat},${rec.lokasi.lon}`}
-              target="_blank"
-              rel="noreferrer"
-              className="btn-primary mt-3 w-full !py-2.5 text-xs"
-            >
-              <ExternalLink size={14} /> Buka di Google Maps
-            </a>
-          </div>
+        {/* Data absen masuk: lokasi + geofence + foto (kolom khusus masuk di server) */}
+        {rec.checkIn && rec.checkIn !== '-' && (
+          <BlokAbsen masuk jam={rec.checkIn} lokasi={rec.lokasi} selfie={rec.selfie} diLuarArea={rec.diLuarArea} jarak={rec.jarak} />
         )}
-
-        {rec.selfie && (
-          <div className="mt-4">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
-              <Camera size={14} className="text-indigo-500" /> Foto Selfie
-            </p>
-            <img src={assetUrl(rec.selfie)} alt="Selfie absensi" className="w-full rounded-2xl object-cover" />
-          </div>
+        {/* Data absen pulang: kolom terpisah — foto & lokasi pulang tidak menimpa masuk */}
+        {rec.checkOut && rec.checkOut !== '-' && (
+          <BlokAbsen jam={rec.checkOut} lokasi={rec.lokasiPulang} selfie={rec.selfiePulang} diLuarArea={rec.diLuarAreaPulang} jarak={rec.jarakPulang} />
         )}
       </div>
     </div>

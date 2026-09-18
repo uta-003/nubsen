@@ -6,12 +6,16 @@ import {
   listSemuaAbsensi, ubahAbsensi, hapusAbsensi,
   listSemuaIzin, setStatusIzin, hapusIzin,
   listSemuaLembur, setStatusLembur, hapusLembur,
+  laporanKehadiran,
   notifToClient, kirimNotifikasi, listSemuaNotifikasi, hapusNotifikasi,
   kirimPengumuman, ubahPengumuman, hapusPengumuman,
 } from '../models.js'
 import { wrap } from '../utils/wrap.js'
 
 const JENIS_VALID = ['pengumuman', 'penting', 'info', 'lembur', 'izin', 'absensi']
+
+// Untuk menyebut hari kerja dalam pesan notifikasi perubahan jadwal.
+const NAMA_HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 
 const router = Router()
 
@@ -25,16 +29,61 @@ router.get('/jadwal', wrap(async (_req, res) => {
   res.json({ data: await getJadwal() })
 }))
 
-// PUT /api/admin/jadwal — ubah jam masuk (batas Terlambat) & jam pulang
+// PUT /api/admin/jadwal — ubah jam masuk (batas Terlambat), jam pulang, dan hari kerja.
+// Bila jadwal benar-benar berubah, SEMUA karyawan otomatis menerima notifikasi
+// (broadcast: baris employee_id NULL, jenis 'jadwal') agar tidak kaget oleh
+// perubahan batas absen / jam pulang.
 router.put('/jadwal', wrap(async (req, res) => {
-  const { jamMasukBatas, jamPulang } = req.body || {}
+  const { jamMasukBatas, jamPulang, hariKerja } = req.body || {}
   const pola = /^([01]\d|2[0-3]):[0-5]\d$/
   if (!pola.test(jamMasukBatas || '') || !pola.test(jamPulang || '')) {
     return res.status(400).json({ error: 'Format jam harus HH:MM (contoh 08:15).' })
   }
+  const lama = await getJadwal()
+  // `hariKerja` opsional: array angka 0 (Minggu) … 6 (Sabtu), minimal satu hari.
+  let hariBaru = null
+  if (hariKerja !== undefined) {
+    if (!Array.isArray(hariKerja) || hariKerja.length === 0) {
+      return res.status(400).json({ error: 'Hari kerja harus berisi minimal satu hari.' })
+    }
+    hariBaru = [...new Set(hariKerja.map(Number))].sort((a, b) => a - b)
+    if (hariBaru.some((n) => !Number.isInteger(n) || n < 0 || n > 6)) {
+      return res.status(400).json({ error: 'Hari kerja harus angka 0 (Minggu) sampai 6 (Sabtu).' })
+    }
+    await setSetting('hariKerja', hariBaru.join(','))
+  }
   await setSetting('jamMasukBatas', jamMasukBatas)
   await setSetting('jamPulang', jamPulang)
-  res.json({ data: await getJadwal() })
+
+  // Notifikasi hanya bila ada yang berubah (hemat kotak masuk dari klik tanpa edit).
+  const berubah =
+    lama.jamMasukBatas !== jamMasukBatas ||
+    lama.jamPulang !== jamPulang ||
+    (hariBaru && hariBaru.join(',') !== (lama.hariKerja || []).join(','))
+  if (berubah) {
+    const hariStr = hariBaru ? `, hari kerja ${hariBaru.map((n) => NAMA_HARI[n]).join(', ')}` : ''
+    await kirimNotifikasi({
+      employeeId: null,
+      judul: '📅 Jadwal kerja diperbarui',
+      pesan: `Jadwal baru — batas masuk ${jamMasukBatas}, jam pulang ${jamPulang}${hariStr}. Sesuaikan absensimu ya.`,
+      jenis: 'jadwal',
+    })
+  }
+  // `notifikasiDikirim` ditaruh DI DALAM data karena klien (src/api.js) hanya
+  // meneruskan `json.data` — dipakai panel admin untuk memberi tahu bahwa
+  // broadcast sudah terkirim (atau tidak ada perubahan sehingga tidak ada notif).
+  res.json({ data: { ...(await getJadwal()), notifikasiDikirim: !!berubah } })
+}))
+
+// ---------- Laporan kehadiran (rekap per karyawan + export) ----------
+// GET /api/admin/reports?dari=YYYY-MM-DD&sampai=YYYY-MM-DD&departemen=Teknologi Informasi
+router.get('/reports', wrap(async (req, res) => {
+  const { dari, sampai, departemen } = req.query
+  const pola = /^\d{4}-\d{2}-\d{2}$/
+  if (dari && !pola.test(dari)) return res.status(400).json({ error: 'Parameter "dari" harus format YYYY-MM-DD.' })
+  if (sampai && !pola.test(sampai)) return res.status(400).json({ error: 'Parameter "sampai" harus format YYYY-MM-DD.' })
+  if (dari && sampai && dari > sampai) return res.status(400).json({ error: 'Tanggal "dari" melebihi "sampai".' })
+  res.json({ data: await laporanKehadiran({ dari, sampai, departemen: (departemen || '').trim() || null }) })
 }))
 
 // ---------- Kelola Karyawan ----------

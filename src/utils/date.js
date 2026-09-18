@@ -19,8 +19,13 @@ export function formatTanggalPendek(iso) {
   return `${d.getDate()} ${bulanIndo[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`
 }
 
+// Tanggal ISO 'YYYY-MM-DD' berbasis WAKTU LOKAL perangkat.
+// Catatan: date.toISOString() memakai UTC, sehingga di WIB (UTC+7) pukul
+// 00:00–06:59 tanggalnya tergeser ke hari sebelumnya (mis. pegawai check-in
+// pukul 06:30 tercatat kemarin). getFullYear/getMonth/getDate selalu lokal.
 export function toISODate(date = new Date()) {
-  return date.toISOString().slice(0, 10)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`
 }
 
 export function sapaanWaktu(date = new Date()) {

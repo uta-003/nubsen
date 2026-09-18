@@ -41,19 +41,26 @@ menjalankan proses Node terus-menerus + *persistent disk*.
 | **Verifikasi Selfie** | Kamera depan + bingkai verifikasi wajah; foto dikirim ke server & disimpan sebagai file |
 | **Status Server-side** | Check-in lewat **08:15** otomatis **Terlambat** â€” dihitung di backend, tahan manipulasi jam perangkat |
 | **Pengajuan Izin/Cuti** | Jenis (Izin/Sakit/Cuti), rentang tanggal, keterangan, lampiran gambar/PDF (maks 5 MB) via multipart |
-| **Riwayat Absensi** | Gabungan absensi + pengajuan izin, filter status & rentang tanggal |
-| **Statistik & Gamifikasi** | Grafik batang 7 hari terakhir, streak ðŸ”¥ hari hadir beruntun, countdown batas absen |
+| **Riwayat Absensi** | Riwayat absensi MURNI di tab bottom-nav (baris turunan pengajuan izin tidak ditampilkan di sini), filter status & rentang tanggal |
+| **Statistik & Gamifikasi** | Grafik batang **1 pekan utuh Senin → Minggu** + nomor tanggal tiap batang, navigasi antar pekan (± 6 bulan), rekap Hadir/Terlambat/Izin/Alpha & % kehadiran, streak ðŸ”¥ hari hadir beruntun (Minggu & tanggal merah tidak memutus), countdown batas absen |
+| **Cuaca Terkini** | Ikon cuaca statis di kartu jam (cerah/berawan/kabut/hujan/badai/salju; malam → bulan) via Open-Meteo — GPS perangkat (fallback koordinat kantor), sapaan dinamis sesuai cuaca, info suhu & UV, cache 30 menit, tetap tampil saat luring |
+| **Hari Libur & Timer** | Banner "Hari ini libur / bukan hari kerja" di Beranda (countdown "terlambat" disembunyikan di hari non-kerja), strip "🗓️ Libur berikutnya — X hari lagi", pill "⏱️ Sedang bekerja X jam Y mnt" berdetik setelah check-in |
+| **Keamanan — Ganti PIN** | Karyawan mengganti PIN sendiri di Profil: verifikasi PIN lama (hash di server), PIN baru 6 angka + konfirmasi ulang, validasi ganda klien & server |
 | **Geofence Kantor** | Jarak GPS ke kantor (-6.1765782, 106.899041) dihitung server, **radius 20 m** â€” badge "Di area / Di luar area" |
 | **Detail & Export** | Ketuk kartu riwayat â†’ modal detail (selfie, Google Maps, durasi); export CSV |
 | **Sisa Cuti** | Kuota cuti tahunan dipotong pengajuan **Cuti** (Menunggu/Disetujui), yang **Ditolak** otomatis dikembalikan â€” tampil di Profil & form Izin |
 | **Login & Logout** | Sesi token per karyawan (PIN di-hash SHA-256), auto-login via token tersimpan, halaman login beranimasi (blob, shake) |
-| **Kalender Bulanan** | Kalender kehadiran per bulan dengan navigasi; ketuk tanggal berwarna â†’ detail |
+| **Kalender Bulanan** | Kalender kehadiran per bulan (pekan mulai **Senin**) dengan navigasi + kalender Indonesia: **semua libur nasional & cuti bersama** 2023–2026 (SKB 3 Menteri; tahun lain hanya tanggal tetap) tampil merah dengan nama & jenisnya; ketuk tanggal berwarna â†’ detail |
 | **Pengingat Notifikasi** | Reminder absen masuk (08:05) & pulang (17:00) via browser Notification API |
+| **📶 Mode Luring (antrean + sinkron otomatis)** | Bila jaringan/server mati, absen (check-in/out), izin, dan lembur disimpan ke antrean perangkat (localStorage) lalu dikirim **FIFO otomatis** saat online lagi (event `online`, interval 60 dtk, atau ketuk chip di header). Chip header: **"Luring · n"** saat luring, **"n antre"** saat menunggu; item yang ditolak server (validasi/401) dibuang agar antrean tak menggantung |
+| **🔔 Notifikasi Perubahan Jadwal** | Admin ubah jam masuk/pulang/hari kerja → seluruh karyawan dapat notifikasi in-app **dan pemberitahuan peramban** (Service Worker `showNotification`, klik membuka `#notifikasi`); hanya notifikasi **baru** yang dipicu (anti-banjir), dan panel admin menjelaskan bila tak ada nilai yang berubah |
 | **â±ï¸ Lembur** | Form pengajuan lembur (tanggal/jam/keterangan) + riwayat status persetujuan |
-| **ðŸ”” Notifikasi In-App** | Kotak masuk karyawan dengan lonceng + badge belum-dibaca (polling 30 detik); sumber: sistem (izin/lembur/absensi) & admin |
+| **Riwayat Pengajuan Izin/Cuti** | Di halaman Izin/Cuti: SEMUA pengajuan (Izin, Sakit, Cuti Tahunan, Cuti Khusus) dengan chip status Menunggu/Disetujui/Ditolak, waktu pengajuan, rentang tanggal & lampiran — gaya sama dengan riwayat lembur; entri luring tampil optimistik sebagai "Menunggu sinkron" |
+| **🔔 Notifikasi In-App** | Kotak masuk karyawan dengan lonceng + badge belum-dibaca (polling 30 detik); sumber: sistem (izin/lembur/absensi) & admin; keputusan izin/lembur (disetujui/ditolak) juga memunculkan **pemberitahuan peramban** |
 | **ðŸ“¢ Pengumuman dari Admin** | Admin membuat pemberitahuan â†’ otomatis muncul di menu **Notifikasi SEMUA karyawan** (satu baris per orang), status baca **terpisah per karyawan**, statistik **X/Y sudah dibaca** + daftar nama yang belum, bisa **diedit** (status baca direset) & **dihapus** sekaligus |
-| **ðŸ–¥ï¸ Panel Admin** | Website backend: kelola karyawan (tambah/edit/hapus/reset PIN/jadikan admin), koreksi absensi, setujui izin & lembur, **kelola pengumuman** â€” hanya untuk akun admin |
+| **ðŸ–¥ï¸ Panel Admin** | Website backend: kelola karyawan (tambah/edit/hapus/reset PIN/jadikan admin), koreksi absensi, setujui izin & lembur, jadwal kerja (jam + hari kerja), **laporan kehadiran + export Excel/PDF**, **kelola pengumuman** â€” hanya untuk akun admin |
 | **Profil** | Data karyawan dari database + rekap kehadiran |
+| **Laporan Kehadiran (admin)** | Rekap per karyawan & per departemen pada satu periode; kolom Hadir/Terlambat/**Hadir Libur**/Izin/Sakit/Cuti/Alpha/Lembur (jam)/% Kehadiran; export **Excel (sheet per departemen)** dan **PDF** |
 | **PWA** | Installable ke home screen (Android/desktop/iOS), offline page, caching pintar |
 | **Dark Mode** | Mengikuti sistem + toggle manual, persisten |
 
@@ -106,14 +113,22 @@ npm run dev     # â†’ http://localhost:9090
    - Staf biasa: `budi.santoso@perusahaan.co.id` â€” PIN `654321`
 3. Di panel admin tersedia tab: **Ringkasan Â· Karyawan Â· Absensi Â· Izin Â· Lembur Â· Notifikasi**
    - Kelola Karyawan: tambah, edit (jabatan/departemen/kuota cuti/reset PIN), jadikan admin, hapus
+   - **Jadwal**: jam masuk (batas Terlambat), jam pulang, dan **hari kerja mingguan**
+     (Sen-Jum default; pilih Sen-Sab bila perusahaan bekerja enam hari) - dipakai untuk
+     menghitung hari kerja pada laporan
+   - **Laporan**: pilih periode (+ filter departemen), lihat rekap per karyawan & per
+     departemen, lalu **Export Excel/PDF**. Absensi di luar hari kerja masuk kolom
+     **Hadir Libur** sehingga tidak menggelembungkan % kehadiran
    - Koreksi absensi, setujui/tolak izin & lembur (notifikasi otomatis ke karyawan)
    - **Tab ðŸ”” Notifikasi = membuat pemberitahuan**: pilih **ðŸ“¢ SEMUA KARYAWAN** â†’ pengumuman
      langsung muncul di menu Notifikasi setiap karyawan (satu baris per orang, status baca
      terpisah); kartu di panel menampilkan **X/Y sudah dibaca** + nama yang belum membaca,
      serta tombol **edit** (isi diperbarui & status baca direset) dan **hapus** (hilang dari semua)
 
-URL mendukung hash agar bisa di-refresh/di-bookmark: `#dashboard`, `#izin`, `#lembur`,
+URL mendukung hash agar bisa di-refresh/di-bookmark: `#dashboard`, `#pengajuan`,
 `#riwayat`, `#notifikasi`, `#profil`, `#admin` (akun non-admin otomatis dialihkan ke beranda).
+Hash era 5 tab (`#izin`, `#lembur`) tetap berfungsi — dibuka sebagai tab Pengajuan
+dengan sub-halaman sesuai hash-nya.
 
 
 Buka **http://localhost:9090** dan login dengan **akun demo**:
@@ -149,12 +164,14 @@ Service worker hanya aktif di build produksi (tidak mengganggu HMR saat dev).
 | POST | `/api/auth/logout` | Hapus sesi token |
 | GET | `/api/profile` | Data karyawan yang sedang login |
 | GET | `/api/attendance/today` | Catatan kehadiran hari ini (`null` bila belum absen) |
-| POST | `/api/attendance/check-in` | JSON `{ lat, lon, alamat, selfie(dataURL) }` â†’ status Hadir/Terlambat + **geofence** (`diLuarArea`, `jarak` m ke kantor, radius 20 m); duplikat â†’ 409 |
+| POST | `/api/attendance/check-in` | JSON `{ lat, lon, alamat, selfie(dataURL), requestId? }` â†’ status Hadir/Terlambat + **geofence** (`diLuarArea`, `jarak` m ke kantor, radius 20 m); duplikat â†’ 409 ; `requestId` sama → `duplikat: true` (idempoten, sinkron luring) |
 | POST | `/api/attendance/check-out` | JSON sama; wajib sudah check-in â†’ 409 bila belum/sudah |
 | GET | `/api/attendance/history?dari=&sampai=&status=` | Riwayat gabungan (absensi + izin) |
 | GET/POST | `/api/overtime` | Pengajuan lembur milik sendiri |
 | GET | `/api/notifications` | Notifikasi sendiri + broadcast (`{ items, belumDibaca }`) |
 | POST | `/api/notifications/read` | Tandai semua notifikasi dibaca |
+| GET/PUT | `/api/admin/jadwal` | **[Admin]** Jam masuk (batas Terlambat), jam pulang, dan **hari kerja mingguan** (`hariKerja: [1,2,3,4,5]`, 0 = Minggu, minimal satu hari) |
+| GET | `/api/admin/reports?dari=&sampai=&departemen=` | **[Admin]** Laporan kehadiran: rekap per karyawan (`baris`), ringkasan, dan `rekap` per departemen (Hadir/Terlambat/Hadir Libur/Izin/Sakit/Cuti/Alpha/Lembur/% Kehadiran) |
 | GET/POST/PUT/DELETE | `/api/admin/employees[...]` | **[Admin]** Kelola karyawan (tambah/edit/hapus, reset PIN, flag admin) |
 | GET/PUT/DELETE | `/api/admin/attendance[...]` | **[Admin]** Lihat semua absensi (filter), koreksi, hapus |
 | GET/PUT/DELETE | `/api/admin/leaves[...]` | **[Admin]** Setujui/Tolak/Hapus izin (otomatis kirim notifikasi) |
@@ -173,11 +190,13 @@ statik di `/uploads/*`.
 
 ## ðŸ§ª Uji Otomatis API
 
-Backend menyertakan **57 pemeriksaan end-to-end** (login & proteksi sesi, CRUD
+Backend menyertakan **72 pemeriksaan end-to-end** (login & proteksi sesi, CRUD
 karyawan, alur lembur â†’ persetujuan â†’ notifikasi, **pengumuman ke semua karyawan:
 fan-out, isolasi status baca, statistik baca, edit & hapus grup**, izin multipart,
-kuota cuti, geofence + koreksi absensi, logout). Skrip ini membersihkan datanya
-sendiri sehingga aman dijalankan berulang.
+kuota cuti, geofence + koreksi absensi, **jadwal hari kerja & laporan kehadiran
+(validasi parameter, kolom Hadir Libur, proteksi admin)**, logout). Skrip ini
+mengembalikan pengaturan jadwal ke kondisi semula dan membersihkan datanya sendiri
+sehingga aman dijalankan berulang.
 
 ```bash
 # pastikan backend sudah berjalan, lalu:
@@ -232,17 +251,18 @@ absensi-app/
 â”‚   â”œâ”€â”€ App.jsx                 # View state + gate loading/error + toast
 â”‚   â”œâ”€â”€ hooks/
 â”‚   â”‚   â”œâ”€â”€ useAbsensi.js       # State: profil, hari ini, riwayat (dari API)
+â”‚   â”‚   â”œâ”€â”€ useSinkronLuring.js # Chip status luring + mesin sinkron antrean
 â”‚   â”‚   â”œâ”€â”€ usePengingat.js     # Notifikasi pengingat absen
 â”‚   â”‚   â””â”€â”€ useDarkMode.js
-â”‚   â”œâ”€â”€ utils/ (date, geo, statistik, storage)
+â”‚   â”œâ”€â”€ utils/ (date, geo, statistik, liburIndonesia, cuaca, luring, storage)
 â”‚   â””â”€â”€ components/
-â”‚       â”œâ”€â”€ Dashboard.jsx       # Jam real-time, status, tombol absen, GPS
+â”‚       â”œâ”€â”€ Dashboard.jsx       # Jam real-time, ikon cuaca, status, tombol absen, GPS
 â”‚       â”œâ”€â”€ SelfieModal.jsx     # Kamera depan + bingkai verifikasi
-â”‚       â”œâ”€â”€ Izin.jsx  Riwayat.jsx  Profil.jsx
-â”‚       â”œâ”€â”€ Statistik.jsx         # Grafik 7 hari + streak
+â”‚       â”œâ”€â”€ Izin.jsx  Pengajuan.jsx  Riwayat.jsx  Profil.jsx
+â”‚       â”œâ”€â”€ Statistik.jsx         # Grafik batang per pekan Senin-Minggu + tanggal + streak
 â”‚       â”œâ”€â”€ RiwayatDetail.jsx     # Modal detail: selfie, Maps, geofence
 â”‚       â”œâ”€â”€ LoginPage.jsx         # Halaman login beranimasi (blob, shake)
-â”‚       â”œâ”€â”€ KalenderBulan.jsx     # Kalender kehadiran bulanan
+â”‚       â”œâ”€â”€ KalenderBulan.jsx     # Kalender bulanan + libur nasional & cuti bersama Indonesia
 â”‚       â”œâ”€â”€ Lembur.jsx            # Form + riwayat pengajuan lembur
 â”‚       â”œâ”€â”€ Notifikasi.jsx        # Kotak masuk notifikasi (inbox + 30s polling, jenis pengumuman/penting/highlight)
 â”‚       â”œâ”€â”€ NotifikasiBell.jsx    # Lonceng + badge belum dibaca
@@ -256,10 +276,46 @@ absensi-app/
     â”œâ”€â”€ models.js               # Query: check-in/out, riwayat, izin, lembur, notifikasi, admin, sesi
     â”œâ”€â”€ routes/                 # auth, profile, attendance, leaves (multer), overtime, notifications, admin
     â”œâ”€â”€ utils/                  # waktu.js, files.js (simpan dataURL selfie)
-    â”œâ”€â”€ uji-api.mjs             # Uji end-to-end 57 pemeriksaan (npm test)
+    â”œâ”€â”€ uji-api.mjs             # Uji end-to-end 72 pemeriksaan (npm test)
     â”œâ”€â”€ data/absensi.db         # Database (di-gitignore)
     â””â”€â”€ uploads/                # Selfie & lampiran (di-gitignore)
 ```
+### 📱 Tampilan ponsel (UX mobile)
+
+- **Header sticky & solid** — logo + nama **NUBSEN** selalu menempel di atas saat
+  halaman digulir, dengan latar **padat** (`bg-slate-100 dark:bg-slate-950`) sehingga
+  kartu gradien biru yang lewat di belakangnya **tidak tembus** dan tidak menimpa
+  brand (sebelumnya latar `bg-slate-100/85` + `backdrop-blur` membuat nama tampak
+  ditimpa pita biru).
+- **`overflow-x-clip`, bukan `overflow-x-hidden`** pada wadah di `App.jsx`.
+  `overflow-x: hidden` menjadikan wadah sebagai *scroll container* sehingga
+  `position: sticky` header **mati** (header ikut tergulir ke atas). `overflow-x: clip`
+  tetap memotong luapan mendatar tanpa mematikan sticky.
+- **Satu navigasi per layar** — aplikasi memakai bottom-nav **4 tab** (Beranda,
+  Pengajuan, Riwayat, Profil): Izin/Cuti & Lembur digabung jadi satu tab
+  **Pengajuan** dengan pemilih sub-halaman (pill Izin/Cuti · Lembur) di dalamnya —
+  bar lebih lapang & rapi di ponsel sempit. Panel Admin dibuka lewat tombol perisai di header dan
+  tampil **layar penuh** tanpa bottom-nav agar tidak berebut ruang.
+- **Aman notch & home-bar** — `pt-[max(env(safe-area-inset-top),0.75rem)]` pada
+  header, `pb-[calc(6.5rem+env(safe-area-inset-bottom))]` pada wadah konten.
+- **Chip filter membungkus (`flex-wrap`)** di Riwayat supaya tidak ada chip yang
+  terpotong di layar sempit; tabel lebar memakai kelas `.tabel-geser` (geser
+  mendatar dengan jari, tanpa memicu scroll halaman).
+- **Tanggal beranda menyatu dengan jam** — tanggal hari ini tampil di dalam kartu
+  **"Waktu Saat Ini"** (`Dashboard.jsx`), bukan lagi chip kecil yang menyempil di
+  bawah nama. Sebelumnya chip itu berada di ujung blok sapaan sehingga saat
+  digulir ia lewat tepat di bawah header sticky dan tampak "tertimpa"; kini
+  tanggal & jam selalu satu tempat dan tidak ada elemen yang beririsan dengan
+  header pada scroll 0 → 250 px.
+- **Avatar profil wajib `relative z-10`** (`Profil.jsx`) — banner gradien
+  identitas memakai `position: relative`, dan menurut urutan pengecatan CSS
+  elemen berposisi selalu dicat **sesudah** isi statis. Tanpa `z-10` banner
+  menutupi separuh huruf inisial avatar (huruf nama "tertimpa biru"); dengan
+  `z-10` luas huruf inisial yang tertutup = **0 %**.
+- Diuji pada viewport **320 / 360 / 390 px** (Chrome headless + iframe berukuran
+  pasti): tidak ada elemen melebar, tidak ada elemen yang beririsan dengan brand.
+  Pemeriksaan timpaan memakai `document.elementFromPoint` di seluruh kotak teks
+  (persen area teks yang tertutup elemen lain) — terang & gelap: 0 %.
 
 ## ðŸ§° Reset & Troubleshooting
 
@@ -276,15 +332,16 @@ absensi-app/
 
 ## ðŸ¦¾ Roadmap / To-Do Berikutnya
 
-> Semua checklist di bawah belum diimplementasi â€” ini rencana proyek berikutnya.
+> Checklist berikut adalah rencana pengembangan; item yang bertanda ✅ sudah dikerjakan.
 
-**1. __Absensi offline-first__ (IndexedDB queue + sync otomatis)**
-- Simpan check-in/out + selfie di IndexedDB (via `idb` / Dexie) ketika offline
-- Background sync API push antrean saat koneksi pulih (tanpa double-submit)
-- Konflik-resolusi sederhana berdasarkan `timestamp` lokal â†’ overwrite / merge
-- UI tunjukkan status "tersimpan lokal, belum ter-sync" (badge chip abu-abu)
-- Service worker `vite-plugin-pwa` precache agar halaman & aset tetap load offline
-- *Backend*: endpoint `/api/attendance/batch-sync` menerima array, idempotent via `requestId`
+**1. ~~Absensi offline-first~~ ✅ sudah dikerjakan (penuh)**
+- ✅ Antrean perangkat (localStorage `absenku.antrean`) untuk **check-in/out, izin, lembur**
+- ✅ **Selfie & lampiran File ikut mengantre**: payload besar (>200 KB) dan File/Blob disimpan di **IndexedDB** (`absenku-luring`); antrean hanya memegang penunjuk `@idb:…` — localStorage tetap ringan & aman dari kuota penuh
+- ✅ Sinkron otomatis saat koneksi pulih: event `online`, interval 60 dtk, atau ketuk chip di header
+- ✅ **Idempotensi server-side via `requestId`**: jurnal `sync_log` mengenali pengiriman ulang — koneksi putus tepat setelah tersimpan TIDAK menciptakan data ganda dan TIDAK memunculkan 409 di klien (respons `duplikat: true`)
+- ✅ UI status "belum terkirim": chip **"Luring · n"** / **"n antre"** + toast hasil sinkron
+- ✅ Service worker (`public/sw.js`) precache app-shell + `offline.html` + API GET dari cache
+- *Sisa yang belum*: Background Sync API (sinkron walau tab tertutup)
 
 **2. __Export data admin ke Excel/PDF__ laporan kehadiran per departemen**
 - Endpoint baru `GET /api/admin/reports?start=&end=&dept=` â†’ kembalikan laporan gabungan
@@ -306,6 +363,12 @@ absensi-app/
 - State workflow: `Menunggu` â†’ `Tim Lead` â†’ `Departemen Head` â†’ `HR` â†’ `Disetujui/Ditolak`
 - Setiap level dapat notifikasi push real-time + email
 - UI approval berjenjang di panel admin: tombol persetujuan berwarna per level, histori audit trail
+
+**5. __Web Push sungguhan (server → perangkat, walau app tertutup)__**
+- ✅ Handler `push` + `notificationclick` di `public/sw.js`; notifikasi perubahan jadwal
+  memakai `registration.showNotification` (klik membuka `#notifikasi`)
+- *Belum*: `PushManager.subscribe` + VAPID key di klien, tabel `push_subscriptions`,
+  dan pengiriman dari backend saat jadwal berubah/pengumuman baru
 
 ## ðŸ”Œ Menuju Produksi Nyata
 

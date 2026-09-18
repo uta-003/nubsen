@@ -122,6 +122,14 @@ const KOLOM_TAMBAHAN = [
   ['attendance', 'di_luar_area INTEGER'],
   ['attendance', 'jarak INTEGER'],
   ['attendance', 'selfie TEXT'],
+  ['attendance', 'hari_libur INTEGER'],
+  // Data absen pulang terpisah (foto + lokasi pulang tidak menimpa data masuk)
+  ['attendance', 'lat_out REAL'],
+  ['attendance', 'lon_out REAL'],
+  ['attendance', 'alamat_out TEXT'],
+  ['attendance', 'selfie_out TEXT'],
+  ['attendance', 'di_luar_area_out INTEGER'],
+  ['attendance', 'jarak_out INTEGER'],
   ['notifications', 'grup_id TEXT'],
 ]
 
@@ -190,6 +198,10 @@ export const KANTOR = {
 // Batas jam masuk & jam pulang — DINAMIS dari tabel settings (diubah admin).
 export const JAM_MASUK_BATAS = '08:15' // default; sumber kebenaran = getJadwal()
 export const JAM_PULANG_DEFAULT = '17:00'
+// Hari kerja mingguan (0 = Minggu … 6 = Sabtu). Default Senin–Jumat; perusahaan
+// yang bekerja 6 hari dapat menambah Sabtu pada tab Jadwal di panel admin.
+// Dipakai untuk menghitung hari kerja pada laporan kehadiran & data demo.
+export const HARI_KERJA_DEFAULT = [1, 2, 3, 4, 5]
 
 export async function getSetting(key, def) {
   const row = await db.get('SELECT value FROM settings WHERE key = ?', [key])
@@ -204,12 +216,24 @@ export async function setSetting(key, value) {
   )
 }
 
-// Jadwal kerja aktif (jam masuk batas + jam pulang) — dipakai status Terlambat
-// dan hitungan mundur pada UI.
+// Daftar hari kerja aktif (angka 0 = Minggu … 6 = Sabtu) dari setting `hariKerja`.
+// Tersimpan sebagai teks, contoh: "1,2,3,4,5" (Senin–Jumat).
+export async function hariKerjaAktif() {
+  const mentah = await getSetting('hariKerja', HARI_KERJA_DEFAULT.join(','))
+  const hari = String(mentah)
+    .split(',')
+    .map((n) => Number(String(n).trim()))
+    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
+  return [...new Set(hari)].sort((a, b) => a - b)
+}
+
+// Jadwal kerja aktif (jam masuk batas + jam pulang + hari kerja) — dipakai status
+// Terlambat, hitungan mundur pada UI, laporan kehadiran, dan data demo.
 export async function getJadwal() {
   return {
     jamMasukBatas: await getSetting('jamMasukBatas', JAM_MASUK_BATAS),
     jamPulang: await getSetting('jamPulang', JAM_PULANG_DEFAULT),
+    hariKerja: await hariKerjaAktif(),
   }
 }
 

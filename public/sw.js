@@ -5,7 +5,7 @@
  *  - /api/* (GET)     : network-first → cache → respons offline JSON
  *  - Lainnya          : stale-while-revalidate
  */
-const VERSION = 'v1.1.0'
+const VERSION = 'v1.2.0'
 const STATIC_CACHE = `absenku-static-${VERSION}`
 const RUNTIME_CACHE = `absenku-runtime-${VERSION}`
 
@@ -14,7 +14,8 @@ const CORE_ASSETS = [
   '/index.html',
   '/offline.html',
   '/manifest.webmanifest',
-  '/logo.png',
+  '/logo-icon.png',
+  '/logo-mark.png',
   '/icons/icon.svg',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -42,6 +43,46 @@ self.addEventListener('activate', (event) => {
         ),
       )
       .then(() => self.clients.claim()),
+  )
+})
+
+// ============ Web Push (server → perangkat) ============
+// Payload JSON: { judul, pesan, tag?, url? }. Dipakai untuk pemberitahuan
+// penting seperti perubahan jadwal kerja — muncul walau aplikasi tertutup.
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = { pesan: event.data && event.data.text() }
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.judul || 'NUBSEN', {
+      body: data.pesan || '',
+      icon: '/logo-icon.png',
+      badge: '/icons/icon-192.png',
+      tag: data.tag || 'nubsen-push',
+      data: { url: data.url || '/' },
+    }),
+  )
+})
+
+// Klik notifikasi → buka/fokus aplikasi pada halaman terkait.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = (event.notification.data && event.notification.data.url) || '/'
+  event.waitUntil(
+    (async () => {
+      const daftar = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const klien of daftar) {
+        if (klien.url.startsWith(self.location.origin)) {
+          await klien.focus()
+          if ('navigate' in klien && !klien.url.includes(url)) await klien.navigate(url)
+          return
+        }
+      }
+      return self.clients.openWindow(url)
+    })(),
   )
 })
 
