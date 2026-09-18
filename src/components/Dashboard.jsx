@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MapPin, LogIn, LogOut, Navigation, Clock3, Loader2, CalendarCheck2, Bell, Copy, Check } from 'lucide-react'
+import { MapPin, LogIn, LogOut, Navigation, Clock3, Loader2, CalendarCheck2, Bell, Copy, Check, TriangleAlert } from 'lucide-react'
 import { formatJam, formatTanggalLengkap, formatTanggalPendek, sapaanWaktu, durasiKerja, toISODate } from '../utils/date'
 import { ambilCuaca, sapaanCuaca } from '../utils/cuaca'
 import { detailLibur, labelJenisPendek, liburBerikutnya } from '../utils/liburIndonesia'
@@ -377,6 +377,17 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
             {cariLokasi ? 'Mencari…' : 'Perbarui'}
           </button>
         </div>
+
+        {/* Kegagalan GPS ditampilkan sebagai peringatan yang mencolok. Sebelumnya
+            pesan ini hanya muncul bila koordinat belum ada, sehingga kegagalan
+            "Perbarui" (koordinat lama masih tampil) tenggelam tanpa pemberitahuan. */}
+        {lokasiError && (
+          <div className="mb-2 flex items-start gap-2 rounded-xl bg-amber-50 p-2.5 text-[11px] font-medium leading-relaxed text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+            <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+            <span>{lokasiError}</span>
+          </div>
+        )}
+
         {lokasi ? (
           <>
             <div className="flex items-center justify-between gap-2">
@@ -416,7 +427,7 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
             })()}
           </>
         ) : (
-          <p className="text-xs text-slate-400">{lokasiError || 'Mengambil lokasi…'}</p>
+          <p className="text-xs text-slate-400">{cariLokasi ? 'Mencari lokasi…' : 'Mengambil lokasi…'}</p>
         )}
       </div>
 

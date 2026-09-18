@@ -6,7 +6,12 @@
 // Pesan kegagalan GPS yang bisa ditindaklanjuti pengguna.
 // GeolocationPositionError: 1 = izin ditolak, 2 = posisi tak tersedia, 3 = timeout.
 export function pesanErrorLokasi(err) {
-  if (err?.code === 1) {
+  const pesanAsli = String(err?.message || '')
+  // Sebagian WebView/browser mengirim pesan tanpa `code` (mis. "User denied
+  // Geolocation" atau penolakan karena origin tidak aman). Kenali dari teksnya
+  // agar saran perbaikan tetap spesifik, bukan pesan mentah berbahasa Inggris.
+  const sepertiIzinDitolak = /denied|permission|not allowed|secure origin/i.test(pesanAsli)
+  if (err?.code === 1 || sepertiIzinDitolak) {
     return 'Izin lokasi belum diberikan. Buka Setelan → Aplikasi → NUBSEN → Izin → Lokasi → Izinkan, lalu tekan Perbarui.'
   }
   if (err?.code === 2) {
@@ -15,7 +20,7 @@ export function pesanErrorLokasi(err) {
   if (err?.code === 3) {
     return 'Pencarian GPS melebihi batas waktu. Coba lagi di tempat terbuka.'
   }
-  return err?.message || 'Lokasi gagal diperbarui. Coba lagi.'
+  return pesanAsli || 'Lokasi gagal diperbarui. Coba lagi.'
 }
 
 // Satu permintaan posisi (dibungkus Promise agar bisa di-await).
