@@ -50,6 +50,7 @@
 
     <!-- IZIN KAMERA — untuk selfie absensi (getUserMedia di WebView). -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Perangkat tanpa GPS/kamera tetap boleh memasang aplikasi (fitur opsional). -->
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />

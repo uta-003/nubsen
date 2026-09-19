@@ -1,4 +1,5 @@
 import { X, MapPin, Paperclip, Info, ExternalLink, Camera, ShieldAlert, ShieldCheck, LogIn, LogOut } from 'lucide-react'
+import { usePenutupKembali } from '../hooks/useTombolKembali'
 import StatusBadge from './StatusBadge'
 import { formatTanggalLengkap, durasiKerja } from '../utils/date'
 import { assetUrl } from '../api'
@@ -63,6 +64,8 @@ function BlokAbsen({ masuk, jam, lokasi, selfie, diLuarArea, jarak }) {
 // foto selfie, koordinat + alamat, status geofence, dan tautan Google Maps.
 // Data masuk & pulang tersimpan TERPISAH di server (kolom khusus masing-masing).
 export default function RiwayatDetail({ rec, onClose }) {
+  // Tombol Back Android menutup modal ini lebih dulu (lihat utils/kembali.js).
+  usePenutupKembali(!!rec, onClose)
   if (!rec) return null
   const penuh = rec.checkIn && rec.checkOut && rec.checkIn !== '-' && rec.checkOut !== '-'
   return (

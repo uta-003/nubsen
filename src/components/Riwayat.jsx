@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
-import { History as HistoryIcon, Filter, MapPin, Paperclip, Info, Download, ChevronRight, PartyPopper } from 'lucide-react'
+import { History as HistoryIcon, Filter, MapPin, Paperclip, Info, Download, ChevronRight, PartyPopper, Loader2 } from 'lucide-react'
 import { formatTanggalLengkap } from '../utils/date'
 import { detailLibur } from '../utils/liburIndonesia'
 import { assetUrl } from '../api'
+import { MIME, buatCSV } from '../utils/berkas'
+import { unduhBerkas, pesanHasilUnduh } from '../utils/unduh'
 import StatusBadge from './StatusBadge'
 import RiwayatDetail from './RiwayatDetail'
 import KalenderBulan from './KalenderBulan'
@@ -22,7 +24,7 @@ const AKSEN_REKAP = {
   Alpha: 'bg-rose-500',
 }
 
-export default function Riwayat({ history }) {
+export default function Riwayat({ history, toast }) {
   const [status, setStatus] = useState('Semua')
   const [dari, setDari] = useState('')
   const [sampai, setSampai] = useState('')
@@ -44,26 +46,39 @@ export default function Riwayat({ history }) {
     [absensi, status, dari, sampai],
   )
 
-  // Unduh data sesuai filter aktif sebagai CSV (pemisah ';' ramah Excel id-ID).
-  const exportCSV = () => {
-    const baris = [
-      ['Tanggal', 'Masuk', 'Pulang', 'Status', 'Keterangan', 'Lampiran'],
-      ...data.map((h) => [
-        h.tanggal,
-        h.checkIn || '-',
-        h.checkOut || '-',
-        h.status,
-        (h.keterangan || '').replace(/[\r\n;]+/g, ' '),
-        h.lampiran || '',
-      ]),
-    ]
-    const csv = '\ufeff' + baris.map((r) => r.join(';')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = 'riwayat-absensi.csv'
-    a.click()
-    URL.revokeObjectURL(a.href)
+  // Unduh data sesuai filter aktif sebagai CSV. Dipusatkan di utils/unduh.js
+  // supaya berfungsi DUA jalur: peramban (Blob + <a download>) dan aplikasi
+  // Android (WebView tidak punya UI unduhan untuk blob: → berkas ditulis ke
+  // Cache lalu dibuka lewat lembar "Bagikan/Simpan").
+  const [mengunduh, setMengunduh] = useState(false)
+
+  const exportCSV = async () => {
+    if (!data.length || mengunduh) return
+    setMengunduh(true)
+    try {
+      const baris = [
+        ['Tanggal', 'Masuk', 'Pulang', 'Status', 'Keterangan', 'Lampiran'],
+        ...data.map((h) => [
+          h.tanggal,
+          h.checkIn || '-',
+          h.checkOut || '-',
+          h.status,
+          h.keterangan || '',
+          h.lampiran || '',
+        ]),
+      ]
+      const hasil = await unduhBerkas({
+        nama: `riwayat-absensi-${dari || 'awal'}-sd-${sampai || 'terbaru'}.csv`,
+        isi: buatCSV(baris),
+        mime: MIME.csv,
+        judul: 'Riwayat Absensi NUBSEN',
+      })
+      toast?.(pesanHasilUnduh(hasil, 'CSV riwayat'), 'success')
+    } catch (e) {
+      toast?.(e.message || 'CSV gagal disiapkan.', 'error')
+    } finally {
+      setMengunduh(false)
+    }
   }
 
   return (
@@ -75,9 +90,11 @@ export default function Riwayat({ history }) {
         </div>
         <button
           onClick={exportCSV}
-          className="flex items-center gap-1.5 rounded-2xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/30 transition hover:brightness-110 active:scale-95"
+          disabled={!data.length || mengunduh}
+          title={data.length ? 'Unduh CSV sesuai filter' : 'Tidak ada data untuk diunduh'}
+          className="flex items-center gap-1.5 rounded-2xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/30 transition hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
         >
-          <Download size={14} /> CSV
+          {mengunduh ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} CSV
         </button>
       </div>
 

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Bell } from 'lucide-react'
 import * as api from '../api'
+import { diAplikasi } from '../utils/native'
+import { tampilkanNotifikasi } from '../utils/notif'
 
 const KUNCI_TERLIHAT = 'absenku.notif.terlihat'
 
@@ -10,11 +12,20 @@ const KUNCI_TERLIHAT = 'absenku.notif.terlihat'
 const layakPemberitahuan = (n) =>
   n.jenis === 'jadwal' || n.jenis === 'penting' || /disetujui|ditolak/i.test(n.judul || '')
 
-// Tampilkan pemberitahuan peramban (OS) — via Service Worker bila tersedia
-// (jalan juga saat tab di latar belakang), fallback ke Notification halaman
-// (mode dev tanpa SW). Berisik hanya untuk yang penting: jadwal & penting.
+// Tampilkan pemberitahuan di layar HP.
+//  • Aplikasi Android: WebView tidak mengimplementasikan Notification API →
+//    semua notifikasi dialirkan ke plugin LocalNotifications (heads-up + getar
+//    + ikon status bar), jadi SEMUA notifikasi NUBSEN tampil di layar.
+//  • Peramban: via Service Worker bila tersedia (jalan juga saat tab di latar
+//    belakang), fallback ke Notification halaman (mode dev tanpa SW).
 async function kirimPemberitahuan(n) {
   const body = [n.judul, n.pesan].filter(Boolean).join('\n')
+  if (diAplikasi()) {
+    try {
+      await tampilkanNotifikasi({ id: n.id ?? Date.now(), judul: 'NUBSEN', pesan: body, jenis: n.jenis })
+      return
+    } catch { /* jatuh ke jalur peramban */ }
+  }
   const opsi = {
     body,
     icon: '/logo-icon.png',

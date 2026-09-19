@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Camera, RotateCcw, Check, X, ScanFace } from 'lucide-react'
 import { KANTOR, statusGeofence } from '../utils/geo'
+import { usePenutupKembali } from '../hooks/useTombolKembali'
 
 /**
  * Mock-up verifikasi wajah + GeoTag Image (ala GeoTagImage/GTI):

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { LogIn, WifiOff, RefreshCw, ShieldCheck, ArrowUp, CloudUpload } from 'lucide-react'
+import { LogIn, LogOut, WifiOff, RefreshCw, ShieldCheck, ArrowUp, CloudUpload } from 'lucide-react'
 import * as api from './api'
 import useDarkMode from './hooks/useDarkMode'
 import { useAbsensi, USER_DEFAULT } from './hooks/useAbsensi'
@@ -16,6 +16,32 @@ import Notifikasi from './components/Notifikasi'
 import NotifikasiBell from './components/NotifikasiBell'
 import Admin from './components/Admin'
 import Toast from './components/Toast'
+import Konfirmasi from './components/Konfirmasi'
+import { useTombolKembali } from './hooks/useTombolKembali'
+import { tutupTeratas } from './utils/kembali'
+import { diAplikasi, keluarAplikasi } from './utils/native'
+
+// Dialog "Keluar dari aplikasi?" — dipasang di App agar tersedia di semua halaman
+// (Beranda & Panel Admin). Ya → aplikasi ditutup (native exitApp); Tidak/Back →
+// dialog ditutup. Di peramban dialog ini tidak pernah terbuka (Back milik browser).
+function DialogKeluar({ open, onTutup }) {
+  return (
+    <Konfirmasi
+      open={open}
+      judul="Keluar dari aplikasi?"
+      pesan="NUBSEN akan ditutup. Absensi Anda tetap tersimpan aman di server."
+      labelYa="Keluar"
+      labelTidak="Batal"
+      nada="bahaya"
+      Ikon={LogOut}
+      onYa={async () => {
+        onTutup()
+        await keluarAplikasi()
+      }}
+      onTidak={onTutup}
+    />
+  )
+}
 
 export default function App() {
   const { dark, toggle } = useDarkMode()
@@ -52,6 +78,8 @@ export default function App() {
     }
   })
   const [toast, setToast] = useState(null)
+  // Dialog "Keluar dari aplikasi?" — dibuka tombol Back Android saat sudah di Beranda.
+  const [konfirmasiKeluar, setKonfirmasiKeluar] = useState(false)
 
   // Auto-login: validasi token tersimpan saat aplikasi dibuka
   useEffect(() => {
@@ -126,6 +154,20 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  // Tombol Back Android: tutup modal teratas → kembali ke Beranda (termasuk keluar
+  // dari Panel Admin) → terakhir tawarkan keluar dari aplikasi (dialog konfirmasi).
+  // Handler di-ref oleh hook, jadi selalu membaca state terbaru.
+  useTombolKembali(() => {
+    if (tutupTeratas()) return // 1) modal/sheet/dialog terbuka — Back menutupnya
+    if (!authed) return // halaman login — biarkan perilaku bawaan
+    if (view !== 'dashboard') {
+      setView('dashboard') // 2) Panel Admin / tab lain → kembali ke Beranda
+      window.scrollTo({ top: 0 })
+      return
+    }
+    if (diAplikasi()) setKonfirmasiKeluar(true) // 3) sudah di Beranda → tawarkan keluar
+  })
+
   const handleLogout = () => {
     api.logoutApi()
     setAuthUser(null)
@@ -160,6 +202,7 @@ export default function App() {
       <div className="mx-auto min-h-full w-full max-w-md overflow-x-clip px-3 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-4 sm:px-4">
         <Admin user={authUser} onBack={() => setView('dashboard')} />
         <Toast toast={toast} onClose={() => setToast(null)} />
+        <DialogKeluar open={konfirmasiKeluar} onTutup={() => setKonfirmasiKeluar(false)} />
       </div>
     )
 
@@ -383,6 +426,7 @@ export default function App() {
 
       <Toast toast={toast} onClose={() => setToast(null)} />
       <BottomNav active={view} onChange={setView} />
+      <DialogKeluar open={konfirmasiKeluar} onTutup={() => setKonfirmasiKeluar(false)} />
     </div>
   )
 }

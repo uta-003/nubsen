@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { HelpCircle, ChevronDown, X } from 'lucide-react'
+import { usePenutupKembali } from '../hooks/useTombolKembali'
 
 const FAQ = [
   {
@@ -35,6 +36,8 @@ const FAQ = [
 // Pusat Bantuan: modal FAQ akordeon — user tidak perlu tanya admin untuk hal dasar.
 export default function Bantuan({ open, onClose }) {
   const [buka, setBuka] = useState(null)
+  // Tombol Back Android menutup Pusat Bantuan lebih dulu.
+  usePenutupKembali(!!open, onClose)
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>

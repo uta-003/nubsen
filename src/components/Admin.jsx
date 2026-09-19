@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search } from 'lucide-react'
 import { muatPustakaEkspor } from '../utils/ekspor'
+import { MIME } from '../utils/berkas'
+import { unduhBerkas } from '../utils/unduh'
 import * as api from '../api'
 import { formatTanggalPendek } from '../utils/date'
 
@@ -251,7 +253,7 @@ function Ringkasan() {
 }
 function KelolaKaryawan() {
   const kosong = {
-    nama: '', nip: '', jabatan: '', departemen: '', email: '', telepon: '', cutiTahunan: 12, pin: '', isAdmin: false,
+    nama: '', nip: '', jabatan: '', departemen: '', email: '', telepon: '', lokasiKerja: '', cutiTahunan: 12, pin: '', isAdmin: false,
   }
   const [data, setData] = useState([])
   const [cari, setCari] = useState('')
@@ -296,7 +298,7 @@ function KelolaKaryawan() {
     setTampilForm(true)
     setForm({
       nama: k.nama, nip: k.nip || '', jabatan: k.jabatan || '', departemen: k.departemen || '',
-      email: k.email, telepon: k.telepon || '', cutiTahunan: k.cutiTahunan, pin: '', isAdmin: k.isAdmin,
+      email: k.email, telepon: k.telepon || '', lokasiKerja: k.lokasiKerja || '', cutiTahunan: k.cutiTahunan, pin: '', isAdmin: k.isAdmin,
     })
     setPesan(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -333,6 +335,7 @@ function KelolaKaryawan() {
             <div><label className="label">NIP</label><input className="input" value={form.nip} onChange={(e) => set('nip', e.target.value)} /></div>
             <div><label className="label">Jabatan</label><input className="input" value={form.jabatan} onChange={(e) => set('jabatan', e.target.value)} /></div>
             <div><label className="label">Departemen</label><input className="input" value={form.departemen} onChange={(e) => set('departemen', e.target.value)} /></div>
+            <div className="sm:col-span-2"><label className="label">Lokasi Kerja</label><input className="input" value={form.lokasiKerja} onChange={(e) => set('lokasiKerja', e.target.value)} placeholder="cth. Kantor Pusat — Kelapa Gading, Jakarta Utara" /></div>
             <div className="sm:col-span-2"><label className="label">Email *</label><input type="email" className="input" value={form.email} onChange={(e) => set('email', e.target.value)} required /></div>
             <div><label className="label">Telepon</label><input className="input" value={form.telepon} onChange={(e) => set('telepon', e.target.value)} /></div>
             <div><label className="label">Cuti/Tahun</label><input type="number" min="0" className="input" value={form.cutiTahunan} onChange={(e) => set('cutiTahunan', Number(e.target.value))} /></div>
@@ -362,11 +365,11 @@ function KelolaKaryawan() {
             />
           </div>
           <p className="mb-2 text-[11px] font-medium text-slate-400">
-            {data.filter((k) => [k.nama, k.email, k.jabatan, k.departemen, k.nip].some((v) => (v || '').toLowerCase().includes(cari.trim().toLowerCase()))).length} dari {data.length} karyawan
+            {data.filter((k) => [k.nama, k.email, k.jabatan, k.departemen, k.nip, k.lokasiKerja].some((v) => (v || '').toLowerCase().includes(cari.trim().toLowerCase()))).length} dari {data.length} karyawan
           </p>
           <div className="space-y-3 pb-2">
             {data
-              .filter((k) => [k.nama, k.email, k.jabatan, k.departemen, k.nip].some((v) => (v || '').toLowerCase().includes(cari.trim().toLowerCase())))
+              .filter((k) => [k.nama, k.email, k.jabatan, k.departemen, k.nip, k.lokasiKerja].some((v) => (v || '').toLowerCase().includes(cari.trim().toLowerCase())))
               .map((k) => (
             <div key={k.id} className="card p-4">
               <div className="flex items-start justify-between gap-3">
@@ -377,6 +380,12 @@ function KelolaKaryawan() {
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">{k.jabatan || '—'} • {k.departemen || '—'}</p>
                   <p className="mt-0.5 truncate text-[11px] text-slate-400">{k.email}</p>
+                  {k.lokasiKerja && (
+                    <p className="mt-1 flex min-w-0 items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
+                      <span className="truncate">{k.lokasiKerja}</span>
+                    </p>
+                  )}
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   <button onClick={() => mulaiEdit(k)} className="grid h-8 w-8 place-items-center rounded-xl bg-indigo-50 text-indigo-600 transition active:scale-90 dark:bg-indigo-500/15 dark:text-indigo-400" aria-label="Edit"><Pencil size={14} /></button>
@@ -947,8 +956,19 @@ function Laporan() {
         XLSX.utils.book_append_sheet(wb, ws, namaSheetExcel(namaDept, dipakai))
       }
 
-      XLSX.writeFile(wb, namaBerkasLaporan(data, 'xlsx'))
-      setPesan({ ok: true, teks: `Excel berhasil diunduh (${grup.size + 1} sheet).` })
+      // XLSX.writeFile memakai <a download> yang TIDAK berfungsi di WebView
+      // aplikasi Android (tidak ada UI unduhan untuk blob:) — sebab utama Excel
+      // "tidak bisa" diunduh dari panel admin. Workbook ditulis ke ArrayBuffer
+      // → Blob → unduhBerkas (unduh peramban di web; berkas cache + lembar
+      // Bagikan/Simpan Android di aplikasi).
+      const array = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      await unduhBerkas({
+        nama: namaBerkasLaporan(data, 'xlsx'),
+        isi: new Blob([array], { type: MIME.xlsx }),
+        mime: MIME.xlsx,
+        judul: 'Laporan Kehadiran NUBSEN',
+      })
+      setPesan({ ok: true, teks: `Excel berhasil (${grup.size + 1} sheet).` })
     } catch (e) {
       setPesan({ ok: false, teks: `Gagal membuat Excel: ${e.message}` })
     } finally {
@@ -989,8 +1009,15 @@ function Laporan() {
         headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: 'bold' },
       })
 
-      doc.save(namaBerkasLaporan(data, 'pdf'))
-      setPesan({ ok: true, teks: 'PDF berhasil diunduh.' })
+      // doc.save() (triger klik <a download>) juga gagal di WebView Android —
+      // output sebagai Blob lalu lewat unduhBerkas yang sama dengan Excel.
+      await unduhBerkas({
+        nama: namaBerkasLaporan(data, 'pdf'),
+        isi: doc.output('blob'),
+        mime: MIME.pdf,
+        judul: 'Laporan Kehadiran NUBSEN',
+      })
+      setPesan({ ok: true, teks: 'PDF berhasil dibuat.' })
     } catch (e) {
       setPesan({ ok: false, teks: `Gagal membuat PDF: ${e.message}` })
     } finally {
