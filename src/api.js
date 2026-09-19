@@ -1,10 +1,14 @@
 // ============ API client NUBSEN ============
 // Lokal (dev): path relatif '/api/...' diproxy Vite ke backend Express
 // (lihat vite.config.js: '/api' & '/uploads' → http://localhost:9091).
-// Online (Vercel + backend Render): set variabel lingkungan VITE_BACKEND_URL
-// ke URL backend, mis. https://nubsen-backend.onrender.com — semua request API
-// dan URL berkas (selfie/lampiran) otomatis menuju ke sana.
-export const API_BASE = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '')
+// Online: VITE_BACKEND_URL mengarah ke backend produksi. Fallback produksi:
+// API & berkas dilayani dari https://nubsen.vercel.app (Vercel serverless) —
+// ditulis langsung agar APK bundel-lokal tetap benar walau .env tidak ada.
+export const API_BASE = (
+  import.meta.env.VITE_BACKEND_URL ||
+  (import.meta.env.PROD ? 'https://nubsen.vercel.app' : '')
+).replace(/\/+$/, '')
+
 
 // Mengubah path berkas dari server ('/uploads/xxx.jpg') menjadi URL yang bisa
 // dibuka browser. dataURL (data:...) dan URL absolut dibiarkan apa adanya.
