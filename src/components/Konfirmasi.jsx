@@ -8,21 +8,23 @@ import { usePenutupKembali } from '../hooks/useTombolKembali'
 // - Tombol Back Android ikut menutup dialog ini (usePenutupKembali).
 // - `onYa` boleh async: tombol menampilkan status "Memproses…" dan tidak bisa
 //   ditekan dua kali.
+// Warna dialog — semuanya dari keluarga warna dasar aplikasi (indigo/violet/navy).
+// Tidak ada lagi merah/pink yang terasa "galat berat" hanya untuk sebuah konfirmasi.
 const NADA = {
   bahaya: {
-    ikon: 'bg-gradient-to-br from-rose-500 to-red-600 text-white',
-    glow: 'bg-rose-500',
-    tombol: 'bg-gradient-to-r from-rose-500 to-red-600 shadow-rose-500/30',
+    ikon: 'bg-gradient-to-br from-indigo-500 to-indigo-700 text-white',
+    glow: 'bg-indigo-500',
+    tombol: 'bg-gradient-to-r from-indigo-600 to-violet-600 shadow-indigo-600/30',
   },
   peringatan: {
-    ikon: 'bg-gradient-to-br from-amber-400 to-orange-500 text-white',
-    glow: 'bg-amber-500',
-    tombol: 'bg-gradient-to-r from-amber-400 to-orange-500 shadow-amber-500/30',
+    ikon: 'bg-gradient-to-br from-sky-500 to-indigo-600 text-white',
+    glow: 'bg-sky-500',
+    tombol: 'bg-gradient-to-r from-sky-600 to-indigo-600 shadow-indigo-600/30',
   },
   info: {
-    ikon: 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white',
-    glow: 'bg-indigo-500',
-    tombol: 'bg-gradient-to-r from-indigo-500 to-violet-600 shadow-indigo-500/30',
+    ikon: 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white',
+    glow: 'bg-blue-500',
+    tombol: 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-indigo-600/30',
   },
 }
 

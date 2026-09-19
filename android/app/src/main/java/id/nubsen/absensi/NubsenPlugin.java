@@ -83,4 +83,16 @@ public class NubsenPlugin extends Plugin {
             call.reject("Gagal menyimpan berkas: " + e.getMessage());
         }
     }
+
+    /**
+     * Keluar dari aplikasi — murni native, dipanggil dari dialog konfirmasi web
+     * setelah user menekan "Keluar". Sengaja TIDAK melewati plugin App (yang
+     * dimuat lewat import dinamis) supaya penutupan aplikasi mustahil gagal
+     * karena chunk JS basi/terputus.
+     */
+    @PluginMethod
+    public void keluar(PluginCall call) {
+        call.resolve();
+        getBridge().getActivity().finishAffinity();
+    }
 }

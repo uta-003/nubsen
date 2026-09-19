@@ -1,22 +1,42 @@
-// Pustaka export (xlsx + jspdf + jspdf-autotable) berukuran besar (± 380 kB).
+﻿// Pustaka export (xlsx + jspdf + jspdf-autotable) berukuran besar (± 380 kB).
 // Dimuat lewat import() dinamis saat tombol export benar-benar diklik, lalu
 // hasilnya di-cache — bukan saat aplikasi dibuka. Vite otomatis memecah paket
 // ini menjadi chunk terpisah, sehingga bundel awal (login & absensi) tetap ringan.
+//
+// Bila chunk gagal dimuat (bundel basi setelah deploy baru — "failed to fetch
+// dynamically imported module"), cache Service Worker dibersihkan dan halaman
+// dimuat ulang SEKALI otomatis; user cukup mengulang unduhan setelah terbuka.
+import { pulihkanBundel, terakhirGagalMuat } from './pulihkan'
+
 let pustaka = null
 
+const muat = async () => {
+  const [xlsx, jspdf, autoTabel] = await Promise.all([
+    import('xlsx'),
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ])
+  return {
+    // Interop: sebagian paket mengekspor lewat `default`, sebagian sebagai named export.
+    XLSX: xlsx.default || xlsx,
+    jsPDF: jspdf.jsPDF || jspdf.default?.jsPDF || jspdf.default,
+    autoTable: autoTabel.default || autoTabel,
+  }
+}
+
 export async function muatPustakaEkspor() {
-  if (!pustaka) {
-    const [xlsx, jspdf, autoTabel] = await Promise.all([
-      import('xlsx'),
-      import('jspdf'),
-      import('jspdf-autotable'),
-    ])
-    pustaka = {
-      // Interop: sebagian paket mengekspor lewat `default`, sebagian sebagai named export.
-      XLSX: xlsx.default || xlsx,
-      jsPDF: jspdf.jsPDF || jspdf.default?.jsPDF || jspdf.default,
-      autoTable: autoTabel.default || autoTabel,
+  if (pustaka) return pustaka
+  try {
+    pustaka = await muat()
+  } catch (e) {
+    const memuatUlang = await pulihkanBundel()
+    if (memuatUlang) {
+      throw new Error('Aplikasi sedang diperbarui otomatis — buka unduhan sekali lagi setelah halaman terbuka.')
     }
+    if (terakhirGagalMuat(e) && navigator.onLine === false) {
+      throw new Error('Butuh koneksi internet sekali untuk menyiapkan unduhan. Sambungkan internet lalu coba lagi.')
+    }
+    pustaka = await muat() // percobaan kedua setelah cache dibersihkan
   }
   return pustaka
 }
