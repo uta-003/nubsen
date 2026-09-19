@@ -10,16 +10,19 @@ import { usePenutupKembali } from '../hooks/useTombolKembali'
 //   ditekan dua kali.
 const NADA = {
   bahaya: {
-    ikon: 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400',
-    tombol: 'bg-rose-600 shadow-lg shadow-rose-500/25 hover:brightness-110',
+    ikon: 'bg-gradient-to-br from-rose-500 to-red-600 text-white',
+    glow: 'bg-rose-500',
+    tombol: 'bg-gradient-to-r from-rose-500 to-red-600 shadow-rose-500/30',
   },
   peringatan: {
-    ikon: 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400',
-    tombol: 'bg-amber-500 shadow-lg shadow-amber-500/25 hover:brightness-110',
+    ikon: 'bg-gradient-to-br from-amber-400 to-orange-500 text-white',
+    glow: 'bg-amber-500',
+    tombol: 'bg-gradient-to-r from-amber-400 to-orange-500 shadow-amber-500/30',
   },
   info: {
-    ikon: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400',
-    tombol: 'bg-indigo-600 shadow-lg shadow-indigo-500/25 hover:brightness-110',
+    ikon: 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white',
+    glow: 'bg-indigo-500',
+    tombol: 'bg-gradient-to-r from-indigo-500 to-violet-600 shadow-indigo-500/30',
   },
 }
 

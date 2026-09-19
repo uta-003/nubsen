@@ -54,9 +54,37 @@ export async function unduhBerkas({ nama, isi, mime = 'application/octet-stream'
   const blob = isi instanceof Blob ? isi : new Blob([isi], { type: mime })
 
   if (diAplikasi()) {
-    // Seluruh jalur native (tulis berkas + lembar Bagikan) dibungkus batas waktu:
-    // kalau jembatan plugin tidak pernah menjawab (sistem lambat / jembatan
-    // terbengkalai), promise DILEPAS dan spinner tidak boleh berputar selamanya.
+    // Jalur UTAMA (APK baru): plugin Nubsen.simpanUnduhan menulis berkas LANGSUNG
+    // ke folder Unduhan perangkat via MediaStore — tanpa lembar Bagikan, tanpa
+    // izin ekstra. Sepenuhnya dibungkus batas waktu agar spinner tak pernah
+    // berputar selamanya bila jembatan native tidak menjawab.
+    const simpanLangsung = async () => {
+      const Nubsen = await muatPlugin('Nubsen')
+      const base64 = await blobKeBase64(blob)
+      const hasil = await Nubsen.simpanUnduhan({
+        data: base64,
+        nama: namaAman,
+        mime,
+      })
+      // diFolderUnduhan: Android 10+ (terlihat di aplikasi File/Unduhan);
+      // false: Android 9- (folder khusus aplikasi).
+      return {
+        cara: 'unduh-perangkat',
+        nama: namaAman,
+        uri: hasil?.uri,
+        diFolderUnduhan: !!hasil?.diFolderUnduhan,
+      }
+    }
+    try {
+      const selesai = await denganBatasWaktu(simpanLangsung(), BATAS_LEMBAR_MS)
+      if (selesai !== BATAS_WAKTU) return selesai
+      // Lewat batas → jangan biarkan spinner muter; coba cadangan di bawah.
+    } catch {
+      // Plugin Nubsen belum ada (APK lama) / gagal → jatuh ke jalur cadangan.
+    }
+
+    // Jalur CADANGAN (APK lama tanpa plugin Nubsen): tulis ke cache lalu lembar
+    // Bagikan/Simpan Android (plugin Share).
     const kerjakan = async () => {
       const [{ Filesystem: FS, Directory }, Share] = await Promise.all([
         muatPlugin('Filesystem'),
@@ -122,6 +150,11 @@ export async function unduhBerkas({ nama, isi, mime = 'application/octet-stream'
 // Kalimat siap tampil untuk toast/banner setelah unduhan.
 export function pesanHasilUnduh(hasil, label = 'Berkas') {
   if (!hasil) return ''
+  if (hasil.cara === 'unduh-perangkat') {
+    return hasil.diFolderUnduhan
+      ? `${label} tersimpan di folder Unduhan HP 📁 (${hasil.nama}).`
+      : `${label} tersimpan di folder aplikasi 📁 (${hasil.nama}).`
+  }
   if (hasil.cara !== 'bagikan') return `${label} berhasil diunduh (${hasil.nama}).`
   if (hasil.dibatalkan) return `${label} dibatalkan — berkas tetap tersimpan (${hasil.nama}).`
   if (hasil.tanpaLembarBagikan) {

@@ -17,20 +17,20 @@ import NotifikasiBell from './components/NotifikasiBell'
 import Admin from './components/Admin'
 import Toast from './components/Toast'
 import Konfirmasi from './components/Konfirmasi'
-import { useTombolKembali } from './hooks/useTombolKembali'
 import { tutupTeratas } from './utils/kembali'
-import { diAplikasi, keluarAplikasi } from './utils/native'
+import { keluarAplikasi } from './utils/native'
 
-// Dialog "Keluar dari aplikasi?" — dipasang di App agar tersedia di semua halaman
-// (Beranda & Panel Admin). Ya → aplikasi ditutup (native exitApp); Tidak/Back →
-// dialog ditutup. Di peramban dialog ini tidak pernah terbuka (Back milik browser).
+// Dialog "Keluar dari aplikasi?" — desain kekinian: ikon gradien besar di atas,
+// glow berwarna, tombol pil penuh. Dipasang di App agar tersedia di semua halaman
+// (login, Beranda & Panel Admin). Ya → aplikasi ditutup (native exitApp).
+// Di peramban dialog ini tidak pernah terbuka (Back milik browser).
 function DialogKeluar({ open, onTutup }) {
   return (
     <Konfirmasi
       open={open}
-      judul="Keluar dari aplikasi?"
-      pesan="NUBSEN akan ditutup. Absensi Anda tetap tersimpan aman di server."
-      labelYa="Keluar"
+      judul="Keluar dari NUBSEN?"
+      pesan="Kamu yakin ingin menutup aplikasi? Absensi kamu tetap tersimpan aman di server."
+      labelYa="Ya, Keluar"
       labelTidak="Batal"
       nada="bahaya"
       Ikon={LogOut}
@@ -80,6 +80,37 @@ export default function App() {
   const [toast, setToast] = useState(null)
   // Dialog "Keluar dari aplikasi?" — dibuka tombol Back Android saat sudah di Beranda.
   const [konfirmasiKeluar, setKonfirmasiKeluar] = useState(false)
+
+  // Otak tombol Back Android (dipanggil native lewat window.__nubsenBack →
+  // __nubsenHandleBack). Didaftarkan ulang tiap state berubah supaya SELALU
+  // membaca halaman terbaru. Mengembalikan '1' bila web menangani sendiri:
+  //   1) tutup modal/sheet terbuka   2) halaman lain → kembali ke Beranda
+  //   3) di Beranda → dialog konfirmasi keluar (versi web yang estetik).
+  useEffect(() => {
+    window.__nubsenHandleBack = () => {
+      try {
+        if (tutupTeratas()) return '1'
+        if (!authSiap) return '' // web belum siap → native pakai dialog cadangan
+        if (!authUser) {
+          // Layar login: langsung tawarkan keluar.
+          setKonfirmasiKeluar(true)
+          return '1'
+        }
+        if (view !== 'dashboard') {
+          setView('dashboard')
+          window.scrollTo({ top: 0 })
+          return '1'
+        }
+        setKonfirmasiKeluar(true)
+        return '1'
+      } catch {
+        return '' // galat apa pun → native menampilkan dialog cadangannya
+      }
+    }
+    return () => {
+      delete window.__nubsenHandleBack
+    }
+  }, [authSiap, authUser, view])
 
   // Auto-login: validasi token tersimpan saat aplikasi dibuka
   useEffect(() => {
@@ -153,31 +184,6 @@ export default function App() {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
-
-  // Tombol Back Android: tutup modal teratas → kembali ke Beranda (termasuk keluar
-  // dari Panel Admin) → terakhir tawarkan keluar dari aplikasi (dialog konfirmasi).
-  // Handler di-ref oleh hook, jadi selalu membaca state terbaru.
-  useTombolKembali(() => {
-    try {
-      if (tutupTeratas()) return // 1) modal/sheet/dialog terbuka — Back menutupnya
-      if (!authUser) {
-        // Halaman login: tetap tawarkan keluar aplikasi (jangan pernah "mati").
-        if (diAplikasi()) setKonfirmasiKeluar(true)
-        return
-      }
-      if (view !== 'dashboard') {
-        setView('dashboard') // 2) Panel Admin / tab lain → kembali ke Beranda
-        window.scrollTo({ top: 0 })
-        return
-      }
-      if (diAplikasi()) setKonfirmasiKeluar(true) // 3) sudah di Beranda → tawarkan keluar
-    } catch (e) {
-      // Jaring pengaman: galat apa pun di handler TIDAK boleh membuat tombol
-      // Back mati total — tampilkan dialog keluar agar user tetap bisa keluar.
-      console.error('Handler tombol Back gagal:', e)
-      if (diAplikasi()) setKonfirmasiKeluar(true)
-    }
-  })
 
   const handleLogout = () => {
     api.logoutApi()

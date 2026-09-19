@@ -25,19 +25,22 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        registerPlugin(NubsenPlugin.class);
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
                 if (dialogKeluar != null && dialogKeluar.isShowing()) return; // sedang menanyakan
 
-                // 1) Minta halaman web menutup modal teratas (bottom sheet Bantuan,
-                //    detail riwayat, dialog konfirmasi, dsb.). '1' = ada yang ditutup.
+                // 1) Serahkan ke halaman web: tutup modal teratas → pindah halaman
+                //    (mis. Panel Admin kembali ke Beranda) → tampilkan dialog keluar
+                //    versi web yang lebih estetik. '1' = web menangani sendiri.
                 final String skrip =
-                        "window.__nubsenTutupModal ? String(window.__nubsenTutupModal()) : ''";
+                        "window.__nubsenBack ? String(window.__nubsenBack()) : ''";
                 getBridge().getWebView().evaluateJavascript(skrip, hasil -> {
-                    if (hasil != null && hasil.contains("1")) return; // web menutup modal → selesai
-                    // 2) Tidak ada modal → konfirmasi keluar aplikasi (selalu muncul).
+                    if (hasil != null && hasil.contains("1")) return;
+                    // 2) Web belum siap / tidak menangani → dialog native sebagai
+                    //    jaring pengaman (dialog cantik versi web di atas ini).
                     if (dialogKeluar != null && dialogKeluar.isShowing()) return;
                     dialogKeluar = new AlertDialog.Builder(MainActivity.this)
                             .setTitle("Keluar dari aplikasi?")

@@ -35,6 +35,10 @@ const pemuat = {
   Filesystem: () => import('@capacitor/filesystem'),
   Share: () => import('@capacitor/share').then((m) => m.Share),
   LocalNotifications: () => import('@capacitor/local-notifications').then((m) => m.LocalNotifications),
+  // Plugin khusus NUBSEN (unduh langsung ke folder Unduhan via MediaStore).
+  // registerPlugin bersifat malas: aman dipanggil di web, tapi hanya dipakai
+  // ketika diAplikasi() true.
+  Nubsen: () => import('@capacitor/core').then((m) => m.registerPlugin('Nubsen')),
 }
 
 const cache = new Map()
