@@ -5,6 +5,7 @@ import android.os.Bundle;
 
 import androidx.activity.OnBackPressedCallback;
 
+import com.capacitorjs.plugins.splashscreen.SplashScreenPlugin;
 import com.getcapacitor.BridgeActivity;
 
 /**
@@ -24,8 +25,13 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+        // WAJIB sebelum super.onCreate(): bridge dibuat di dalam super.onCreate()
+        // dan membaca daftar plugin yang terdaftar HINGGA saat itu. Pemanggilan
+        // setelahnya terlambat → plugin "Nubsen" tidak pernah hidup (keluar &amp;
+        // unduhan gagal "not implemented").
         registerPlugin(NubsenPlugin.class);
+        registerPlugin(SplashScreenPlugin.class);
+        super.onCreate(savedInstanceState);
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
