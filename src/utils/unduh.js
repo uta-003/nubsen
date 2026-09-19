@@ -54,53 +54,54 @@ export async function unduhBerkas({ nama, isi, mime = 'application/octet-stream'
   const blob = isi instanceof Blob ? isi : new Blob([isi], { type: mime })
 
   if (diAplikasi()) {
-    const [{ Filesystem: FS, Directory }, Share] = await Promise.all([
-      muatPlugin('Filesystem'),
-      muatPlugin('Share'),
-    ])
-    const base64 = await blobKeBase64(blob)
-    const { uri } = await FS.writeFile({
-      path: `unduhan/${namaAman}`,
-      data: base64,
-      directory: Directory.Cache,
-      recursive: true,
-    })
-    const hasil = { cara: 'bagikan', nama: namaAman, uri }
+    // Seluruh jalur native (tulis berkas + lembar Bagikan) dibungkus batas waktu:
+    // kalau jembatan plugin tidak pernah menjawab (sistem lambat / jembatan
+    // terbengkalai), promise DILEPAS dan spinner tidak boleh berputar selamanya.
+    const kerjakan = async () => {
+      const [{ Filesystem: FS, Directory }, Share] = await Promise.all([
+        muatPlugin('Filesystem'),
+        muatPlugin('Share'),
+      ])
+      const base64 = await blobKeBase64(blob)
+      const { uri } = await FS.writeFile({
+        path: `unduhan/${namaAman}`,
+        data: base64,
+        directory: Directory.Cache,
+        recursive: true,
+      })
+      const hasil = { cara: 'bagikan', nama: namaAman, uri }
 
-    // canShare() false (mis. perangkat tanpa aplikasi penerima) → berkas tetap
-    // tersimpan di cache aplikasi; pemanggil memberi tahu lokasinya.
-    let bisaBagikan = true
-    try {
-      bisaBagikan = (await Share.canShare())?.value !== false
-    } catch {
-      bisaBagikan = true
-    }
-    if (!bisaBagikan) return { ...hasil, tanpaLembarBagikan: true }
+      // canShare() false (mis. perangkat tanpa aplikasi penerima) → berkas tetap
+      // tersimpan di cache aplikasi; pemanggil memberi tahu lokasinya.
+      let bisaBagikan = true
+      try {
+        bisaBagikan = (await Share.canShare())?.value !== false
+      } catch {
+        bisaBagikan = true
+      }
+      if (!bisaBagikan) return { ...hasil, tanpaLembarBagikan: true }
 
-    try {
-      const selesai = await denganBatasWaktu(
-        Share.share({
+      try {
+        await Share.share({
           title: judul || namaAman,
           files: [uri],
           dialogTitle: 'Simpan atau bagikan berkas',
-        }),
-        BATAS_LEMBAR_MS,
-      )
-      if (selesai === BATAS_WAKTU) {
-        // Lembar bagikan tidak pernah menyelesaikan dirinya (jarang: sistem
-        // lambat/aktivitas hilang). JANGAN biarkan spinner berputar selamanya —
-        // berkas SUDAH tersimpan di cache; laporkan lokasinya sebagai selesai.
-        return { ...hasil, tanpaLembarBagikan: true }
+        })
+        return hasil
+      } catch (e) {
+        // User menekan "kembali/batal" pada lembar Bagikan → bukan galat: berkas
+        // tetap tersimpan, cukup beri tahu lewat pesan sukses khusus.
+        if (/cancel|batal|canceled|cancelled/i.test(String(e?.message))) {
+          return { ...hasil, dibatalkan: true }
+        }
+        throw e
       }
-      return hasil
-    } catch (e) {
-      // User menekan "kembali/batal" pada lembar Bagikan → bukan galat: berkas
-      // tetap tersimpan, cukup beri tahu lewat pesan sukses khusus.
-      if (/cancel|batal|canceled|cancelled/i.test(String(e?.message))) {
-        return { ...hasil, dibatalkan: true }
-      }
-      throw e
     }
+    const selesai = await denganBatasWaktu(kerjakan(), BATAS_LEMBAR_MS)
+    if (selesai === BATAS_WAKTU) {
+      throw new Error('Perangkat tidak merespons. Buka ulang aplikasi lalu coba lagi.')
+    }
+    return selesai
   }
 
   const url = URL.createObjectURL(blob)
