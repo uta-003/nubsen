@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search } from 'lucide-react'
 import { muatPustakaEkspor } from '../utils/ekspor'
 import { MIME } from '../utils/berkas'
-import { unduhBerkas } from '../utils/unduh'
+import { unduhBerkas, pesanHasilUnduh } from '../utils/unduh'
 import * as api from '../api'
 import { formatTanggalPendek } from '../utils/date'
 
@@ -962,13 +962,13 @@ function Laporan() {
       // → Blob → unduhBerkas (unduh peramban di web; berkas cache + lembar
       // Bagikan/Simpan Android di aplikasi).
       const array = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-      await unduhBerkas({
+      const hasil = await unduhBerkas({
         nama: namaBerkasLaporan(data, 'xlsx'),
         isi: new Blob([array], { type: MIME.xlsx }),
         mime: MIME.xlsx,
         judul: 'Laporan Kehadiran NUBSEN',
       })
-      setPesan({ ok: true, teks: `Excel berhasil (${grup.size + 1} sheet).` })
+      setPesan({ ok: true, teks: pesanHasilUnduh(hasil, `Excel (${grup.size + 1} sheet)`) })
     } catch (e) {
       setPesan({ ok: false, teks: `Gagal membuat Excel: ${e.message}` })
     } finally {
@@ -1011,13 +1011,13 @@ function Laporan() {
 
       // doc.save() (triger klik <a download>) juga gagal di WebView Android —
       // output sebagai Blob lalu lewat unduhBerkas yang sama dengan Excel.
-      await unduhBerkas({
+      const hasil = await unduhBerkas({
         nama: namaBerkasLaporan(data, 'pdf'),
         isi: doc.output('blob'),
         mime: MIME.pdf,
         judul: 'Laporan Kehadiran NUBSEN',
       })
-      setPesan({ ok: true, teks: 'PDF berhasil dibuat.' })
+      setPesan({ ok: true, teks: pesanHasilUnduh(hasil, 'PDF') })
     } catch (e) {
       setPesan({ ok: false, teks: `Gagal membuat PDF: ${e.message}` })
     } finally {

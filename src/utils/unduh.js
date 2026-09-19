@@ -20,6 +20,17 @@ import { diAplikasi, muatPlugin } from './native'
 // Cukup lama agar unduhan besar tidak terpotong, tapi tetap membersihkan memori.
 const TUNGGU_CABUT_MS = 15000
 const PESAN_GAGAL = 'Berkas gagal disiapkan di perangkat ini.'
+// Batas menunggu lembar "Bagikan/Simpan" Android. Kalau lewat (sistem lambat /
+// aktivitas hilang), promise DISELESAIKAN — spinner tidak boleh berputar selamanya.
+const BATAS_LEMBAR_MS = 90000
+const BATAS_WAKTU = Symbol('batas-waktu')
+
+function denganBatasWaktu(janji, ms) {
+  return Promise.race([
+    janji,
+    new Promise((selesai) => setTimeout(() => selesai(BATAS_WAKTU), ms)),
+  ])
+}
 
 // Blob → base64 (tanpa awalan "data:...;base64,") untuk plugin Filesystem.
 export function blobKeBase64(blob) {
@@ -54,6 +65,8 @@ export async function unduhBerkas({ nama, isi, mime = 'application/octet-stream'
       directory: Directory.Cache,
       recursive: true,
     })
+    const hasil = { cara: 'bagikan', nama: namaAman, uri }
+
     // canShare() false (mis. perangkat tanpa aplikasi penerima) → berkas tetap
     // tersimpan di cache aplikasi; pemanggil memberi tahu lokasinya.
     let bisaBagikan = true
@@ -62,15 +75,32 @@ export async function unduhBerkas({ nama, isi, mime = 'application/octet-stream'
     } catch {
       bisaBagikan = true
     }
-    if (bisaBagikan) {
-      await Share.share({
-        title: judul || namaAman,
-        files: [uri],
-        dialogTitle: 'Simpan atau bagikan berkas',
-      })
-      return { cara: 'bagikan', nama: namaAman, uri }
+    if (!bisaBagikan) return { ...hasil, tanpaLembarBagikan: true }
+
+    try {
+      const selesai = await denganBatasWaktu(
+        Share.share({
+          title: judul || namaAman,
+          files: [uri],
+          dialogTitle: 'Simpan atau bagikan berkas',
+        }),
+        BATAS_LEMBAR_MS,
+      )
+      if (selesai === BATAS_WAKTU) {
+        // Lembar bagikan tidak pernah menyelesaikan dirinya (jarang: sistem
+        // lambat/aktivitas hilang). JANGAN biarkan spinner berputar selamanya —
+        // berkas SUDAH tersimpan di cache; laporkan lokasinya sebagai selesai.
+        return { ...hasil, tanpaLembarBagikan: true }
+      }
+      return hasil
+    } catch (e) {
+      // User menekan "kembali/batal" pada lembar Bagikan → bukan galat: berkas
+      // tetap tersimpan, cukup beri tahu lewat pesan sukses khusus.
+      if (/cancel|batal|canceled|cancelled/i.test(String(e?.message))) {
+        return { ...hasil, dibatalkan: true }
+      }
+      throw e
     }
-    return { cara: 'bagikan', nama: namaAman, uri, tanpaLembarBagikan: true }
   }
 
   const url = URL.createObjectURL(blob)
@@ -92,9 +122,11 @@ export async function unduhBerkas({ nama, isi, mime = 'application/octet-stream'
 export function pesanHasilUnduh(hasil, label = 'Berkas') {
   if (!hasil) return ''
   if (hasil.cara !== 'bagikan') return `${label} berhasil diunduh (${hasil.nama}).`
-  return hasil.tanpaLembarBagikan
-    ? `${label} tersimpan di aplikasi (${hasil.nama}) — bagikan lewat aplikasi File.`
-    : `${label} siap — pilih "Simpan"/"Bagikan" pada dialog Android.`
+  if (hasil.dibatalkan) return `${label} dibatalkan — berkas tetap tersimpan (${hasil.nama}).`
+  if (hasil.tanpaLembarBagikan) {
+    return `${label} tersimpan di aplikasi (${hasil.nama}) — pindahkan lewat aplikasi File/Bagikan.`
+  }
+  return `${label} siap — pilih "Simpan"/"Bagikan" pada dialog Android.`
 }
 
 // Unduh + kembalikan pesan siap tampil; melempar Error berpesan ramah bila gagal.

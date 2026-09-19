@@ -158,14 +158,25 @@ export default function App() {
   // dari Panel Admin) → terakhir tawarkan keluar dari aplikasi (dialog konfirmasi).
   // Handler di-ref oleh hook, jadi selalu membaca state terbaru.
   useTombolKembali(() => {
-    if (tutupTeratas()) return // 1) modal/sheet/dialog terbuka — Back menutupnya
-    if (!authed) return // halaman login — biarkan perilaku bawaan
-    if (view !== 'dashboard') {
-      setView('dashboard') // 2) Panel Admin / tab lain → kembali ke Beranda
-      window.scrollTo({ top: 0 })
-      return
+    try {
+      if (tutupTeratas()) return // 1) modal/sheet/dialog terbuka — Back menutupnya
+      if (!authUser) {
+        // Halaman login: tetap tawarkan keluar aplikasi (jangan pernah "mati").
+        if (diAplikasi()) setKonfirmasiKeluar(true)
+        return
+      }
+      if (view !== 'dashboard') {
+        setView('dashboard') // 2) Panel Admin / tab lain → kembali ke Beranda
+        window.scrollTo({ top: 0 })
+        return
+      }
+      if (diAplikasi()) setKonfirmasiKeluar(true) // 3) sudah di Beranda → tawarkan keluar
+    } catch (e) {
+      // Jaring pengaman: galat apa pun di handler TIDAK boleh membuat tombol
+      // Back mati total — tampilkan dialog keluar agar user tetap bisa keluar.
+      console.error('Handler tombol Back gagal:', e)
+      if (diAplikasi()) setKonfirmasiKeluar(true)
     }
-    if (diAplikasi()) setKonfirmasiKeluar(true) // 3) sudah di Beranda → tawarkan keluar
   })
 
   const handleLogout = () => {
@@ -191,6 +202,8 @@ export default function App() {
     return (
       <div className="min-h-full">
         <LoginPage onLogin={handleLogin} />
+        {/* Tombol Back di layar login menawarkan keluar aplikasi */}
+        <DialogKeluar open={konfirmasiKeluar} onTutup={() => setKonfirmasiKeluar(false)} />
       </div>
     )
 
