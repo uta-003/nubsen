@@ -1,4 +1,4 @@
-﻿// Pustaka export (xlsx + jspdf + jspdf-autotable) berukuran besar (± 380 kB).
+﻿// Pustaka export (exceljs + jspdf + jspdf-autotable) berukuran besar.
 // Dimuat lewat import() dinamis saat tombol export benar-benar diklik, lalu
 // hasilnya di-cache — bukan saat aplikasi dibuka. Vite otomatis memecah paket
 // ini menjadi chunk terpisah, sehingga bundel awal (login & absensi) tetap ringan.
@@ -11,14 +11,14 @@ import { pulihkanBundel, terakhirGagalMuat } from './pulihkan'
 let pustaka = null
 
 const muat = async () => {
-  const [xlsx, jspdf, autoTabel] = await Promise.all([
-    import('xlsx'),
+  const [exceljs, jspdf, autoTabel] = await Promise.all([
+    import('exceljs'),
     import('jspdf'),
     import('jspdf-autotable'),
   ])
   return {
     // Interop: sebagian paket mengekspor lewat `default`, sebagian sebagai named export.
-    XLSX: xlsx.default || xlsx,
+    ExcelJS: exceljs.default?.Workbook ? exceljs.default : exceljs.Workbook ? exceljs : exceljs.default || exceljs,
     jsPDF: jspdf.jsPDF || jspdf.default?.jsPDF || jspdf.default,
     autoTable: autoTabel.default || autoTabel,
   }
@@ -40,3 +40,4 @@ export async function muatPustakaEkspor() {
   }
   return pustaka
 }
+

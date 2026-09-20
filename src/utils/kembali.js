@@ -1,7 +1,7 @@
 // Registry "penutup lapisan" untuk tombol Back Android.
 //
 // Tombol Back harus menutup lapisan teratas lebih dulu (modal/sheet/dialog),
-// BARU kembali ke Beranda, dan terakhir menawarkan keluar dari aplikasi.
+// BARU kembali ke Beranda, dan terakhir langsung keluar dari aplikasi.
 // Setiap komponen yang menampilkan lapisan mendaftarkan fungsi penutupnya
 // lewat usePenutupKembali (hooks/useTombolKembali.js).
 const penutup = []

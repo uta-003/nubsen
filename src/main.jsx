@@ -7,10 +7,10 @@ import './index.css'
 
 // Jembatan tombol Back native → React: MainActivity memanggil fungsi ini lewat
 // evaluateJavascript setiap tombol Back HP ditekan. Mengembalikan '1' bila web
-// menangani sendiri (tutup modal → kembali ke Beranda → tampilkan dialog keluar
-// versi web yang estetik); '' bila web belum siap — native lalu menampilkan
-// dialog cadangannya. Fungsi detail (__nubsenHandleBack) dipasang oleh App.jsx
-// sehingga SELALU membaca state halaman terbaru.
+// menangani sendiri (tutup modal → kembali ke Beranda → keluar aplikasi langsung
+// tanpa dialog); '' bila web belum siap — native lalu langsung menutup aplikasi.
+// Fungsi detail (__nubsenHandleBack) dipasang oleh App.jsx sehingga SELALU
+// membaca state halaman terbaru.
 window.__nubsenBack = () => {
   try {
     if (typeof window.__nubsenHandleBack === 'function') {

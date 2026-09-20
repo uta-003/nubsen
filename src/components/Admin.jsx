@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search } from 'lucide-react'
 import { muatPustakaEkspor } from '../utils/ekspor'
+import { buatWorkbookLaporan, KOLOM_LAPORAN } from '../utils/laporan-excel'
 import { MIME } from '../utils/berkas'
 import { unduhBerkas, pesanHasilUnduh } from '../utils/unduh'
 import * as api from '../api'
@@ -859,25 +860,15 @@ function KelolaNotifikasi() {
 
 
 // Tab Laporan — rekap kehadiran per karyawan pada satu periode, lengkap dengan
-// export Excel (XLSX: sheet Ringkasan + satu sheet per departemen) dan PDF.
-const KOLOM_LAPORAN = ['Nama', 'NIP', 'Jabatan', 'Departemen', 'Hadir', 'Terlambat', 'Hadir Libur', 'Izin', 'Sakit', 'Cuti', 'Alpha', 'Lembur (jam)', 'Hari Kerja', '% Kehadiran']
+// export Excel bergaya modern (utils/laporan-excel.js, ExcelJS: sheet Ringkasan
+// + satu sheet per departemen) dan PDF (jsPDF + autoTable).
 
-// Satu baris tabel dari data karyawan (dipakai tabel UI, sheet Excel, dan PDF).
+// Satu baris tabel dari data karyawan (dipakai tabel PDF — % sebagai teks).
 function barisLaporan(r) {
   return [r.nama, r.nip, r.jabatan, r.departemen, r.hadir, r.terlambat, r.hadirLibur, r.izin, r.sakit, r.cuti, r.alpha, r.lembur, r.hariKerja, `${r.persen}%`]
 }
 
 const namaBerkasLaporan = (data, ekstensi) => `laporan-kehadiran-${data.dari}_sd_${data.sampai}.${ekstensi}`
-
-// Nama sheet Excel maksimal 31 karakter & tanpa karakter terlarang; nama ganda diberi nomor.
-function namaSheetExcel(departemen, dipakai) {
-  const dasar = (departemen || 'Tanpa Departemen').replace(/[/\\*?:[\]]/g, ' ').trim().slice(0, 28) || 'Departemen'
-  let nama = dasar
-  let n = 2
-  while (dipakai.has(nama.toLowerCase())) nama = `${dasar} (${n++})`
-  dipakai.add(nama.toLowerCase())
-  return nama
-}
 
 function Laporan() {
   const hariIniISO = () => {
@@ -915,60 +906,25 @@ function Laporan() {
       : p >= 75 ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
         : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400'
 
-  // ---------- Export Excel (XLSX) ----------
+  // ---------- Export Excel (XLSX bergaya modern — ExcelJS) ----------
   const eksporExcel = async () => {
     if (!adaData) return
     setEkspor('xlsx')
     try {
-      // Pustaka xlsx dimuat di sini (bukan saat aplikasi dibuka) agar bundel awal ringan.
-      const { XLSX } = await muatPustakaEkspor()
-      const wb = XLSX.utils.book_new()
-      const lebarKolom = [{ wch: 22 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, ...Array(10).fill({ wch: 12 })]
-
-      // Sheet Ringkasan — semua karyawan + baris TOTAL.
-      const semua = [
-        KOLOM_LAPORAN,
-        ...data.baris.map(barisLaporan),
-        ['TOTAL', '', '', '', data.ringkasan.hadir, data.ringkasan.terlambat, data.ringkasan.hadirLibur, data.ringkasan.izin, data.ringkasan.sakit, data.ringkasan.cuti, data.ringkasan.alpha, data.ringkasan.lembur, data.hariKerja, `${data.ringkasan.persen}%`],
-      ]
-      const wsSemua = XLSX.utils.aoa_to_sheet(semua)
-      wsSemua['!cols'] = lebarKolom
-      XLSX.utils.book_append_sheet(wb, wsSemua, 'Ringkasan')
-
-      // Satu sheet per departemen (plus baris TOTAL departemen).
-      const dipakai = new Set(['ringkasan'])
-      const grup = new Map()
-      for (const r of data.baris) {
-        if (!grup.has(r.departemen)) grup.set(r.departemen, [])
-        grup.get(r.departemen).push(r)
-      }
-      for (const [namaDept, list] of grup) {
-        const target = data.hariKerja * list.length
-        const masuk = list.reduce((t, r) => t + r.hadir + r.terlambat, 0)
-        const jumlah = (k) => list.reduce((t, r) => t + r[k], 0)
-        const sheet = [
-          KOLOM_LAPORAN,
-          ...list.map(barisLaporan),
-          ['TOTAL', '', '', '', jumlah('hadir'), jumlah('terlambat'), jumlah('hadirLibur'), jumlah('izin'), jumlah('sakit'), jumlah('cuti'), jumlah('alpha'), Math.round(jumlah('lembur') * 10) / 10, data.hariKerja, `${target ? Math.min(100, Math.round((masuk / target) * 100)) : 0}%`],
-        ]
-        const ws = XLSX.utils.aoa_to_sheet(sheet)
-        ws['!cols'] = lebarKolom
-        XLSX.utils.book_append_sheet(wb, ws, namaSheetExcel(namaDept, dipakai))
-      }
-
-      // XLSX.writeFile memakai <a download> yang TIDAK berfungsi di WebView
-      // aplikasi Android (tidak ada UI unduhan untuk blob:) — sebab utama Excel
-      // "tidak bisa" diunduh dari panel admin. Workbook ditulis ke ArrayBuffer
-      // → Blob → unduhBerkas (unduh peramban di web; berkas cache + lembar
-      // Bagikan/Simpan Android di aplikasi).
-      const array = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      // Pustaka exceljs dimuat di sini (bukan saat aplikasi dibuka) agar bundel awal ringan.
+      const { ExcelJS } = await muatPustakaEkspor()
+      const wb = await buatWorkbookLaporan(data, ExcelJS)
+      // Workbook ditulis ke ArrayBuffer → Blob → unduhBerkas (unduh peramban
+      // di web; berkas langsung ke folder Unduhan HP di aplikasi Android).
+      const array = await wb.xlsx.writeBuffer()
       const hasil = await unduhBerkas({
         nama: namaBerkasLaporan(data, 'xlsx'),
         isi: new Blob([array], { type: MIME.xlsx }),
         mime: MIME.xlsx,
         judul: 'Laporan Kehadiran NUBSEN',
       })
-      setPesan({ ok: true, teks: pesanHasilUnduh(hasil, `Excel (${grup.size + 1} sheet)`) })
+      const jumlahSheet = new Set(data.baris.map((r) => r.departemen)).size + 1
+      setPesan({ ok: true, teks: pesanHasilUnduh(hasil, `Excel (${jumlahSheet} sheet)`) })
     } catch (e) {
       setPesan({ ok: false, teks: `Gagal membuat Excel: ${e.message}` })
     } finally {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { LogIn, LogOut, WifiOff, RefreshCw, ShieldCheck, ArrowUp, CloudUpload } from 'lucide-react'
+import { LogIn, WifiOff, RefreshCw, ShieldCheck, ArrowUp, CloudUpload } from 'lucide-react'
 import * as api from './api'
 import useDarkMode from './hooks/useDarkMode'
 import { useAbsensi, USER_DEFAULT } from './hooks/useAbsensi'
@@ -16,32 +16,12 @@ import Notifikasi from './components/Notifikasi'
 import NotifikasiBell from './components/NotifikasiBell'
 import Admin from './components/Admin'
 import Toast from './components/Toast'
-import Konfirmasi from './components/Konfirmasi'
 import { tutupTeratas } from './utils/kembali'
 import { keluarAplikasi } from './utils/native'
 
-// Dialog "Keluar dari aplikasi?" — desain kekinian: ikon gradien besar di atas,
-// glow berwarna, tombol pil penuh. Dipasang di App agar tersedia di semua halaman
-// (login, Beranda & Panel Admin). Ya → aplikasi ditutup (native exitApp).
-// Di peramban dialog ini tidak pernah terbuka (Back milik browser).
-function DialogKeluar({ open, onTutup }) {
-  return (
-    <Konfirmasi
-      open={open}
-      judul="Keluar dari NUBSEN?"
-      pesan="Kamu yakin ingin menutup aplikasi? Absensi kamu tetap tersimpan aman di server."
-      labelYa="Ya, Keluar"
-      labelTidak="Batal"
-      nada="bahaya"
-      Ikon={LogOut}
-      onYa={async () => {
-        onTutup()
-        await keluarAplikasi()
-      }}
-      onTidak={onTutup}
-    />
-  )
-}
+// Tombol Back Android TANPA dialog konfirmasi keluar: modal ditutup dulu,
+// halaman lain kembali ke Beranda, lalu aplikasi langsung ditutup lewat
+// keluarAplikasi() (lihat handler window.__nubsenHandleBack di bawah).
 
 export default function App() {
   const { dark, toggle } = useDarkMode()
@@ -78,22 +58,20 @@ export default function App() {
     }
   })
   const [toast, setToast] = useState(null)
-  // Dialog "Keluar dari aplikasi?" — dibuka tombol Back Android saat sudah di Beranda.
-  const [konfirmasiKeluar, setKonfirmasiKeluar] = useState(false)
 
   // Otak tombol Back Android (dipanggil native lewat window.__nubsenBack →
   // __nubsenHandleBack). Didaftarkan ulang tiap state berubah supaya SELALU
   // membaca halaman terbaru. Mengembalikan '1' bila web menangani sendiri:
   //   1) tutup modal/sheet terbuka   2) halaman lain → kembali ke Beranda
-  //   3) di Beranda → dialog konfirmasi keluar (versi web yang estetik).
+  //   3) di Beranda / layar login → keluar aplikasi LANGSUNG tanpa dialog.
   useEffect(() => {
     window.__nubsenHandleBack = () => {
       try {
         if (tutupTeratas()) return '1'
-        if (!authSiap) return '' // web belum siap → native pakai dialog cadangan
+        if (!authSiap) return '' // web belum siap → native menutup aplikasi
         if (!authUser) {
-          // Layar login: langsung tawarkan keluar.
-          setKonfirmasiKeluar(true)
+          // Layar login: keluar langsung, tanpa dialog konfirmasi.
+          keluarAplikasi()
           return '1'
         }
         if (view !== 'dashboard') {
@@ -101,10 +79,11 @@ export default function App() {
           window.scrollTo({ top: 0 })
           return '1'
         }
-        setKonfirmasiKeluar(true)
+        // Sudah di Beranda: tutup aplikasi seketika saat Back ditekan.
+        keluarAplikasi()
         return '1'
       } catch {
-        return '' // galat apa pun → native menampilkan dialog cadangannya
+        return '' // galat apa pun → native menutup aplikasi
       }
     }
     return () => {
@@ -208,8 +187,6 @@ export default function App() {
     return (
       <div className="min-h-full">
         <LoginPage onLogin={handleLogin} />
-        {/* Tombol Back di layar login menawarkan keluar aplikasi */}
-        <DialogKeluar open={konfirmasiKeluar} onTutup={() => setKonfirmasiKeluar(false)} />
       </div>
     )
 
@@ -221,7 +198,6 @@ export default function App() {
       <div className="mx-auto min-h-full w-full max-w-md overflow-x-clip px-3 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-4 sm:px-4">
         <Admin user={authUser} onBack={() => setView('dashboard')} />
         <Toast toast={toast} onClose={() => setToast(null)} />
-        <DialogKeluar open={konfirmasiKeluar} onTutup={() => setKonfirmasiKeluar(false)} />
       </div>
     )
 
@@ -445,7 +421,6 @@ export default function App() {
 
       <Toast toast={toast} onClose={() => setToast(null)} />
       <BottomNav active={view} onChange={setView} />
-      <DialogKeluar open={konfirmasiKeluar} onTutup={() => setKonfirmasiKeluar(false)} />
     </div>
   )
 }

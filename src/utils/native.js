@@ -61,10 +61,11 @@ export function muatPlugin(nama) {
   })
 }
 
-// Menutup aplikasi Android — dipanggil HANYA setelah user menekan "Keluar" pada
-// dialog konfirmasi (lihat App.jsx + components/Konfirmasi.jsx). Jalur utama
-// Nubsen.keluar() murni native (tanpa chunk dinamis — mustahil gagal karena
-// masalah jaringan); plugin App bawaan hanya cadangan.
+// Menutup aplikasi Android — dipanggil LANGSUNG saat tombol Back ditekan di
+// Beranda atau layar login, tanpa dialog konfirmasi (lihat App.jsx +
+// MainActivity.java). Jalur utama Nubsen.keluar() murni native (tanpa chunk
+// dinamis — mustahil gagal karena masalah jaringan); plugin App bawaan hanya
+// cadangan.
 export async function keluarAplikasi() {
   if (!diAplikasi()) return false
   try {

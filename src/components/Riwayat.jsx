@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { History as HistoryIcon, Filter, MapPin, Paperclip, Info, Download, ChevronRight, PartyPopper, Loader2 } from 'lucide-react'
-import { formatTanggalLengkap } from '../utils/date'
+import { formatTanggalLengkap, formatTanggalPendek, hariIndo } from '../utils/date'
 import { detailLibur } from '../utils/liburIndonesia'
 import { assetUrl } from '../api'
 import { MIME, buatCSV } from '../utils/berkas'
@@ -22,6 +22,28 @@ const AKSEN_REKAP = {
   Terlambat: 'bg-amber-500',
   Izin: 'bg-sky-500',
   Alpha: 'bg-rose-500',
+}
+
+// Tanggal 'YYYY-MM-DD' → 'dd/mm/yyyy' — format tabel Indonesia yang langsung
+// terbaca rapi saat CSV dibuka di Excel (bukan 'YYYY-MM-DD' beralur teknis).
+const tanggalCsv = (iso) => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso || ''
+  const dua = (n) => String(n).padStart(2, '0')
+  return `${dua(d.getDate())}/${dua(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
+// Durasi kerja dari jam 'HH:MM' masuk → pulang, ringkas ('7j 45m'); '-'
+// bila salah satu kosong atau jamnya tidak wajar (pulang ≤ masuk).
+const durasiCsv = (masuk, pulang) => {
+  const keMenit = (t) => {
+    const cocok = /^(\d{1,2}):(\d{2})$/.exec(String(t || ''))
+    return cocok ? Number(cocok[1]) * 60 + Number(cocok[2]) : null
+  }
+  const a = keMenit(masuk)
+  const b = keMenit(pulang)
+  if (a == null || b == null || b <= a) return '-'
+  return `${Math.floor((b - a) / 60)}j ${(b - a) % 60}m`
 }
 
 export default function Riwayat({ history, toast }) {
@@ -56,16 +78,40 @@ export default function Riwayat({ history, toast }) {
     if (!data.length || mengunduh) return
     setMengunduh(true)
     try {
+      // Layout "kekinian": blok judul + meta periode + rekap, baris kosong
+      // pemisah, lalu tabel dengan kolom tambahan (No, Hari, Durasi, Hari
+      // Libur, Lokasi). Tetap CSV ';' + BOM ramah Excel Indonesia.
+      const sekarang = new Date()
+      const dua = (n) => String(n).padStart(2, '0')
+      const jamUnduh = `${dua(sekarang.getDate())}/${dua(sekarang.getMonth() + 1)}/${sekarang.getFullYear()} ${dua(sekarang.getHours())}:${dua(sekarang.getMinutes())}`
+      const rekap = ['Hadir', 'Terlambat', 'Izin', 'Alpha']
+        .map((s) => `${s} ${data.filter((h) => h.status === s).length}`)
+        .join(' • ')
       const baris = [
-        ['Tanggal', 'Masuk', 'Pulang', 'Status', 'Keterangan', 'Lampiran'],
-        ...data.map((h) => [
-          h.tanggal,
-          h.checkIn || '-',
-          h.checkOut || '-',
-          h.status,
-          h.keterangan || '',
-          h.lampiran || '',
-        ]),
+        ['RIWAYAT ABSENSI — NUBSEN'],
+        [`Periode: ${dari ? formatTanggalPendek(dari) : 'semua'} s.d. ${sampai ? formatTanggalPendek(sampai) : 'hari ini'}   •   ${data.length} catatan   •   Diunduh ${jamUnduh}`],
+        [`Rekap: ${rekap}`],
+        [],
+        ['No', 'Tanggal', 'Hari', 'Masuk', 'Pulang', 'Durasi', 'Status', 'Hari Libur', 'Lokasi', 'Keterangan', 'Lampiran'],
+        ...data.map((h, i) => {
+          const d = new Date(h.tanggal)
+          const libur = detailLibur(h.tanggal)
+          return [
+            i + 1,
+            tanggalCsv(h.tanggal),
+            hariIndo[d.getDay()],
+            h.checkIn || '-',
+            h.checkOut || '-',
+            durasiCsv(h.checkIn, h.checkOut),
+            h.status,
+            libur?.nama || '',
+            h.lokasi ? `${h.lokasi.lat}, ${h.lokasi.lon}${h.lokasi.alamat ? ` — ${h.lokasi.alamat}` : ''}` : '',
+            h.keterangan || '',
+            h.lampiran || '',
+          ]
+        }),
+        [],
+        ['Dibuat otomatis oleh NUBSEN — pemisah titik koma agar tabel langsung rapi di Excel.'],
       ]
       const hasil = await unduhBerkas({
         nama: `riwayat-absensi-${dari || 'awal'}-sd-${sampai || 'terbaru'}.csv`,

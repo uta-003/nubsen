@@ -3,7 +3,7 @@ import { Mail, LockKeyhole, Eye, EyeOff, Loader2, LogIn, Sparkles } from 'lucide
 import * as api from '../api'
 
 // Halaman login dengan animasi: blob gradasi mengambang, logo berdenyut,
-// getar saat salah, show/hide PIN, dan tombol akun demo.
+// getar saat salah, dan show/hide PIN.
 export default function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('')
   const [pin, setPin] = useState('')
@@ -28,12 +28,6 @@ export default function LoginPage({ onLogin }) {
     }
   }
 
-  const isiDemo = () => {
-    setEmail('afriani.putri@perusahaan.co.id')
-    setPin('123456')
-    setError(null)
-  }
-
   return (
     <div className="relative flex min-h-full items-center justify-center overflow-hidden px-4 py-10">
       {/* Blob gradasi mengambang di latar */}
@@ -53,7 +47,7 @@ export default function LoginPage({ onLogin }) {
           />
           <h1 className="mt-4 text-2xl font-extrabold tracking-tight">NUBSEN</h1>
           <p className="flex items-center justify-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-            <Sparkles size={12} className="text-amber-400" /> Absensi cepat, aman, tanpa ribet
+            <Sparkles size={12} className="text-amber-400" /> Cukup Satu Klik!
           </p>
         </div>
 
@@ -116,18 +110,7 @@ export default function LoginPage({ onLogin }) {
             )}
           </button>
 
-          <button
-            type="button"
-            onClick={isiDemo}
-            className="w-full text-center text-[11px] font-semibold text-indigo-500 underline-offset-2 hover:underline dark:text-indigo-400"
-          >
-            Pakai akun demo — Afriani • PIN 123456
-          </button>
         </form>
-
-        <p className="mt-6 text-center text-[10px] leading-relaxed text-slate-400">
-          NUBSEN v2.0 • Selfie + GPS + Geofence 20 m • Karyawan lain: budi.santoso@perusahaan.co.id (PIN 654321)
-        </p>
       </div>
     </div>
   )
