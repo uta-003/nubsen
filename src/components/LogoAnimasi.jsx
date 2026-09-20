@@ -1,8 +1,7 @@
-// ============ Logo animasi NUBSEN (melingkar — TANPA kotak) ============
-// Dipakai bersama oleh splash, header aplikasi, dan halaman login supaya animasi
-// logo seragam: halo gradasi berputar, gelombang sonar mengembang, cahaya lembut,
-// titik orbit, dan logo yang mengambang dengan pendar biru (drop-shadow, bukan
-// box-shadow — jadi tidak pernah tampil seperti kotak).
+// ============ Logo animasi NUBSEN — bersih, TANPA border/cincin/stroke ============
+// Dipakai bersama oleh splash, header aplikasi, dan halaman login: hanya glow
+// cahaya lembut di belakang logo + logo yang mengambang. Tidak ada cincin,
+// ring, titik orbit, atau shadow gelap apapun di sekeliling logo.
 const UKURAN = {
   sm: { wrap: 'h-10 w-10', gambar: 'h-7 w-7' },
   md: { wrap: 'h-16 w-16', gambar: 'h-12 w-12' },
@@ -14,20 +13,10 @@ export default function LogoAnimasi({ ukuran = 'md', kelas = '', src = '/logo-ic
   const u = UKURAN[ukuran] || UKURAN.md
   return (
     <span className={`logo-wrap relative inline-grid shrink-0 place-items-center ${u.wrap} ${kelas}`}>
-      {/* Gelombang sonar (dua lingkaran, bergantian) */}
-      <span aria-hidden className="logo-sonar pointer-events-none absolute inset-0 rounded-full" />
-      <span aria-hidden className="logo-sonar logo-sonar-2 pointer-events-none absolute inset-0 rounded-full" />
-      {/* Cincin halo gradasi yang berputar pelan */}
-      <span aria-hidden className="logo-halo pointer-events-none absolute inset-0 rounded-full" />
-      {/* Cahaya radial lembut di belakang logo */}
+      {/* Cahaya radial lembut di belakang logo — glow, bukan border */}
       <span aria-hidden className="logo-cahaya pointer-events-none absolute inset-1 rounded-full" />
-      {/* Titik orbit mengelilingi logo */}
-      <span aria-hidden className="logo-orbit pointer-events-none absolute inset-0">
-        <span className="absolute left-1/2 top-0 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-indigo-500/80 shadow-[0_0_10px_2px_rgba(99,102,241,0.45)]" />
-      </span>
-      {/* Logo mengambang — pendar memakai drop-shadow agar bentuknya membulat.
-          rounded-full (bukan kotak membulat): gambar sumber memang lingkaran,
-          jadi tidak pernah muncul sisi/bingkai persegi di perangkat mana pun. */}
+      {/* Logo mengambang — TANPA cincin/border apapun: hanya glow cahaya lembut
+          di belakang (elemen logo-cahaya) dan animasi melayang pada gambarnya. */}
       <img
         src={src}
         alt={alt}

@@ -1,11 +1,58 @@
-import { X, MapPin, Paperclip, Info, ExternalLink, Camera, ShieldAlert, ShieldCheck, LogIn, LogOut } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { X, MapPin, Paperclip, Info, ExternalLink, Camera, Loader2, TriangleAlert, ShieldAlert, ShieldCheck, LogIn, LogOut } from 'lucide-react'
 import { usePenutupKembali } from '../hooks/useTombolKembali'
 import StatusBadge from './StatusBadge'
 import { formatTanggalLengkap, durasiKerja } from '../utils/date'
-import { assetUrl } from '../api'
+import { assetUrl, getFotoAbsensi } from '../api'
+
+// Foto selfie absen — DAFTAR riwayat sengaja TIDAK membawa base64 (supaya ringan
+// & cepat), jadi foto diambil dari server saat detail dibuka. Baris luring /
+// baris lama yang masih membawa selfie langsung menampilkannya tanpa fetch.
+function FotoSelfie({ rec, masuk, selfie }) {
+  const jenis = masuk ? 'masuk' : 'pulang'
+  const ada = masuk ? rec.adaSelfie : rec.adaSelfiePulang
+  const bolehAmbil = ada && Number.isInteger(rec.id) && !selfie
+  const [isi, setIsi] = useState(selfie || null)
+  const [galat, setGalat] = useState(null)
+  const [memuat, setMemuat] = useState(bolehAmbil)
+
+  useEffect(() => {
+    if (!bolehAmbil) return undefined
+    let batal = false
+    setMemuat(true)
+    setGalat(null)
+    getFotoAbsensi(rec.id, jenis)
+      .then((d) => { if (!batal) setIsi(d.foto || null) })
+      .catch((e) => { if (!batal) setGalat(e.message || 'Gagal memuat foto.') })
+      .finally(() => { if (!batal) setMemuat(false) })
+    return () => { batal = true }
+  }, [bolehAmbil, rec?.id, jenis])
+
+  if (!ada && !selfie) return null
+  return (
+    <div className="mt-3">
+      <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+        <Camera size={13} className="text-indigo-500" /> Foto Selfie {masuk ? 'Masuk' : 'Pulang'}
+      </p>
+      {memuat ? (
+        <p className="flex items-center justify-center gap-2 rounded-2xl bg-slate-100 py-10 text-xs text-slate-400 dark:bg-slate-700/50">
+          <Loader2 size={15} className="animate-spin" /> Memuat foto…
+        </p>
+      ) : galat ? (
+        <p className="rounded-2xl bg-rose-50 px-3 py-2.5 text-[11px] font-semibold text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">
+          <TriangleAlert size={12} className="mr-1 inline" /> {galat}
+        </p>
+      ) : isi ? (
+        <img src={isi} alt={`Selfie absen ${masuk ? 'masuk' : 'pulang'}`} className="w-full rounded-2xl object-cover" />
+      ) : (
+        <p className="rounded-2xl bg-slate-100 px-3 py-2.5 text-[11px] text-slate-400 dark:bg-slate-700/50">Foto tidak tersedia.</p>
+      )}
+    </div>
+  )
+}
 
 // Satu blok absen (masuk ATAU pulang): jam, foto selfie, lokasi + geofence + Maps.
-function BlokAbsen({ masuk, jam, lokasi, selfie, diLuarArea, jarak }) {
+function BlokAbsen({ rec, masuk, jam, lokasi, selfie, diLuarArea, jarak }) {
   const Label = masuk ? LogIn : LogOut
   return (
     <div className="mt-4 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800">
@@ -48,14 +95,7 @@ function BlokAbsen({ masuk, jam, lokasi, selfie, diLuarArea, jarak }) {
         </>
       )}
 
-      {selfie && (
-        <div className="mt-3">
-          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
-            <Camera size={13} className="text-indigo-500" /> Foto Selfie {masuk ? 'Masuk' : 'Pulang'}
-          </p>
-          <img src={assetUrl(selfie)} alt={`Selfie absen ${masuk ? 'masuk' : 'pulang'}`} className="w-full rounded-2xl object-cover" />
-        </div>
-      )}
+      <FotoSelfie rec={rec} masuk={masuk} selfie={selfie} />
     </div>
   )
 }
@@ -128,11 +168,11 @@ export default function RiwayatDetail({ rec, onClose }) {
 
         {/* Data absen masuk: lokasi + geofence + foto (kolom khusus masuk di server) */}
         {rec.checkIn && rec.checkIn !== '-' && (
-          <BlokAbsen masuk jam={rec.checkIn} lokasi={rec.lokasi} selfie={rec.selfie} diLuarArea={rec.diLuarArea} jarak={rec.jarak} />
+          <BlokAbsen rec={rec} masuk jam={rec.checkIn} lokasi={rec.lokasi} selfie={rec.selfie} diLuarArea={rec.diLuarArea} jarak={rec.jarak} />
         )}
         {/* Data absen pulang: kolom terpisah — foto & lokasi pulang tidak menimpa masuk */}
         {rec.checkOut && rec.checkOut !== '-' && (
-          <BlokAbsen jam={rec.checkOut} lokasi={rec.lokasiPulang} selfie={rec.selfiePulang} diLuarArea={rec.diLuarAreaPulang} jarak={rec.jarakPulang} />
+          <BlokAbsen rec={rec} jam={rec.checkOut} lokasi={rec.lokasiPulang} selfie={rec.selfiePulang} diLuarArea={rec.diLuarAreaPulang} jarak={rec.jarakPulang} />
         )}
       </div>
     </div>

@@ -89,6 +89,10 @@ function mapRecord(row) {
     selfiePulang: row.selfiePulang || null,
     diLuarAreaPulang: row.diLuarAreaPulang ?? null,
     jarakPulang: row.jarakPulang ?? null,
+    // Penanda ADA foto (muatan daftar RINGAN — base64 tidak ikut; foto diambil
+    // terpisah via getFotoAbsensi saat detail dibuka).
+    adaSelfie: !!row.adaSelfie,
+    adaSelfiePulang: !!row.adaSelfiePulang,
     lampiran: row.lampiran || null,
     // Absensi di luar hari kerja (mis. masuk hari Sabtu) → badge "Hari libur".
     hariLibur: !!row.hariLibur,

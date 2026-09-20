@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { History as HistoryIcon, Filter, MapPin, Paperclip, Info, Download, ChevronRight, PartyPopper, Loader2 } from 'lucide-react'
+import { History as HistoryIcon, Filter, MapPin, Paperclip, Info, Download, ChevronRight, PartyPopper, Loader2, Camera } from 'lucide-react'
 import { formatTanggalLengkap, formatTanggalPendek, hariIndo } from '../utils/date'
 import { detailLibur } from '../utils/liburIndonesia'
 import { assetUrl } from '../api'
@@ -271,6 +271,11 @@ export default function Riwayat({ history, toast }) {
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1.5">
                   <StatusBadge status={h.status} />
+                  {(h.adaSelfie || h.adaSelfiePulang) && (
+                    <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                      <Camera size={11} /> Foto
+                    </span>
+                  )}
                   {h.hariLibur && (
                     <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:bg-teal-500/15 dark:text-teal-300">
                       🌴 Hari libur
