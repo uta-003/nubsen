@@ -7,6 +7,7 @@ import {
   listSemuaIzin, setStatusIzin, hapusIzin, lampiranIzin,
   listSemuaLembur, setStatusLembur, hapusLembur,
   laporanKehadiran, laporanGaji,
+  listHariLibur, tambahHariLibur, hapusHariLibur,
   listPeriodeGaji, tetapkanPeriodeGaji, aktifkanPeriodeGaji, hapusPeriodeGaji,
   STATUS_KARYAWAN, statusKaryawanSah,
   notifToClient, kirimNotifikasi, listSemuaNotifikasi, hapusNotifikasi,
@@ -84,6 +85,45 @@ router.put('/jadwal', wrap(async (req, res) => {
   // meneruskan `json.data` — dipakai panel admin untuk memberi tahu bahwa
   // broadcast sudah terkirim (atau tidak ada perubahan sehingga tidak ada notif).
   res.json({ data: { ...(await getJadwal()), notifikasiDikirim: !!berubah } })
+}))
+
+// ---------- Hari libur (nasional/cuti bersama + khusus dari admin) ----------
+// Hari terdaftar tidak dihitung hari kerja (laporan & gaji), tidak Alpha otomatis,
+// dan absensi di hari itu masuk kategori "Hadir Libur". Perubahan menyebar ke
+// seluruh karyawan lewat notifikasi broadcast (baris employee_id NULL).
+router.get('/libur', wrap(async (req, res) => {
+  res.json({ data: await listHariLibur({ tahun: req.query.tahun }) })
+}))
+
+router.post('/libur', wrap(async (req, res) => {
+  const { tanggal, nama } = req.body || {}
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(tanggal || ''))) {
+    return res.status(400).json({ error: 'Tanggal harus format YYYY-MM-DD.' })
+  }
+  const teks = String(nama || '').trim()
+  if (teks.length < 3 || teks.length > 80) {
+    return res.status(400).json({ error: 'Nama libur wajib 3–80 karakter.' })
+  }
+  const data = await tambahHariLibur(tanggal, teks)
+  await kirimNotifikasi({
+    employeeId: null,
+    judul: '🌴 Hari libur ditetapkan',
+    pesan: `${tanggal} ditetapkan libur — ${teks}. Tidak perlu absen masuk & pulang di hari itu.`,
+    jenis: 'jadwal',
+  })
+  res.status(201).json({ data })
+}))
+
+router.delete('/libur/:tanggal', wrap(async (req, res) => {
+  const hilang = await hapusHariLibur(req.params.tanggal)
+  if (!hilang) return res.status(404).json({ error: 'Tanggal libur tidak ditemukan.' })
+  await kirimNotifikasi({
+    employeeId: null,
+    judul: '📅 Hari libur dibatalkan',
+    pesan: `${req.params.tanggal} tidak lagi ditetapkan sebagai hari libur — absensi berjalan normal.`,
+    jenis: 'jadwal',
+  })
+  res.json({ data: { ok: true } })
 }))
 
 // ---------- Penghitung gaji (rekap gaji + uang makan + lembur) ----------

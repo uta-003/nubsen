@@ -206,14 +206,15 @@ $ukuranLauncher = [ordered]@{ 'mdpi' = 48; 'hdpi' = 72; 'xhdpi' = 96; 'xxhdpi' =
 foreach ($d in $ukuranLauncher.Keys) {
   $s = [double]$ukuranLauncher[$d]
 
-  # 1a. Kotak membulat (sudut 22% — standar ikon adaptif Android)
+  # 1a. LINGKARAN penuh — bukan kotak membulat. Launcher yang menampilkan ikon
+  #     legacy apa adanya (tanpa masking) tidak lagi menampakkan "kotak gelap";
+  #     bentuk lingkaran juga selaras dengan logo web & ikon adaptif Android 8+.
   $l = New-Kanvas ([int]$s) ([int]$s)
   $bmp = $l[0]; $g = $l[1]
-  $path = Add-Bundar 0 0 $s $s ($s * 0.22)
   $brush = New-Object System.Drawing.SolidBrush($NAVY)
-  $g.FillPath($brush, $path)
-  $brush.Dispose(); $path.Dispose()
-  Add-Gambar $g $logoPutih ($s * 0.62) ($s / 2) ($s / 2)
+  $g.FillEllipse($brush, 0, 0, [single]$s, [single]$s)
+  $brush.Dispose()
+  Add-Gambar $g $logoPutih ($s * 0.60) ($s / 2) ($s / 2)
   $g.Dispose()
   Simpan $bmp (Join-Path $res "mipmap-$d\ic_launcher.png")
   $dibuat.Add("mipmap-$d\ic_launcher.png")

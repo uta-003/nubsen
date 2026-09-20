@@ -6,6 +6,52 @@ export async function seedIfEmpty() {
   await seedKaryawan()
   await seedRiwayat()
   await seedPeriodeGaji()
+  await seedHariLibur()
+}
+
+// Hari libur nasional & cuti bersama INDONESIA 2026 (rilis resmi Kemenko PMK) —
+// sama dengan daftar pada aplikasi web (src/utils/liburIndonesia.js). Insert OR
+// IGNORE: tambahan libur milik admin tidak pernah tertimpa saat boot ulang.
+async function seedHariLibur() {
+  const LIBUR_2026 = [
+    ['2026-01-01', 'Tahun Baru Masehi'],
+    ['2026-01-16', 'Isra Mikraj Nabi Muhammad SAW'],
+    ['2026-02-16', 'Cuti Bersama Tahun Baru Imlek'],
+    ['2026-02-17', 'Tahun Baru Imlek 2577 Kongzili'],
+    ['2026-03-18', 'Cuti Bersama Hari Suci Nyepi'],
+    ['2026-03-19', 'Hari Suci Nyepi (Tahun Baru Saka 1948)'],
+    ['2026-03-20', 'Cuti Bersama Idul Fitri 1447 H'],
+    ['2026-03-21', 'Idul Fitri 1447 H'],
+    ['2026-03-22', 'Idul Fitri 1447 H (hari kedua)'],
+    ['2026-03-23', 'Cuti Bersama Idul Fitri 1447 H'],
+    ['2026-03-24', 'Cuti Bersama Idul Fitri 1447 H'],
+    ['2026-04-03', 'Wafat Isa Almasih (Jumat Agung)'],
+    ['2026-04-05', 'Kebangkitan Isa Almasih (Paskah)'],
+    ['2026-05-01', 'Hari Buruh Internasional'],
+    ['2026-05-14', 'Kenaikan Isa Almasih'],
+    ['2026-05-15', 'Cuti Bersama Kenaikan Isa Almasih'],
+    ['2026-05-27', 'Idul Adha 1447 H'],
+    ['2026-05-28', 'Cuti Bersama Idul Adha 1447 H'],
+    ['2026-05-31', 'Hari Raya Waisak 2570 BE'],
+    ['2026-06-01', 'Hari Lahir Pancasila'],
+    ['2026-06-16', 'Tahun Baru Islam 1448 H'],
+    ['2026-08-17', 'Hari Kemerdekaan Republik Indonesia'],
+    ['2026-08-25', 'Maulid Nabi Muhammad SAW'],
+    ['2026-12-24', 'Cuti Bersama Natal'],
+    ['2026-12-25', 'Kelahiran Isa Almasih (Natal)'],
+  ]
+  const sudah = await db.get(
+    "SELECT COUNT(*) AS n FROM holidays WHERE sumber = 'resmi'",
+  )
+  if ((sudah?.n ?? 0) >= LIBUR_2026.length) return
+  for (const [tanggal, nama] of LIBUR_2026) {
+    await db.run(
+      `INSERT INTO holidays (tanggal, nama, sumber) VALUES (?, ?, 'resmi')
+       ON CONFLICT (tanggal) DO NOTHING`,
+      [tanggal, nama],
+    )
+  }
+  console.log('🌱 Seed: hari libur nasional & cuti bersama 2026 siap.')
 }
 
 // Periode penggajian demo (bulan berjalan) supaya slip gaji di aplikasi karyawan

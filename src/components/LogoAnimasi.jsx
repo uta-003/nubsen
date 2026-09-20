@@ -25,11 +25,13 @@ export default function LogoAnimasi({ ukuran = 'md', kelas = '', src = '/logo-ic
       <span aria-hidden className="logo-orbit pointer-events-none absolute inset-0">
         <span className="absolute left-1/2 top-0 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-indigo-500/80 shadow-[0_0_10px_2px_rgba(99,102,241,0.45)]" />
       </span>
-      {/* Logo mengambang — pendar memakai drop-shadow agar bentuknya membulat */}
+      {/* Logo mengambang — pendar memakai drop-shadow agar bentuknya membulat.
+          rounded-full (bukan kotak membulat): gambar sumber memang lingkaran,
+          jadi tidak pernah muncul sisi/bingkai persegi di perangkat mana pun. */}
       <img
         src={src}
         alt={alt}
-        className={`logo-melayang relative z-10 rounded-[26%] object-contain ${u.gambar}`}
+        className={`logo-melayang relative z-10 rounded-full object-contain ${u.gambar}`}
       />
     </span>
   )

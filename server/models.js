@@ -413,17 +413,57 @@ export async function setStatusLembur(id, status, alasan = '') {
 export async function hapusLembur(id) {
   await db.run('DELETE FROM overtime WHERE id = ?', [id])
 }
+
+// ---------- Hari libur (nasional/cuti bersama + khusus dari admin) ----------
+// Hari yang terdaftar: tidak Alpha otomatis, tidak dihitung hari kerja pada
+// laporan/gaji, dan absensi di hari itu ditandai hari_libur = 1 (Hadir Libur).
+export async function listHariLibur({ tahun } = {}) {
+  const t = Number(tahun) || new Date().getFullYear()
+  const rows = await db.all(
+    `SELECT tanggal, nama, sumber FROM holidays
+     WHERE tanggal LIKE ? OR tanggal LIKE ?
+     ORDER BY tanggal`,
+    [`${t}-%`, `${t + 1}-%`],
+  )
+  return rows.map((r) => ({ tanggal: r.tanggal, nama: r.nama, sumber: r.sumber === 'resmi' ? 'resmi' : 'admin' }))
+}
+
+// Set tanggal libur untuk rentang [dari..sampai] — dipakai laporan & alpha.
+async function setTanggalLibur(dari, sampai) {
+  const rows = await db.all(
+    'SELECT tanggal FROM holidays WHERE tanggal >= ? AND tanggal <= ?',
+    [dari, sampai],
+  )
+  return new Set(rows.map((r) => r.tanggal))
+}
+
+export async function tambahHariLibur(tanggal, nama) {
+  await db.run(
+    `INSERT INTO holidays (tanggal, nama, sumber) VALUES (?, ?, 'admin')
+     ON CONFLICT (tanggal) DO UPDATE SET nama = excluded.nama, sumber = 'admin'`,
+    [tanggal, nama],
+  )
+  return { tanggal, nama, sumber: 'admin' }
+}
+
+export async function hapusHariLibur(tanggal) {
+  const info = await db.run('DELETE FROM holidays WHERE tanggal = ?', [tanggal])
+  return info.changes > 0
+}
 // ---------- Panel Admin: laporan kehadiran (export Excel/PDF) ----------
 // Hari kerja = hari yang aktif pada pengaturan jadwal (default Senin–Jumat) dalam
 // rentang [dari..sampai] inklusif. Hari libur nasional tidak dikurangkan otomatis —
 // admin cukup menyesuaikan periode laporan.
-function hitungHariKerja(dari, sampai, hariAktif = HARI_KERJA_DEFAULT) {
+function hitungHariKerja(dari, sampai, hariAktif = HARI_KERJA_DEFAULT, liburSet = null) {
   const mulai = new Date(`${dari}T00:00:00Z`)
   const akhir = new Date(`${sampai}T00:00:00Z`)
   if (Number.isNaN(mulai.getTime()) || Number.isNaN(akhir.getTime()) || mulai > akhir) return 0
   const aktif = new Set(hariAktif)
   let n = 0
   for (let d = new Date(mulai); d <= akhir; d.setUTCDate(d.getUTCDate() + 1)) {
+    // Hari libur (nasional/cuti bersama/khusus admin) bukan hari kerja —
+    // tidak menggelembungkan target kehadiran & tidak menjadikan karyawan Alpha.
+    if (liburSet?.has(toISODate(d))) continue
     if (aktif.has(d.getUTCDay())) n += 1
   }
   return n
@@ -457,9 +497,11 @@ export async function laporanKehadiran({ dari, sampai, departemen, employeeId } 
   const hariIni = toISODate()
   const mulai = dari || `${hariIni.slice(0, 7)}-01` // default: awal bulan berjalan
   const selesai = sampai || hariIni
-  // Hari kerja mengikuti pengaturan jadwal admin (mis. Senin–Jumat atau Senin–Sabtu).
+  // Hari kerja mengikuti pengaturan jadwal admin (mis. Senin–Jumat atau Senin–Sabtu),
+  // dikurangi hari libur yang terdaftar (nasional/cuti bersama/khusus admin).
   const hariAktif = await hariKerjaAktif()
-  const hariKerja = hitungHariKerja(mulai, selesai, hariAktif)
+  const liburSet = await setTanggalLibur(mulai, selesai)
+  const hariKerja = hitungHariKerja(mulai, selesai, hariAktif, liburSet)
 
   let sqlKaryawan = 'SELECT id, nama, nip, jabatan, departemen, status_karyawan FROM employees'
   const params = []
@@ -801,13 +843,17 @@ export async function catatCheckIn({ employeeId = 1, lokasi = {}, selfieUrl = nu
   const jam = jamSekarang()
   const { jamMasukBatas } = await getJadwal() // jadwal aktif dari settings (admin bisa ubah)
   const status = jam > jamMasukBatas ? 'Terlambat' : 'Hadir'
-  // Absensi di luar hari kerja ditandai agar laporan tidak menghitungnya sebagai
-  // hari kerja (mis. masuk hari Sabtu pada perusahaan Senin–Jumat).
+  // Absensi di luar hari kerja atau pada HARI LIBUR yang terdaftar ditandai agar
+  // laporan tidak menghitungnya sebagai hari kerja biasa (Hadir Libur).
   const aktif = await hariKerjaAktif()
-  const hariLibur = aktif.includes(new Date(`${tanggal}T00:00:00Z`).getUTCDay()) ? 0 : 1
-  const keterangan = hariLibur
-    ? 'Absensi di luar hari kerja'
-    : status === 'Terlambat' ? `Check-in melewati batas ${jamMasukBatas}` : ''
+  const libur = await db.get('SELECT nama FROM holidays WHERE tanggal = ?', [tanggal])
+  const diLuarJadwal = !aktif.includes(new Date(`${tanggal}T00:00:00Z`).getUTCDay())
+  const hariLibur = libur || diLuarJadwal ? 1 : 0
+  const keterangan = libur
+    ? `Libur: ${libur.nama}`
+    : diLuarJadwal
+      ? 'Absensi di luar hari kerja'
+      : status === 'Terlambat' ? `Check-in melewati batas ${jamMasukBatas}` : ''
 
   // Geofence: hitung jarak ke kantor pusat (authoritative di server).
   let diLuar = null
@@ -887,6 +933,8 @@ export async function tanggalAlpha(employeeId, dari, sampai) {
   if (batasAwal > selesai) return []
 
   const hariAktif = new Set(await hariKerjaAktif())
+  // Hari libur yang terdaftar (nasional/cuti bersama/khusus admin) tidak Alpha.
+  const liburSet = await setTanggalLibur(batasAwal, selesai)
   const adaAbsen = new Set(
     (await db.all(
       'SELECT tanggal FROM attendance WHERE employee_id = ? AND tanggal >= ? AND tanggal <= ?',
@@ -903,6 +951,7 @@ export async function tanggalAlpha(employeeId, dari, sampai) {
   for (const d = new Date(`${batasAwal}T00:00:00Z`); toISODate(d) <= selesai; d.setUTCDate(d.getUTCDate() + 1)) {
     const tanggal = toISODate(d)
     if (!hariAktif.has(d.getUTCDay())) continue // bukan hari kerja
+    if (liburSet.has(tanggal)) continue // hari libur — bukan Alpha
     if (tanggal === hariIni && jamSekarang() < jamPulang) continue // hari belum berakhir
     if (adaAbsen.has(tanggal)) continue // sudah ada catatan absensi
     if (pengajuan.some((l) => l.mulai <= tanggal && tanggal <= l.selesai)) continue // izin/cuti

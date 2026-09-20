@@ -223,6 +223,118 @@ function KelolaJadwal() {
         untuk semua karyawan. Format 24 jam HH:MM. Pilihan <b>Hari Kerja</b> dipakai untuk menghitung hari kerja pada laporan
         kehadiran (Laporan) — pilih <b>Sen–Sab</b> bila perusahaan bekerja enam hari.
       </p>
+
+      {/* Hari libur: nasional/cuti bersama (prefill resmi) + khusus yang ditetapkan admin */}
+      <KartuHariLibur />
+    </div>
+  )
+}
+
+// ---------- Kartu Hari Libur (tab Jadwal) ----------
+// Hari terdaftar: tidak Alpha otomatis, tidak dihitung hari kerja pada Laporan &
+// Gaji, dan absensi di hari itu masuk kategori "Hadir Libur". Perubahan mengirim
+// notifikasi broadcast ke semua karyawan.
+function KartuHariLibur() {
+  const tahun = new Date().getFullYear()
+  const [daftar, setDaftar] = useState(null)
+  const [form, setForm] = useState({ tanggal: '', nama: '' })
+  const [proses, setProses] = useState(false)
+  const [pesan, setPesan] = useState(null)
+
+  const muat = () => api.adminLibur({ tahun }).then(setDaftar).catch(() => {})
+  useEffect(() => {
+    muat()
+  }, [])
+
+  const tambah = async (e) => {
+    e.preventDefault()
+    setProses(true)
+    try {
+      await api.adminTambahLibur(form.tanggal, form.nama.trim())
+      setForm({ tanggal: '', nama: '' })
+      setPesan({ ok: true, teks: 'Hari libur ditetapkan — semua karyawan menerima notifikasi.' })
+      muat()
+    } catch (err) {
+      setPesan({ ok: false, teks: err.message })
+    } finally {
+      setProses(false)
+    }
+  }
+
+  const hapus = async (l) => {
+    if (!confirm(`Batalkan libur ${l.tanggal} — ${l.nama}?`)) return
+    try {
+      await api.adminHapusLibur(l.tanggal)
+      setPesan({ ok: true, teks: 'Hari libur dibatalkan — notifikasi dikirim ke karyawan.' })
+      muat()
+    } catch (err) {
+      setPesan({ ok: false, teks: err.message })
+    }
+  }
+
+  const siap = /^\d{4}-\d{2}-\d{2}$/.test(form.tanggal) && form.nama.trim().length >= 3
+
+  return (
+    <div className="card space-y-3">
+      <BannerPesan pesan={pesan} />
+      <div>
+        <h3 className="flex items-center gap-1.5 text-sm font-extrabold">🌴 Hari Libur</h3>
+        <p className="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+          Hari terdaftar tidak menjadikan karyawan Alpha dan tidak dihitung pada Laporan/Gaji. Daftar {tahun}–{tahun + 1}.
+        </p>
+      </div>
+      <form onSubmit={tambah} className="grid grid-cols-[1fr_1.5fr_auto] gap-2">
+        <input
+          type="date"
+          className="input !px-3"
+          value={form.tanggal}
+          onChange={(e) => setForm((f) => ({ ...f, tanggal: e.target.value }))}
+          required
+        />
+        <input
+          className="input !px-3"
+          placeholder="Nama libur (mis. Anniversary NUBSEN)"
+          value={form.nama}
+          maxLength={80}
+          onChange={(e) => setForm((f) => ({ ...f, nama: e.target.value }))}
+          required
+        />
+        <button type="submit" disabled={!siap || proses} className="btn-primary !px-3 !py-2 text-xs disabled:opacity-40">
+          {proses ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Tambah
+        </button>
+      </form>
+      {daftar === null ? (
+        <p className="text-xs text-slate-400">Memuat…</p>
+      ) : daftar.length === 0 ? (
+        <p className="rounded-2xl bg-slate-50 px-3 py-2.5 text-xs text-slate-400 dark:bg-slate-800/60">
+          Belum ada hari libur pada {tahun}–{tahun + 1}.
+        </p>
+      ) : (
+        <ul className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
+          {daftar.map((l) => (
+            <li key={l.tanggal} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs dark:bg-slate-800/60">
+              <span className="shrink-0 font-mono font-semibold text-slate-500 dark:text-slate-300">{formatTanggalPendek(l.tanggal)}</span>
+              <span className="min-w-0 flex-1 truncate font-semibold">{l.nama}</span>
+              <span
+                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                  l.sumber === 'resmi'
+                    ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300'
+                    : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300'
+                }`}
+              >
+                {l.sumber === 'resmi' ? 'Resmi' : 'Khusus'}
+              </span>
+              <button
+                onClick={() => hapus(l)}
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-500 transition active:scale-90 dark:bg-rose-500/15"
+                aria-label={`Hapus libur ${l.tanggal}`}
+              >
+                <Trash2 size={13} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

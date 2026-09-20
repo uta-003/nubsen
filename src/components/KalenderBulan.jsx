@@ -1,7 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, PartyPopper } from 'lucide-react'
 import { bulanIndo, toISODate } from '../utils/date'
 import { detailLibur, liburBulan } from '../utils/liburIndonesia'
+import * as api from '../api'
+
+// Libur KHUSUS yang ditetapkan admin (bukan libur nasional bawaan) datang dari
+// /api/jadwal. Diambil SEKALI per sesi — di-cache di level modul agar membuka
+// kalender bolak-balik tidak memuat ulang; daftar memuat tahun ini & tahun depan.
+let cacheLiburServer = null
+function ambilLiburServer() {
+  if (!cacheLiburServer) {
+    cacheLiburServer = api
+      .getJadwal()
+      .then((j) => (Array.isArray(j?.libur) ? j.libur : []))
+      .catch(() => [])
+  }
+  return cacheLiburServer
+}
 
 const WARNA_TITIK = {
   Hadir: 'bg-emerald-500',
@@ -18,6 +33,10 @@ const GESER_MAKS = 12 // 1 tahun libur ke depan
 // cuti bersama pada bulan terpilih ditampilkan dengan nama lengkap + jenisnya.
 export default function KalenderBulan({ history = [], onSelect }) {
   const [geser, setGeser] = useState(0) // 0 = bulan ini, -1 = bulan lalu, dst.
+  const [liburKhusus, setLiburKhusus] = useState([])
+  useEffect(() => {
+    ambilLiburServer().then(setLiburKhusus)
+  }, [])
   const basis = new Date()
   basis.setDate(1)
   basis.setMonth(basis.getMonth() + geser)
@@ -29,8 +48,20 @@ export default function KalenderBulan({ history = [], onSelect }) {
   const hariIniIso = toISODate(new Date())
   const sel = [...Array(kolomAwal).fill(null), ...Array.from({ length: jumlahHari }, (_, i) => i + 1)]
   const iso = (d) => `${tahun}-${String(bulan + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-  const daftarLibur = liburBulan(tahun, bulan)
-  const jumlahNasional = daftarLibur.filter((l) => l.jenis !== 'cuti').length
+  // Gabungkan libur nasional/cuti bersama (data statis resmi) dengan libur khusus
+  // dari admin — libur statis menang bila tanggalnya sama.
+  const prefiks = `${tahun}-${String(bulan + 1).padStart(2, '0')}`
+  const petaLibur = new Map(liburBulan(tahun, bulan).map((l) => [l.tanggal, l]))
+  for (const l of liburKhusus) {
+    if (l.tanggal.startsWith(prefiks) && !petaLibur.has(l.tanggal)) {
+      petaLibur.set(l.tanggal, { tanggal: l.tanggal, nama: l.nama, jenis: 'admin' })
+    }
+  }
+  const daftarLibur = [...petaLibur.values()].sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+  const jumlahNasional = daftarLibur.filter((l) => l.jenis === 'nasional').length
+  const jumlahCuti = daftarLibur.filter((l) => l.jenis === 'cuti').length
+  const jumlahKhusus = daftarLibur.filter((l) => l.jenis === 'admin').length
+  const labelJenis = (jenis) => (jenis === 'cuti' ? 'Cuti bersama' : jenis === 'admin' ? 'Libur khusus' : 'Libur nasional')
 
   return (
     <div className="card animate-fade-in">
@@ -89,17 +120,19 @@ export default function KalenderBulan({ history = [], onSelect }) {
                   className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
                     l.jenis === 'cuti'
                       ? 'bg-orange-200/70 text-orange-700 dark:bg-orange-500/20 dark:text-orange-200'
-                      : 'bg-rose-200/70 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200'
+                      : l.jenis === 'admin'
+                        ? 'bg-indigo-200/70 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200'
+                        : 'bg-rose-200/70 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200'
                   }`}
                 >
-                  {l.jenis === 'cuti' ? 'Cuti bersama' : 'Libur nasional'}
+                  {labelJenis(l.jenis)}
                 </span>
               </p>
             ))}
           </div>
         )}
         <p className="mt-1.5 text-[10px] font-semibold text-rose-400">
-          {jumlahNasional} libur nasional · {daftarLibur.length - jumlahNasional} cuti bersama
+          {jumlahNasional} libur nasional · {jumlahCuti} cuti bersama{jumlahKhusus ? ` · ${jumlahKhusus} libur khusus` : ''}
         </p>
       </div>
 
@@ -117,7 +150,7 @@ export default function KalenderBulan({ history = [], onSelect }) {
           const tgl = iso(d)
           const rec = perTanggal.get(tgl)
           const hariIni = tgl === hariIniIso
-          const libur = detailLibur(tgl)
+          const libur = detailLibur(tgl) || petaLibur.get(tgl)
           const akhirPekan = i % 7 === 6 // kolom terakhir = Minggu
           const merah = !!libur || akhirPekan
           const keterangan = [
@@ -140,13 +173,15 @@ export default function KalenderBulan({ history = [], onSelect }) {
             >
               {d}
               <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${rec && WARNA_TITIK[rec.status] ? WARNA_TITIK[rec.status] : 'bg-transparent'}`} />
-              {/* Penanda libur: titik merah penuh = libur nasional, oranye bercincin = cuti bersama */}
+              {/* Penanda libur: titik merah = nasional, oranye bercincin = cuti bersama, indigo = khusus admin */}
               {libur && (
                 <span
                   className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${
                     libur.jenis === 'cuti'
                       ? 'bg-orange-400 ring-1 ring-orange-200 dark:ring-orange-500/40'
-                      : 'bg-rose-500'
+                      : libur.jenis === 'admin'
+                        ? 'bg-indigo-500'
+                        : 'bg-rose-500'
                   }`}
                 />
               )}
@@ -165,6 +200,9 @@ export default function KalenderBulan({ history = [], onSelect }) {
         </span>
         <span className="flex items-center gap-1 text-orange-500 dark:text-orange-400">
           <i className="h-2 w-2 rounded-full bg-orange-400" /> Cuti bersama
+        </span>
+        <span className="flex items-center gap-1 text-indigo-500 dark:text-indigo-400">
+          <i className="h-2 w-2 rounded-full bg-indigo-500" /> Libur khusus
         </span>
       </div>
       <p className="mt-2 text-center text-[10px] text-slate-400">

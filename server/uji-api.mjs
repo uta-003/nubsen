@@ -314,6 +314,28 @@ await bersihkanAbsensiHariIni(idUji)
 await setJadwal(jadwal0.hariKerja)
 await req(`/api/admin/leaves/${idIzinLampiran}`, { method: 'DELETE', token: tA })
 
+// ---- 5g. Hari libur: tidak Alpha, tidak dihitung hari kerja laporan/gaji ----
+// 2027-03-08 = hari Senin (hari kerja pada jadwal default Senin–Jumat).
+const TGL_LIBUR = '2027-03-08'
+const lapor0 = await req('/api/admin/reports?dari=2027-03-08&sampai=2027-03-08', { token: tA })
+cek('laporan: hari kerja sebelum ditetapkan libur = 1', lapor0.data?.hariKerja === 1, `hariKerja=${lapor0.data?.hariKerja}`)
+cek('libur: tanggal tidak valid → 400', (await req('/api/admin/libur', { method: 'POST', token: tA, body: { tanggal: '8-3-2027', nama: 'Salah' } })).status === 400)
+cek('libur: nama terlalu pendek → 400', (await req('/api/admin/libur', { method: 'POST', token: tA, body: { tanggal: TGL_LIBUR, nama: 'Ya' } })).status === 400)
+const tambahLibur = await req('/api/admin/libur', { method: 'POST', token: tA, body: { tanggal: TGL_LIBUR, nama: 'Libur Uji Otomatis' } })
+cek('admin tetapkan hari libur (broadcast notifikasi)', tambahLibur.status === 201 && tambahLibur.data?.sumber === 'admin', JSON.stringify(tambahLibur.data || {}))
+const lapor1 = await req('/api/admin/reports?dari=2027-03-08&sampai=2027-03-08', { token: tA })
+cek('laporan: hari libur tidak dihitung hari kerja', lapor1.data?.hariKerja === 0, `hariKerja=${lapor1.data?.hariKerja}`)
+cek('gaji: hari libur tidak dihitung', (await req('/api/admin/gaji?dari=2027-03-08&sampai=2027-03-08', { token: tA })).data?.baris?.every((r) => r.hariDibayar === 0 && r.hariMakan === 0) === true)
+cek('jadwal karyawan memuat libur dari admin', (await req('/api/jadwal', { token: tUji })).data?.libur?.some((l) => l.tanggal === TGL_LIBUR) === true)
+// Riwayat rentang satu hari libur (tanpa absen) tidak boleh mengarang Alpha.
+const riwayatLibur = await req('/api/attendance/history?dari=2027-03-08&sampai=2027-03-08', { token: tUji })
+cek('tidak ada Alpha otomatis pada hari libur', (riwayatLibur.data || []).every((r) => r.status !== 'Alpha'), JSON.stringify((riwayatLibur.data || []).map((r) => r.status)))
+cek('admin lihat daftar libur', (await req('/api/admin/libur?tahun=2027', { token: tA })).data.some((l) => l.tanggal === TGL_LIBUR))
+cek('admin hapus hari libur', (await req(`/api/admin/libur/${TGL_LIBUR}`, { method: 'DELETE', token: tA })).status === 200)
+cek('laporan kembali hari kerja = 1', (await req('/api/admin/reports?dari=2027-03-08&sampai=2027-03-08', { token: tA })).data?.hariKerja === 1)
+cek('hapus libur yang tak ada → 404', (await req(`/api/admin/libur/${TGL_LIBUR}`, { method: 'DELETE', token: tA })).status === 404)
+cek('libur nasional 2026 terseed otomatis', (await req('/api/admin/libur?tahun=2026', { token: tA })).data.some((l) => l.tanggal === '2026-12-25' && l.sumber === 'resmi'))
+
 // ---- 6. Absensi: check-in karyawan + koreksi & hapus oleh admin ----
 const hariIni = hariIniUji
 // Bersihkan catatan absensi hari ini agar uji bisa diulang berkali-kali.

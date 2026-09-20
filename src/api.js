@@ -117,6 +117,17 @@ export function adminUpdateJadwal(jamMasukBatas, jamPulang, hariKerja) {
   return request('/api/admin/jadwal', { method: 'PUT', body: { jamMasukBatas, jamPulang, hariKerja } })
 }
 
+// ---------- Hari libur (nasional/cuti bersama + khusus dari admin) ----------
+export function adminLibur({ tahun } = {}) {
+  return request(`/api/admin/libur${tahun ? `?tahun=${tahun}` : ''}`)
+}
+export function adminTambahLibur(tanggal, nama) {
+  return request('/api/admin/libur', { method: 'POST', body: { tanggal, nama } })
+}
+export function adminHapusLibur(tanggal) {
+  return request(`/api/admin/libur/${tanggal}`, { method: 'DELETE' })
+}
+
 export async function getToday() {
   return mapRecord(await request('/api/attendance/today'))
 }

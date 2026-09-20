@@ -106,6 +106,15 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT
 );
 
+-- Hari libur nasional/cuti bersama (prefill resmi saat seed) + libur khusus
+-- yang ditetapkan admin. Hari yang terdaftar: tidak Alpha, tidak dihitung hari
+-- kerja pada laporan/gaji, dan absensi di hari itu ditandai hari_libur = 1.
+CREATE TABLE IF NOT EXISTS holidays (
+  tanggal TEXT PRIMARY KEY,
+  nama    TEXT NOT NULL,
+  sumber  TEXT DEFAULT 'admin'
+);
+
 -- Jurnal idempotensi sinkronisasi luring: setiap pengajuan dari antrean
 -- perangkat membawa requestId unik; server menolak memproses dua kali
 -- (koneksi drop setelah terkirim tidak akan menciptakan data ganda).
