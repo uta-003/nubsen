@@ -38,15 +38,36 @@ export function toClient(row) {
   }
 }
 
+// Versi RINGKAS untuk DAFTAR/riwayat: foto selfie (base64, ratusan KB per baris)
+// diganti penanda `adaSelfie`/`adaSelfiePulang`. Foto asli diambil terpisah saat
+// detail dibuka (GET /api/attendance/:id/foto?jenis=masuk|pulang) sehingga daftar
+// riwayat & dashboard tampil jauh lebih cepat, terutama di jaringan seluler.
+export function toClientRingkas(row) {
+  const r = toClient(row)
+  if (!r) return null
+  return {
+    ...r,
+    selfie: null,
+    adaSelfie: !!row.selfie,
+    selfiePulang: null,
+    adaSelfiePulang: !!row.selfie_out,
+  }
+}
+
 export function leaveToClient(row) {
   if (!row) return null
   return {
     id: row.id, jenis: row.jenis, mulai: row.mulai, selesai: row.selesai,
-    keterangan: row.keterangan || '', lampiran: row.lampiran || null, status: row.status,
+    keterangan: row.keterangan || '', status: row.status,
     // Waktu pengajuan dibuat — ditampilkan pada Riwayat Pengajuan Izin/Cuti.
     dibuat: row.created_at || null,
     // Alasan penolakan (bila status Ditolak) — tampil di riwayat & notifikasi.
     alasanTolak: row.alasan_tolak || '',
+    // Lampiran TIDAK ikut pada daftar (base64 bisa ratusan KB–MB per baris dan
+    // membuat daftar lambat). Hanya penandanya yang dikirim; isi lampiran diambil
+    // saat admin/karyawan benar-benar menekan "Lihat lampiran".
+    adaLampiran: !!row.lampiran,
+    lampiran: null,
   }
 }
 
@@ -291,8 +312,8 @@ export async function listSemuaAbsensi({ employeeId, dari, sampai } = {}) {
   if (employeeId) { sql += ' AND a.employee_id = ?'; params.push(employeeId) }
   if (dari) { sql += ' AND a.tanggal >= ?'; params.push(dari) }
   if (sampai) { sql += ' AND a.tanggal <= ?'; params.push(sampai) }
-  const rows = await db.all(sql + ' ORDER BY a.tanggal DESC, a.id DESC LIMIT 200', params)
-  return rows.map((r) => ({ ...toClient(r), nama: r.nama_karyawan }))
+  const rows = await db.all(sql + ' ORDER BY a.tanggal DESC, a.id DESC LIMIT 150', params)
+  return rows.map((r) => ({ ...toClientRingkas(r), nama: r.nama_karyawan }))
 }
 
 export async function ubahAbsensi(id, { checkIn, checkOut, status } = {}) {
@@ -315,9 +336,26 @@ export async function hapusAbsensi(id) {
 // ---------- Panel Admin: kelola izin/cuti ----------
 export async function listSemuaIzin() {
   const rows = await db.all(
-    'SELECT l.*, e.nama AS nama_karyawan FROM leaves l JOIN employees e ON e.id = l.employee_id ORDER BY l.id DESC',
+    'SELECT l.*, e.nama AS nama_karyawan FROM leaves l JOIN employees e ON e.id = l.employee_id ORDER BY l.id DESC LIMIT 300',
   )
   return rows.map((l) => ({ ...leaveToClient(l), nama: l.nama_karyawan }))
+}
+
+// Isi lampiran satu pengajuan (base64/dataURL) — diambil HANYA saat dibuka, baik
+// oleh admin (panel) maupun oleh karyawan pemilik pengajuan (routes memeriksa hak).
+export async function lampiranIzin(id) {
+  const l = await db.get('SELECT id, employee_id, jenis, lampiran FROM leaves WHERE id = ?', [id])
+  if (!l) return null
+  return { id: l.id, employeeId: l.employee_id, jenis: l.jenis, lampiran: l.lampiran || null }
+}
+
+// Foto selfie satu catatan absensi ('masuk' | 'pulang') — juga diambil saat
+// detail dibuka saja, sehingga daftar riwayat tetap ringan.
+export async function fotoAbsensi(id, jenis = 'masuk') {
+  const kolom = jenis === 'pulang' ? 'selfie_out' : 'selfie'
+  const a = await db.get(`SELECT id, employee_id, tanggal, ${kolom} AS foto FROM attendance WHERE id = ?`, [id])
+  if (!a) return null
+  return { id: a.id, employeeId: a.employee_id, tanggal: a.tanggal, jenis: jenis === 'pulang' ? 'pulang' : 'masuk', foto: a.foto || null }
 }
 
 export async function setStatusIzin(id, status, alasan = '') {
@@ -819,13 +857,69 @@ export async function catatCheckOut({ employeeId = 1, lokasi = {}, selfieUrl = n
   return getToday(employeeId)
 }
 
-// Riwayat gabungan: catatan absensi + pengajuan izin yang sudah disetujui masuk list.
+// ---------- Alpha otomatis ----------
+// Hari kerja yang SUDAH BERLALU tanpa catatan absensi (dan tanpa pengajuan izin/
+// sakit/cuti yang tidak ditolak) dianggap ALPHA — jadi "tidak absen dari jam
+// masuk sampai jam pulang" pada hari kerja = alpha. Hari berjalan baru dianggap
+// alpha setelah jam pulang terlewat. Perhitungan dilakukan saat riwayat dibaca
+// (lazy), sehingga tidak butuh proses terjadwal — aman untuk serverless.
+export async function tanggalAlpha(employeeId, dari, sampai) {
+  const hariIni = toISODate()
+  const { jamPulang } = await getJadwal()
+  const mundur = new Date(`${hariIni}T00:00:00Z`)
+  mundur.setUTCDate(mundur.getUTCDate() - 31)
+  const mulai = dari || toISODate(mundur)
+  const selesai = sampai || hariIni
+  if (mulai > selesai) return []
+
+  // Tanpa satu pun jejak (absensi/pengajuan) riwayat tidak mengarang alpha —
+  // akun yang baru dibuat tidak langsung penuh alpha untuk hari-hari lampau.
+  const jejak = await db.get(
+    `SELECT MIN(t) AS awal FROM (
+       SELECT MIN(tanggal) AS t FROM attendance WHERE employee_id = ?
+       UNION ALL SELECT MIN(mulai) AS t FROM leaves WHERE employee_id = ?
+     )`,
+    [employeeId, employeeId],
+  )
+  const awalData = jejak?.awal
+  if (!awalData) return []
+  const batasAwal = awalData > mulai ? awalData : mulai
+  if (batasAwal > selesai) return []
+
+  const hariAktif = new Set(await hariKerjaAktif())
+  const adaAbsen = new Set(
+    (await db.all(
+      'SELECT tanggal FROM attendance WHERE employee_id = ? AND tanggal >= ? AND tanggal <= ?',
+      [employeeId, batasAwal, selesai],
+    )).map((r) => r.tanggal),
+  )
+  const pengajuan = await db.all(
+    `SELECT mulai, selesai FROM leaves
+     WHERE employee_id = ? AND status <> 'Ditolak' AND mulai <= ? AND selesai >= ?`,
+    [employeeId, selesai, batasAwal],
+  )
+
+  const hasil = []
+  for (const d = new Date(`${batasAwal}T00:00:00Z`); toISODate(d) <= selesai; d.setUTCDate(d.getUTCDate() + 1)) {
+    const tanggal = toISODate(d)
+    if (!hariAktif.has(d.getUTCDay())) continue // bukan hari kerja
+    if (tanggal === hariIni && jamSekarang() < jamPulang) continue // hari belum berakhir
+    if (adaAbsen.has(tanggal)) continue // sudah ada catatan absensi
+    if (pengajuan.some((l) => l.mulai <= tanggal && tanggal <= l.selesai)) continue // izin/cuti
+    hasil.push(tanggal)
+  }
+  return hasil
+}
+
+// Riwayat gabungan: catatan absensi + pengajuan izin + ALPHA otomatis.
+// Semua baris memakai bentuk RINGKAS (tanpa base64 selfie/lampiran) agar daftar
+// riwayat & dashboard tetap ringan; media diambil saat detail dibuka.
 export async function listHistory({ dari, sampai, status } = {}, employeeId = 1) {
   let sql = 'SELECT * FROM attendance WHERE employee_id = ?'
   const params = [employeeId]
   if (dari) { sql += ' AND tanggal >= ?'; params.push(dari) }
   if (sampai) { sql += ' AND tanggal <= ?'; params.push(sampai) }
-  const absensi = (await db.all(sql, params)).map((r) => ({ ...toClient(r), sumber: 'absensi' }))
+  const absensi = (await db.all(sql, params)).map((r) => ({ ...toClientRingkas(r), sumber: 'absensi' }))
 
   let sqlL = 'SELECT * FROM leaves WHERE employee_id = ?'
   const paramsL = [employeeId]
@@ -836,14 +930,24 @@ export async function listHistory({ dari, sampai, status } = {}, employeeId = 1)
   // halaman Riwayat (bottom-nav) yang khusus menampilkan riwayat absensi saja —
   // riwayat pengajuan izin kini ada di halaman Izin/Cuti.
   const izin = (await db.all(sqlL, paramsL)).map((l) => ({
-    tanggal: l.mulai, checkIn: '-', checkOut: '-', status: 'Izin',
+    id: `izin-${l.id}`, tanggal: l.mulai, checkIn: '-', checkOut: '-', status: 'Izin',
     keterangan: `${l.jenis}: ${l.keterangan || ''} (pengajuan ${l.status})`,
-    lokasi: null, selfie: null, lampiran: l.lampiran || null,
-    lokasiPulang: null, selfiePulang: null, diLuarAreaPulang: null, jarakPulang: null,
+    lokasi: null, selfie: null, adaSelfie: false,
+    lampiran: null, adaLampiran: !!l.lampiran,
+    lokasiPulang: null, selfiePulang: null, adaSelfiePulang: false, diLuarAreaPulang: null, jarakPulang: null,
     sumber: 'izin',
   }))
 
-  let merged = [...absensi, ...izin]
+  const alpha = (await tanggalAlpha(employeeId, dari, sampai)).map((tanggal) => ({
+    id: `alpha-${tanggal}`, tanggal, checkIn: null, checkOut: null, status: 'Alpha',
+    keterangan: 'Tanpa absen masuk & pulang — tercatat Alpha otomatis',
+    lokasi: null, selfie: null, adaSelfie: false, lampiran: null, adaLampiran: false,
+    diLuarArea: null, jarak: null, hariLibur: false,
+    lokasiPulang: null, selfiePulang: null, adaSelfiePulang: false, diLuarAreaPulang: null, jarakPulang: null,
+    sumber: 'alpha',
+  }))
+
+  let merged = [...absensi, ...izin, ...alpha]
   if (status && status !== 'Semua') merged = merged.filter((r) => r.status === status)
   return merged.sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)))
 }
@@ -881,7 +985,7 @@ export async function createLeave({ employeeId = 1, jenis, mulai, selesai, keter
 
 export async function listLeaves(employeeId = 1) {
   const rows = await db.all(
-    'SELECT * FROM leaves WHERE employee_id = ? ORDER BY created_at DESC, id DESC',
+    'SELECT * FROM leaves WHERE employee_id = ? ORDER BY created_at DESC, id DESC LIMIT 200',
     [employeeId],
   )
   return rows.map(leaveToClient)

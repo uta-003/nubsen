@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search, Wallet, CalendarRange } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search, Wallet, CalendarRange, Paperclip, Camera } from 'lucide-react'
 import { muatPustakaEkspor } from '../utils/ekspor'
 import { buatWorkbookLaporan, buatWorkbookGaji, KOLOM_LAPORAN } from '../utils/laporan-excel'
 import { MIME } from '../utils/berkas'
 import { unduhBerkas, pesanHasilUnduh } from '../utils/unduh'
 import * as api from '../api'
 import { formatTanggalPendek } from '../utils/date'
+import ModalTolak from './ModalTolak'
+import PratinjauLampiran from './PratinjauLampiran'
 
 // Tab admin: [id, label, ikon] — tampil sebagai grid ikon rapi 4 kolom.
 const TABS = [
@@ -438,6 +440,19 @@ function KelolaAbsensi() {
   const [memuat, setMemuat] = useState(true)
   const [edit, setEdit] = useState(null)
   const [pesan, setPesan] = useState(null)
+  // Foto selfie dibuka sesuai kebutuhan (daftar absensi tidak membawa base64).
+  const [foto, setFoto] = useState(null)
+
+  const bukaFoto = async (rec, jenis) => {
+    const judul = `Foto selfie ${jenis === 'pulang' ? 'pulang' : 'masuk'} — ${rec.nama}`
+    setFoto({ buka: true, judul, memuat: true, isi: null, galat: null })
+    try {
+      const d = await api.adminFotoAbsensi(rec.id, jenis)
+      setFoto((s) => ({ ...s, isi: d.foto, memuat: false }))
+    } catch (e) {
+      setFoto((s) => ({ ...s, memuat: false, galat: e.message }))
+    }
+  }
 
   const muat = (f = filter) => {
     setMemuat(true)
@@ -517,6 +532,16 @@ function KelolaAbsensi() {
                     <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">Masuk {a.checkIn || '—'} • Pulang {a.checkOut || '—'}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
+                    {a.adaSelfie && (
+                      <button onClick={() => bukaFoto(a, 'masuk')} className="grid h-8 w-8 place-items-center rounded-xl bg-sky-50 text-sky-600 transition active:scale-90 dark:bg-sky-500/15 dark:text-sky-400" aria-label="Foto selfie masuk" title="Foto selfie masuk">
+                        <Camera size={14} />
+                      </button>
+                    )}
+                    {a.adaSelfiePulang && (
+                      <button onClick={() => bukaFoto(a, 'pulang')} className="grid h-8 w-8 place-items-center rounded-xl bg-violet-50 text-violet-600 transition active:scale-90 dark:bg-violet-500/15 dark:text-violet-400" aria-label="Foto selfie pulang" title="Foto selfie pulang">
+                        <Camera size={14} />
+                      </button>
+                    )}
                     <Chip status={a.status} />
                     <button onClick={() => setEdit({ id: a.id, checkIn: a.checkIn || '', checkOut: a.checkOut || '', status: a.status })} className="grid h-8 w-8 place-items-center rounded-xl bg-indigo-50 text-indigo-600 transition active:scale-90 dark:bg-indigo-500/15 dark:text-indigo-400" aria-label="Edit"><Pencil size={14} /></button>
                     <button onClick={() => hapus(a.id)} className="grid h-8 w-8 place-items-center rounded-xl bg-rose-50 text-rose-500 transition active:scale-90 dark:bg-rose-500/15" aria-label="Hapus"><Trash2 size={14} /></button>
@@ -527,6 +552,13 @@ function KelolaAbsensi() {
           )}
         </div>
       )}
+
+      {/* Pratinjau foto selfie — diambil dari server saat tombol kamera ditekan */}
+      <PratinjauLampiran
+        {...(foto || {})}
+        onClose={() => setFoto(null)}
+        toast={(teks, tipe) => setPesan({ ok: tipe !== 'error', teks })}
+      />
     </div>
   )
 }
@@ -534,26 +566,39 @@ function KelolaIzin() {
   const [data, setData] = useState([])
   const [memuat, setMemuat] = useState(true)
   const [pesan, setPesan] = useState(null)
-  // Modal alasan penolakan — { id } pengajuan yang sedang akan ditolak.
+  // Pengajuan yang sedang akan ditolak (barisnya dipakai untuk ringkasan modal).
   const [tolak, setTolak] = useState(null)
-  const [alasan, setAlasan] = useState('')
   const [proses, setProses] = useState(false)
+  // Pratinjau lampiran: isi berkas diambil dari server saat tombol ditekan.
+  const [lampiran, setLampiran] = useState(null)
 
   const muat = () => api.adminIzin().then(setData).catch(() => {}).finally(() => setMemuat(false))
   useEffect(() => {
     muat()
   }, [])
 
+  const bukaLampiran = async (l) => {
+    setLampiran({ buka: true, judul: `Lampiran ${l.jenis} — ${l.nama}`, memuat: true, isi: null, galat: null })
+    try {
+      const d = await api.adminLampiranIzin(l.id)
+      setLampiran((s) => ({ ...s, isi: d.lampiran, memuat: false }))
+    } catch (e) {
+      setLampiran((s) => ({ ...s, memuat: false, galat: e.message }))
+    }
+  }
+
   const aksi = async (id, status, alasanTolak = '') => {
     setProses(true)
     try {
-      await api.adminStatusIzin(id, status, alasanTolak)
+      // Respons server berisi baris terbaru → cukup perbarui baris itu di daftar
+      // (tanpa memuat ulang seluruh daftar, jadi tombol Setujui/Tolak terasa instan).
+      const hasil = await api.adminStatusIzin(id, status, alasanTolak)
+      setData((d) => d.map((x) => (x.id === id ? { ...x, ...(hasil || {}), lampiran: null } : x)))
       setPesan({ ok: true, teks: `Pengajuan ${status.toLowerCase()} — notifikasi dikirim ke karyawan.` })
       setTolak(null)
-      setAlasan('')
-      muat()
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
+      muat()
     } finally {
       setProses(false)
     }
@@ -563,8 +608,8 @@ function KelolaIzin() {
     if (!confirm('Hapus pengajuan ini?')) return
     try {
       await api.adminHapusIzin(id)
+      setData((d) => d.filter((x) => x.id !== id)) // langsung hilang dari daftar
       setPesan({ ok: true, teks: 'Pengajuan dihapus.' })
-      muat()
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
     }
@@ -574,37 +619,23 @@ function KelolaIzin() {
     <div className="animate-fade-in">
       <BannerPesan pesan={pesan} />
 
-      {/* Modal alasan penolakan — alasan WAJIB, terkirim ke notifikasi karyawan
-          dan tampil pada riwayat pengajuannya di aplikasi karyawan. */}
-      {tolak && (
-        <form
-          onSubmit={(e) => { e.preventDefault(); aksi(tolak.id, 'Ditolak', alasan.trim()) }}
-          className="fixed inset-0 z-[60] flex animate-fade-in items-end justify-center bg-black/70 px-3 pb-6 sm:items-center sm:px-4"
-        >
-          <div className="card w-full max-w-sm space-y-3">
-            <p className="text-sm font-bold">❌ Tolak Pengajuan Izin</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Alasan wajib diisi — dikirim sebagai notifikasi ke karyawan dan tampil di riwayat pengajuannya.
-            </p>
-            <textarea
-              className="input min-h-24 resize-none"
-              placeholder="Contoh: Kuota cuti tahunan sudah habis — silakan ajukan kembali bulan depan."
-              value={alasan}
-              onChange={(e) => setAlasan(e.target.value)}
-              autoFocus
-              required
-            />
-            <div className="flex gap-2">
-              <button type="submit" disabled={proses} className="flex-1 rounded-xl bg-rose-500 px-3 py-2.5 text-xs font-bold text-white transition active:scale-95 disabled:opacity-50">
-                {proses ? <Loader2 size={14} className="inline animate-spin" /> : <X size={14} />} Tolak dengan Alasan
-              </button>
-              <button type="button" onClick={() => { setTolak(null); setAlasan('') }} className="rounded-xl bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-500 transition active:scale-95 dark:bg-slate-800 dark:text-slate-400">
-                Batal
-              </button>
-            </div>
-          </div>
-        </form>
-      )}
+      {/* Modal penolakan (komponen bersama, tampilan dirapikan) — alasan WAJIB,
+          terkirim ke notifikasi karyawan dan tampil pada riwayat pengajuannya. */}
+      <ModalTolak
+        buka={!!tolak}
+        jenis="izin"
+        nama={tolak?.nama}
+        detail={tolak ? `${tolak.jenis} • ${formatTanggalPendek(tolak.mulai)} – ${formatTanggalPendek(tolak.selesai)}${tolak.keterangan ? ` • ${tolak.keterangan}` : ''}` : ''}
+        onTutup={() => setTolak(null)}
+        onKirim={(teksAlasan) => aksi(tolak.id, 'Ditolak', teksAlasan)}
+      />
+
+      {/* Pratinjau lampiran — berkas diambil saat tombol ditekan (daftar tetap ringan) */}
+      <PratinjauLampiran
+        {...(lampiran || {})}
+        onClose={() => setLampiran(null)}
+        toast={(teks, tipe) => setPesan({ ok: tipe !== 'error', teks })}
+      />
 
       {memuat ? (
         <p className="text-xs text-slate-400">Memuat…</p>
@@ -624,15 +655,15 @@ function KelolaIzin() {
                   {l.status === 'Ditolak' && l.alasanTolak && (
                     <p className="mt-1 rounded-xl bg-rose-50 px-2.5 py-1 text-[11px] font-semibold leading-relaxed text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">💬 {l.alasanTolak}</p>
                   )}
-                  {l.lampiran && (
-                    <a
-                      href={api.assetUrl(l.lampiran)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 inline-block text-[10px] text-indigo-500 hover:underline"
+                  {l.adaLampiran ? (
+                    <button
+                      onClick={() => bukaLampiran(l)}
+                      className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-bold text-indigo-600 transition active:scale-95 dark:bg-indigo-500/15 dark:text-indigo-300"
                     >
-                      📎 Lihat lampiran
-                    </a>
+                      <Paperclip size={11} /> Lihat lampiran
+                    </button>
+                  ) : (
+                    <span className="mt-1.5 inline-block text-[10px] text-slate-300 dark:text-slate-600">Tanpa lampiran</span>
                   )}
                 </div>
                 <Chip status={l.status} />
@@ -642,7 +673,7 @@ function KelolaIzin() {
                   <button onClick={() => aksi(l.id, 'Disetujui')} className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✓ Setujui</button>
                 )}
                 {l.status !== 'Ditolak' && (
-                  <button onClick={() => { setTolak({ id: l.id }); setAlasan('') }} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✕ Tolak</button>
+                  <button onClick={() => setTolak(l)} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✕ Tolak</button>
                 )}
                 <button onClick={() => hapus(l.id)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500 transition active:scale-95 dark:bg-slate-800 dark:text-slate-400">Hapus</button>
               </div>
@@ -657,9 +688,8 @@ function KelolaLembur() {
   const [data, setData] = useState([])
   const [memuat, setMemuat] = useState(true)
   const [pesan, setPesan] = useState(null)
-  // Modal alasan penolakan — { id } pengajuan yang sedang akan ditolak.
+  // Pengajuan lembur yang sedang akan ditolak (barisnya untuk ringkasan modal).
   const [tolak, setTolak] = useState(null)
-  const [alasan, setAlasan] = useState('')
   const [proses, setProses] = useState(false)
 
   const muat = () => api.adminLembur().then(setData).catch(() => {}).finally(() => setMemuat(false))
@@ -670,13 +700,15 @@ function KelolaLembur() {
   const aksi = async (id, status, alasanTolak = '') => {
     setProses(true)
     try {
-      await api.adminStatusLembur(id, status, alasanTolak)
+      // Baris terbaru dari server langsung menggantikan baris lama di daftar —
+      // tidak ada pemuatan ulang seluruh daftar (respons lebih cepat).
+      const hasil = await api.adminStatusLembur(id, status, alasanTolak)
+      setData((d) => d.map((x) => (x.id === id ? { ...x, ...(hasil || {}) } : x)))
       setPesan({ ok: true, teks: `Lembur ${status.toLowerCase()} — notifikasi dikirim ke karyawan.` })
       setTolak(null)
-      setAlasan('')
-      muat()
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
+      muat()
     } finally {
       setProses(false)
     }
@@ -686,8 +718,8 @@ function KelolaLembur() {
     if (!confirm('Hapus pengajuan lembur ini?')) return
     try {
       await api.adminHapusLembur(id)
+      setData((d) => d.filter((x) => x.id !== id)) // langsung hilang dari daftar
       setPesan({ ok: true, teks: 'Pengajuan dihapus.' })
-      muat()
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
     }
@@ -697,37 +729,16 @@ function KelolaLembur() {
     <div className="animate-fade-in">
       <BannerPesan pesan={pesan} />
 
-      {/* Modal alasan penolakan — alasan WAJIB, terkirim ke notifikasi karyawan
-          dan tampil pada riwayat pengajuannya di aplikasi karyawan. */}
-      {tolak && (
-        <form
-          onSubmit={(e) => { e.preventDefault(); aksi(tolak.id, 'Ditolak', alasan.trim()) }}
-          className="fixed inset-0 z-[60] flex animate-fade-in items-end justify-center bg-black/70 px-3 pb-6 sm:items-center sm:px-4"
-        >
-          <div className="card w-full max-w-sm space-y-3">
-            <p className="text-sm font-bold">❌ Tolak Pengajuan Lembur</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Alasan wajib diisi — dikirim sebagai notifikasi ke karyawan dan tampil di riwayat pengajuannya.
-            </p>
-            <textarea
-              className="input min-h-24 resize-none"
-              placeholder="Contoh: Beban kerja bulan ini sudah penuh — lembur belum bisa disetujui."
-              value={alasan}
-              onChange={(e) => setAlasan(e.target.value)}
-              autoFocus
-              required
-            />
-            <div className="flex gap-2">
-              <button type="submit" disabled={proses} className="flex-1 rounded-xl bg-rose-500 px-3 py-2.5 text-xs font-bold text-white transition active:scale-95 disabled:opacity-50">
-                {proses ? <Loader2 size={14} className="inline animate-spin" /> : <X size={14} />} Tolak dengan Alasan
-              </button>
-              <button type="button" onClick={() => { setTolak(null); setAlasan('') }} className="rounded-xl bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-500 transition active:scale-95 dark:bg-slate-800 dark:text-slate-400">
-                Batal
-              </button>
-            </div>
-          </div>
-        </form>
-      )}
+      {/* Modal penolakan (komponen bersama) — alasan WAJIB, terkirim ke notifikasi
+          karyawan dan tampil pada riwayat pengajuan lemburnya. */}
+      <ModalTolak
+        buka={!!tolak}
+        jenis="lembur"
+        nama={tolak?.nama}
+        detail={tolak ? `Lembur ${formatTanggalPendek(tolak.tanggal)} • pukul ${tolak.jamMulai}–${tolak.jamSelesai}${tolak.keterangan ? ` • ${tolak.keterangan}` : ''}` : ''}
+        onTutup={() => setTolak(null)}
+        onKirim={(teksAlasan) => aksi(tolak.id, 'Ditolak', teksAlasan)}
+      />
 
       {memuat ? (
         <p className="text-xs text-slate-400">Memuat…</p>
@@ -753,7 +764,7 @@ function KelolaLembur() {
                   <button onClick={() => aksi(o.id, 'Disetujui')} className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✓ Setujui</button>
                 )}
                 {o.status !== 'Ditolak' && (
-                  <button onClick={() => { setTolak({ id: o.id }); setAlasan('') }} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✕ Tolak</button>
+                  <button onClick={() => setTolak(o)} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✕ Tolak</button>
                 )}
                 <button onClick={() => hapus(o.id)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500 transition active:scale-95 dark:bg-slate-800 dark:text-slate-400">Hapus</button>
               </div>

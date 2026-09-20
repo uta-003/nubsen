@@ -255,6 +255,65 @@ if (periodeAwalAktif) {
 await bersihkanAbsensiHariIni(idUji)
 await setJadwal(jadwal0.hariKerja)
 
+// ---- 5f. Alpha otomatis, lampiran & foto selfie diambil sesuai kebutuhan ----
+// "Jejak" data = satu pengajuan izin di masa lalu (7 hari ke belakang); tanpa
+// jejak, riwayat sengaja tidak mengarang alpha untuk hari-hari lampau.
+const hariMundur = (n) => {
+  const d = new Date(`${hariIniUji}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - n)
+  return d.toISOString().slice(0, 10)
+}
+const berkasUji = () => {
+  const f = new FormData()
+  f.append('jenis', 'Izin')
+  f.append('mulai', hariMundur(7))
+  f.append('selesai', hariMundur(7))
+  f.append('keterangan', 'Uji alpha otomatis & lampiran')
+  f.append('lampiran', new Blob([Buffer.from('uji-lampiran')], { type: 'image/png' }), 'uji.png')
+  return f
+}
+const izinLampiran = await req('/api/leaves', { method: 'POST', token: tUji, isForm: true, body: berkasUji() })
+const idIzinLampiran = izinLampiran.data?.id
+cek('ajukan izin + lampiran', izinLampiran.status === 201 && izinLampiran.data?.adaLampiran === true, `adaLampiran=${izinLampiran.data?.adaLampiran}`)
+
+// Muatan daftar harus RINGAN: lampiran base64 tidak ikut, hanya penandanya.
+const daftarIzinUji = await req('/api/leaves', { token: tUji })
+const barisLampiran = (daftarIzinUji.data || []).find((x) => x.id === idIzinLampiran)
+cek('daftar izin ringan (tanpa base64, hanya penanda)', barisLampiran?.adaLampiran === true && barisLampiran?.lampiran === null, `lampiran=${String(barisLampiran?.lampiran)}`)
+
+const lampiranPemilik = await req(`/api/leaves/${idIzinLampiran}/lampiran`, { token: tUji })
+cek('pemilik bisa buka lampirannya', lampiranPemilik.status === 200 && /^data:image\/png;base64,/.test(String(lampiranPemilik.data?.lampiran)), String(lampiranPemilik.data?.lampiran).slice(0, 30))
+cek('karyawan lain dilarang buka lampiran → 403', (await req(`/api/leaves/${idIzinLampiran}/lampiran`, { token: tB })).status === 403)
+const lampiranAdmin = await req(`/api/admin/leaves/${idIzinLampiran}/lampiran`, { token: tA })
+cek('admin bisa lihat lampiran pengajuan', lampiranAdmin.status === 200 && /^data:image\/png;base64,/.test(String(lampiranAdmin.data?.lampiran)), String(lampiranAdmin.data?.lampiran).slice(0, 30))
+cek('lampiran tak ada → 404', (await req(`/api/admin/leaves/${idIzinLampiran + 999}/lampiran`, { token: tA })).status === 404)
+
+// Hari kerja tanpa absen & tanpa pengajuan → ALPHA otomatis. Jam pulang dibuat
+// sudah lewat agar hari ini dianggap hari yang sudah selesai.
+await req('/api/admin/jadwal', { method: 'PUT', token: tA, body: { jamMasukBatas: '23:59', jamPulang: '00:01', hariKerja: [0, 1, 2, 3, 4, 5, 6] } })
+const riwayatUji = await req(`/api/attendance/history?dari=${hariMundur(10)}&sampai=${hariIniUji}`, { token: tUji })
+const alphaHariIni = (riwayatUji.data || []).find((r) => r.tanggal === hariIniUji)
+cek('hari kerja tanpa absen → Alpha otomatis', alphaHariIni?.status === 'Alpha' && alphaHariIni?.sumber === 'alpha', `status=${alphaHariIni?.status} ket="${alphaHariIni?.keterangan}"`)
+cek('hari yang ada pengajuan izin TIDAK dihitung Alpha', !(riwayatUji.data || []).some((r) => r.tanggal === hariMundur(7) && r.status === 'Alpha'))
+
+// Foto selfie: daftar riwayat ringan, foto diambil hanya saat dibutuhkan.
+const selfieKecil = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
+const absenSelfie = await req('/api/attendance/check-in', { method: 'POST', token: tUji, body: { lat: -6.1765782, lon: 106.899041, alamat: 'Kantor Pusat', selfie: selfieKecil } })
+cek('check-in dengan selfie', absenSelfie.status === 200, `status=${absenSelfie.status}`)
+const riwayatSelfie = await req(`/api/attendance/history?dari=${hariIniUji}&sampai=${hariIniUji}`, { token: tUji })
+const barisSelfie = (riwayatSelfie.data || []).find((r) => r.tanggal === hariIniUji && r.status !== 'Alpha')
+cek('riwayat ringan: selfie null + penanda adaSelfie', barisSelfie?.selfie === null && barisSelfie?.adaSelfie === true, `adaSelfie=${barisSelfie?.adaSelfie}`)
+const fotoMasuk = await req(`/api/attendance/${barisSelfie?.id}/foto?jenis=masuk`, { token: tUji })
+cek('pemilik bisa ambil foto selfie-nya', fotoMasuk.status === 200 && String(fotoMasuk.data?.foto).startsWith('data:image/png;base64,'), String(fotoMasuk.data?.foto).slice(0, 26))
+cek('karyawan lain dilarang ambil foto → 403', (await req(`/api/attendance/${barisSelfie?.id}/foto`, { token: tB })).status === 403)
+const fotoAdmin = await req(`/api/admin/attendance/${barisSelfie?.id}/foto?jenis=pulang`, { token: tA })
+cek('admin bisa ambil foto absensi', fotoAdmin.status === 200 && fotoAdmin.data?.jenis === 'pulang', `jenis=${fotoAdmin.data?.jenis}`)
+
+// Bersihkan: absensi uji hari ini, jadwal, dan pengajuan lampiran kembali semula.
+await bersihkanAbsensiHariIni(idUji)
+await setJadwal(jadwal0.hariKerja)
+await req(`/api/admin/leaves/${idIzinLampiran}`, { method: 'DELETE', token: tA })
+
 // ---- 6. Absensi: check-in karyawan + koreksi & hapus oleh admin ----
 const hariIni = hariIniUji
 // Bersihkan catatan absensi hari ini agar uji bisa diulang berkali-kali.

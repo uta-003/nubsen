@@ -233,3 +233,11 @@ export const adminHapusPeriodeGaji = (id) => admin(`/gaji/periode/${id}`, { meth
 export function getSlipGaji({ periodeId } = {}) {
   return request(`/api/slip${periodeId ? `?periodeId=${periodeId}` : ''}`)
 }
+
+// ---------- Lampiran pengajuan & foto selfie (diambil saat dibuka saja) ----------
+// Daftar pengajuan & riwayat TIDAK membawa base64 (bisa ratusan KB per baris)
+// supaya cepat; berkas aslinya diambil lewat endpoint ini saat benar-benar dibuka.
+export const getLampiranIzin = (id) => request(`/api/leaves/${id}/lampiran`)
+export const adminLampiranIzin = (id) => admin(`/leaves/${id}/lampiran`)
+export const getFotoAbsensi = (id, jenis = 'masuk') => request(`/api/attendance/${id}/foto?jenis=${jenis}`)
+export const adminFotoAbsensi = (id, jenis = 'masuk') => admin(`/attendance/${id}/foto?jenis=${jenis}`)

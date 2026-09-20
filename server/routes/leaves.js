@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import multer from 'multer'
-import { createLeave, listLeaves, leaveToClient } from '../models.js'
+import { createLeave, listLeaves, leaveToClient, lampiranIzin } from '../models.js'
 import { bufferToDataUrl } from '../utils/files.js'
 import { wrap } from '../utils/wrap.js'
 
@@ -39,6 +39,17 @@ router.post('/', upload.single('lampiran'), wrap(async (req, res) => {
     lampiran: req.file ? bufferToDataUrl(req.file.mimetype, req.file.buffer) : null,
   })
   res.status(201).json({ data: leaveToClient(row) })
+}))
+
+// GET /api/leaves/:id/lampiran — isi lampiran (base64/dataURL) satu pengajuan.
+// Dipisah dari daftar supaya GET /api/leaves tetap ringan & cepat; hanya pemilik
+// pengajuan yang boleh membukanya.
+router.get('/:id/lampiran', wrap(async (req, res) => {
+  const l = await lampiranIzin(Number(req.params.id))
+  if (!l) return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' })
+  if (l.employeeId !== req.employeeId) return res.status(403).json({ error: 'Lampiran milik karyawan lain.' })
+  if (!l.lampiran) return res.status(404).json({ error: 'Pengajuan ini tidak punya lampiran.' })
+  res.json({ data: { id: l.id, jenis: l.jenis, lampiran: l.lampiran } })
 }))
 
 export default router

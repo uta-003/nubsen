@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { db } from '../db.js'
-import { getToday, catatCheckIn, catatCheckOut, listHistory, toClient } from '../models.js'
+import { getToday, catatCheckIn, catatCheckOut, listHistory, toClient, fotoAbsensi } from '../models.js'
 import { saveDataUrl } from '../utils/files.js'
 import { wrap } from '../utils/wrap.js'
 
@@ -64,6 +64,17 @@ router.post('/check-out', wrap(async (req, res) => {
   })
   if (hasil.error) return res.status(409).json({ error: hasil.error })
   res.json({ data: toClient(hasil) })
+}))
+
+// GET /api/attendance/:id/foto?jenis=masuk|pulang — foto selfie satu catatan
+// absensi. Daftar riwayat tidak lagi membawa base64 (agar cepat); foto diambil
+// hanya saat detail dibuka. Hanya pemilik catatan yang boleh mengaksesnya.
+router.get('/:id/foto', wrap(async (req, res) => {
+  const jenis = req.query.jenis === 'pulang' ? 'pulang' : 'masuk'
+  const a = await fotoAbsensi(Number(req.params.id), jenis)
+  if (!a) return res.status(404).json({ error: 'Catatan absensi tidak ditemukan.' })
+  if (a.employeeId !== req.employeeId) return res.status(403).json({ error: 'Foto milik karyawan lain.' })
+  res.json({ data: a })
 }))
 
 // GET /api/attendance/history?dari=YYYY-MM-DD&sampai=YYYY-MM-DD&status=Hadir

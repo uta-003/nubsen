@@ -3,8 +3,8 @@ import { getJadwal, setSetting } from '../db.js'
 import {
   ringkasanAdmin,
   listKaryawan, buatKaryawan, ubahKaryawan, hapusKaryawan,
-  listSemuaAbsensi, ubahAbsensi, hapusAbsensi,
-  listSemuaIzin, setStatusIzin, hapusIzin,
+  listSemuaAbsensi, ubahAbsensi, hapusAbsensi, fotoAbsensi,
+  listSemuaIzin, setStatusIzin, hapusIzin, lampiranIzin,
   listSemuaLembur, setStatusLembur, hapusLembur,
   laporanKehadiran, laporanGaji,
   listPeriodeGaji, tetapkanPeriodeGaji, aktifkanPeriodeGaji, hapusPeriodeGaji,
@@ -219,6 +219,15 @@ router.delete('/attendance/:id', wrap(async (req, res) => {
   res.json({ data: { ok: true } })
 }))
 
+// GET /api/admin/attendance/:id/foto?jenis=masuk|pulang — foto selfie untuk
+// ditinjau admin (diambil saat dibuka; daftar absensi tetap ringan tanpa base64).
+router.get('/attendance/:id/foto', wrap(async (req, res) => {
+  const jenis = req.query.jenis === 'pulang' ? 'pulang' : 'masuk'
+  const a = await fotoAbsensi(Number(req.params.id), jenis)
+  if (!a) return res.status(404).json({ error: 'Catatan absensi tidak ditemukan.' })
+  res.json({ data: a })
+}))
+
 // ---------- Kelola Izin/Cuti ----------
 router.get('/leaves', wrap(async (_req, res) => {
   res.json({ data: await listSemuaIzin() })
@@ -243,6 +252,16 @@ router.put('/leaves/:id', wrap(async (req, res) => {
 router.delete('/leaves/:id', wrap(async (req, res) => {
   await hapusIzin(Number(req.params.id))
   res.json({ data: { ok: true } })
+}))
+
+// GET /api/admin/leaves/:id/lampiran — ADMIN melihat lampiran (surat dokter, dsb.)
+// pengajuan izin/cuti. Diambil saat tombol "Lihat lampiran" ditekan supaya daftar
+// pengajuan tetap ringan (lampiran base64 tidak dikirim pada daftar).
+router.get('/leaves/:id/lampiran', wrap(async (req, res) => {
+  const l = await lampiranIzin(Number(req.params.id))
+  if (!l) return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' })
+  if (!l.lampiran) return res.status(404).json({ error: 'Pengajuan ini tidak punya lampiran.' })
+  res.json({ data: { id: l.id, jenis: l.jenis, lampiran: l.lampiran } })
 }))
 
 // ---------- Kelola Lembur ----------

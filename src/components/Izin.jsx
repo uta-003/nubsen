@@ -3,8 +3,9 @@ import {
   CalendarPlus, Paperclip, Send, CheckCircle2, Trash2, FileText, Thermometer, Plane, Sparkles,
   Hourglass, XCircle, Clock4, ListChecks, Info, Loader2,
 } from 'lucide-react'
-import { getLeaves, assetUrl } from '../api'
+import { getLeaves, getLampiranIzin } from '../api'
 import { toISODate, formatTanggalPendek } from '../utils/date'
+import PratinjauLampiran from './PratinjauLampiran'
 
 const JENIS = ['Izin', 'Sakit', 'Cuti Tahunan', 'Cuti Khusus']
 // Ikon + warna per jenis pengajuan — chip berwarna di tombol pilihan.
@@ -46,6 +47,19 @@ export default function Izin({ onSubmit, sisaCuti = null }) {
   const [data, setData] = useState([]) // hasil GET /api/leaves (semua pengajuan sendiri)
   const [tambahan, setTambahan] = useState([]) // entri optimistik saat luring (belum terkirim)
   const [memuat, setMemuat] = useState(true)
+  // Pratinjau lampiran — isi berkas diambil dari server saat tombol ditekan saja,
+  // sehingga daftar pengajuan tetap ringan (tanpa base64).
+  const [pratinjau, setPratinjau] = useState(null)
+
+  const bukaLampiran = async (l) => {
+    setPratinjau({ buka: true, judul: `Lampiran ${l.jenis} — ${formatTanggalPendek(l.mulai)}`, memuat: true, isi: null, galat: null })
+    try {
+      const d = await getLampiranIzin(l.id)
+      setPratinjau((s) => ({ ...s, isi: d.lampiran, memuat: false }))
+    } catch (e) {
+      setPratinjau((s) => ({ ...s, memuat: false, galat: e.message }))
+    }
+  }
 
   const muat = () =>
     getLeaves()
@@ -268,15 +282,14 @@ export default function Izin({ onSubmit, sisaCuti = null }) {
                         ⏳ Menunggu sinkron (luring)
                       </span>
                     )}
-                    {l.lampiran && (
-                      <a
-                        href={assetUrl(l.lampiran)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 flex items-center gap-1 text-[11px] text-indigo-500 hover:underline"
+                    {l.adaLampiran && !l.luring && (
+                      <button
+                        type="button"
+                        onClick={() => bukaLampiran(l)}
+                        className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-600 transition active:scale-95 dark:bg-indigo-500/15 dark:text-indigo-300"
                       >
                         <Paperclip size={11} /> Lihat lampiran
-                      </a>
+                      </button>
                     )}
                   </div>
                   <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${kelas}`}>
@@ -298,6 +311,12 @@ export default function Izin({ onSubmit, sisaCuti = null }) {
           menyetujui atau menolaknya.
         </p>
       </div>
+
+      {/* Pratinjau lampiran pengajuan (gambar/PDF) */}
+      <PratinjauLampiran
+        {...(pratinjau || {})}
+        onClose={() => setPratinjau(null)}
+      />
     </div>
   )
 }
