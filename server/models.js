@@ -50,21 +50,34 @@ export function leaveToClient(row) {
   }
 }
 
+// Status kepegawaian yang diakui sistem (dipilih admin pada form Karyawan).
+export const STATUS_KARYAWAN = ['Karyawan Tetap', 'Karyawan Kontrak']
+
 // ---------- Karyawan ----------
 async function employeeById(id) {
   const e = await db.get('SELECT * FROM employees WHERE id = ?', [id])
   if (!e) return null
   const cutiTahunan = e.cuti_tahunan ?? 12
-  const jumlah = await db.get(
-    `SELECT COALESCE(SUM(julianday(selesai) - julianday(mulai) + 1), 0) AS hari
+  // Kuota cuti tahunan: pengajuan Cuti yang BELUM ditolak (Menunggu + Disetujui)
+  // langsung memotong sisa cuti — angka di menu Profil karyawan selalu terkini,
+  // bukan baru berkurang setelah halaman dimuat ulang.
+  const cuti = await db.get(
+    `SELECT
+       COALESCE(SUM(julianday(selesai) - julianday(mulai) + 1), 0) AS total,
+       COALESCE(SUM(CASE WHEN status = 'Disetujui' THEN julianday(selesai) - julianday(mulai) + 1 ELSE 0 END), 0) AS disetujui,
+       COALESCE(SUM(CASE WHEN status = 'Menunggu' THEN julianday(selesai) - julianday(mulai) + 1 ELSE 0 END), 0) AS menunggu
      FROM leaves WHERE employee_id = ? AND jenis LIKE 'Cuti%' AND status <> 'Ditolak'`,
     [id],
   )
-  const cutiTerpakai = Math.round(jumlah?.hari || 0)
+  const cutiTerpakai = Math.round(cuti?.total || 0)
   return {
     id: e.id, nama: e.nama, nip: e.nip, jabatan: e.jabatan, departemen: e.departemen,
     email: e.email, telepon: e.telepon, lokasiKerja: e.lokasi_kerja,
-    cutiTahunan, sisaCuti: Math.max(0, cutiTahunan - cutiTerpakai),
+    statusKaryawan: e.status_karyawan || 'Karyawan Tetap',
+    cutiTahunan, cutiTerpakai,
+    cutiDisetujui: Math.round(cuti?.disetujui || 0),
+    cutiMenunggu: Math.round(cuti?.menunggu || 0),
+    sisaCuti: Math.max(0, cutiTahunan - cutiTerpakai),
     isAdmin: !!e.is_admin,
   }
 }
@@ -199,6 +212,8 @@ export async function listKaryawan() {
     id: e.id, nama: e.nama, nip: e.nip, jabatan: e.jabatan, departemen: e.departemen,
     email: e.email, telepon: e.telepon, lokasiKerja: e.lokasi_kerja,
     cutiTahunan: e.cuti_tahunan ?? 12, isAdmin: !!e.is_admin,
+    // Status kepegawaian (Karyawan Tetap / Karyawan Kontrak).
+    statusKaryawan: e.status_karyawan || 'Karyawan Tetap',
     // Tarif gaji (Rp) untuk penghitung gaji — diubah admin di tab Karyawan/Gaji.
     gajiHarian: Number(e.gaji_harian ?? 0),
     uangMakan: Number(e.uang_makan ?? 0),
@@ -206,15 +221,22 @@ export async function listKaryawan() {
   }))
 }
 
+// Status kepegawaian yang sah; nilai tak dikenal → 'Karyawan Tetap'.
+export function statusKaryawanSah(nilai) {
+  const t = String(nilai || '').trim().toLowerCase()
+  return STATUS_KARYAWAN.find((s) => s.toLowerCase() === t) || 'Karyawan Tetap'
+}
+
 export async function buatKaryawan(d) {
   const info = await db.run(
-    `INSERT INTO employees (nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash, gaji_harian, uang_makan, tarif_lembur)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO employees (nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash, gaji_harian, uang_makan, tarif_lembur, status_karyawan)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       d.nama, d.nip || null, d.jabatan || null, d.departemen || null, d.email,
       d.telepon || null, d.lokasiKerja || null, d.cutiTahunan ?? 12, d.isAdmin ? 1 : 0,
       hashPin(d.pin || '123456'),
       Number(d.gajiHarian ?? 0) || 0, Number(d.uangMakan ?? 0) || 0, Number(d.tarifLembur ?? 0) || 0,
+      statusKaryawanSah(d.statusKaryawan),
     ],
   )
   const daftar = await listKaryawan()
@@ -232,6 +254,8 @@ export async function ubahKaryawan(id, d) {
     if (d[k] !== undefined) { sets.push(`${kol} = ?`); params.push(d[k]) }
   }
   if (d.cutiTahunan !== undefined) { sets.push('cuti_tahunan = ?'); params.push(d.cutiTahunan) }
+  // Status kepegawaian (Karyawan Tetap / Karyawan Kontrak).
+  if (d.statusKaryawan !== undefined) { sets.push('status_karyawan = ?'); params.push(statusKaryawanSah(d.statusKaryawan)) }
   // Tarif gaji (Rp) — nilai dari input selalu dikonversi ke angka non-negatif.
   for (const [k, kol] of [['gajiHarian', 'gaji_harian'], ['uangMakan', 'uang_makan'], ['tarifLembur', 'tarif_lembur']]) {
     if (d[k] !== undefined) { sets.push(`${kol} = ?`); params.push(Math.max(0, Number(d[k]) || 0)) }
@@ -389,7 +413,9 @@ function selisihJam(mulai, selesai) {
 // Laporan rekap kehadiran per karyawan untuk satu periode. Sumber data:
 // attendance (Hadir/Terlambat), leaves (Izin/Sakit/Cuti, bukan Ditolak, dipotong
 // tepi rentang), overtime Disetujui (total jam). Alpha = hari kerja − masuk − izin.
-export async function laporanKehadiran({ dari, sampai, departemen } = {}) {
+// `employeeId` (opsional) membatasi laporan ke SATU karyawan — dipakai slip gaji
+// karyawan agar rumusnya persis sama dengan tab Gaji di panel admin.
+export async function laporanKehadiran({ dari, sampai, departemen, employeeId } = {}) {
   const hariIni = toISODate()
   const mulai = dari || `${hariIni.slice(0, 7)}-01` // default: awal bulan berjalan
   const selesai = sampai || hariIni
@@ -397,12 +423,18 @@ export async function laporanKehadiran({ dari, sampai, departemen } = {}) {
   const hariAktif = await hariKerjaAktif()
   const hariKerja = hitungHariKerja(mulai, selesai, hariAktif)
 
-  let sqlKaryawan = 'SELECT id, nama, nip, jabatan, departemen FROM employees'
+  let sqlKaryawan = 'SELECT id, nama, nip, jabatan, departemen, status_karyawan FROM employees'
   const params = []
+  const saring = []
   if (departemen) {
-    sqlKaryawan += " WHERE LOWER(COALESCE(departemen, '')) = LOWER(?)"
+    saring.push("LOWER(COALESCE(departemen, '')) = LOWER(?)")
     params.push(departemen)
   }
+  if (employeeId) {
+    saring.push('id = ?')
+    params.push(Number(employeeId))
+  }
+  if (saring.length) sqlKaryawan += ` WHERE ${saring.join(' AND ')}`
   sqlKaryawan += " ORDER BY COALESCE(departemen, ''), nama"
   const karyawan = await db.all(sqlKaryawan, params)
 
@@ -456,6 +488,7 @@ export async function laporanKehadiran({ dari, sampai, departemen } = {}) {
       nip: e.nip || '-',
       jabatan: e.jabatan || '-',
       departemen: e.departemen || '-',
+      statusKaryawan: e.status_karyawan || 'Karyawan Tetap',
       hadir,
       terlambat,
       hadirLibur,
@@ -524,11 +557,12 @@ export function rekapDepartemen(baris = []) {
 // sama + tarif per karyawan (diisi admin di tab Karyawan/Gaji):
 //   • Hari Dibayar  = Hadir + Terlambat + Hadir Libur + Izin + Sakit + Cuti
 //     (pengajuan izin/sakit/cuti yang tidak ditolak tetap dibayar; Alpha tidak)
-//   • Hari Uang Makan = hanya hari benar-benar masuk kerja
-//     (Hadir + Terlambat + Hadir Libur) — izin/sakit/cuti tanpa uang makan
+//   • Hari Uang Makan = hanya hari masuk TEPAT WAKTU (Hadir + Hadir Libur).
+//     Terlambat masuk TIDAK mendapat uang makan; izin/sakit/cuti juga tidak.
 //   • Lembur (Rp) = total jam lembur Disetujui × tarif lembur per jam
-export async function laporanGaji({ dari, sampai, departemen } = {}) {
-  const dasar = await laporanKehadiran({ dari, sampai, departemen })
+// `employeeId` (opsional) → slip gaji satu karyawan (dipakai aplikasi karyawan).
+export async function laporanGaji({ dari, sampai, departemen, employeeId } = {}) {
+  const dasar = await laporanKehadiran({ dari, sampai, departemen, employeeId })
   const tarif = await db.all('SELECT id, gaji_harian, uang_makan, tarif_lembur FROM employees')
   const peta = new Map(tarif.map((e) => [e.id, e]))
   const rupiah = (n) => Math.round(Number(n) || 0)
@@ -539,14 +573,18 @@ export async function laporanGaji({ dari, sampai, departemen } = {}) {
     const uangMakan = Number(e.uang_makan ?? 0)
     const tarifLembur = Number(e.tarif_lembur ?? 0)
     const hariDibayar = r.hadir + r.terlambat + r.hadirLibur + r.izin + r.sakit + r.cuti
-    const hariMakan = r.hadir + r.terlambat + r.hadirLibur
+    // Terlambat TIDAK dapat uang makan (gaji hariannya tetap dibayar).
+    const hariMakan = r.hadir + r.hadirLibur
+    const tanpaUangMakan = r.terlambat
     const subGaji = rupiah(hariDibayar * gajiHarian)
     const subMakan = rupiah(hariMakan * uangMakan)
     const subLembur = rupiah(r.lembur * tarifLembur)
     return {
       ...r,
       gajiHarian, uangMakan, tarifLembur,
-      hariDibayar, hariMakan,
+      hariDibayar, hariMakan, tanpaUangMakan,
+      // Nilai uang makan yang hilang karena telat — ditampilkan agar transparan.
+      potonganUangMakan: rupiah(tanpaUangMakan * uangMakan),
       subGaji, subMakan, subLembur,
       total: subGaji + subMakan + subLembur,
     }
@@ -564,12 +602,81 @@ export async function laporanGaji({ dari, sampai, departemen } = {}) {
       totalKaryawan: baris.length,
       hariDibayar: total('hariDibayar'),
       hariMakan: total('hariMakan'),
+      tanpaUangMakan: total('tanpaUangMakan'),
+      potonganUangMakan: rupiah(total('potonganUangMakan')),
       lembur: Math.round(total('lembur') * 10) / 10,
       subGaji: rupiah(total('subGaji')),
       subMakan: rupiah(total('subMakan')),
       subLembur: rupiah(total('subLembur')),
       total: rupiah(total('total')),
     },
+  }
+}
+
+// ---------- Periode penggajian ----------
+// Admin menetapkan periode (mis. "Gaji September 2026") pada tab Gaji; slip gaji
+// di aplikasi karyawan mengikuti periode yang sedang AKTIF.
+function periodeToClient(row) {
+  if (!row) return null
+  return {
+    id: row.id, nama: row.nama, dari: row.dari, sampai: row.sampai,
+    aktif: !!row.aktif, dibuat: row.created_at || null,
+  }
+}
+
+export async function listPeriodeGaji() {
+  const rows = await db.all('SELECT * FROM payroll_periods ORDER BY dari DESC, id DESC')
+  return rows.map(periodeToClient)
+}
+
+export async function periodeGajiAktif() {
+  return periodeToClient(
+    await db.get('SELECT * FROM payroll_periods WHERE aktif = 1 ORDER BY id DESC LIMIT 1'),
+  )
+}
+
+// Tetapkan periode penggajian (langsung AKTIF). Rentang tanggal yang sama tidak
+// diduplikasi — hanya namanya yang diperbarui.
+export async function tetapkanPeriodeGaji({ nama, dari, sampai }) {
+  const ada = await db.get('SELECT * FROM payroll_periods WHERE dari = ? AND sampai = ?', [dari, sampai])
+  await db.run('UPDATE payroll_periods SET aktif = 0')
+  if (ada) {
+    await db.run('UPDATE payroll_periods SET nama = ?, aktif = 1 WHERE id = ?', [nama || ada.nama, ada.id])
+    return periodeToClient(await db.get('SELECT * FROM payroll_periods WHERE id = ?', [ada.id]))
+  }
+  const info = await db.run(
+    'INSERT INTO payroll_periods (nama, dari, sampai, aktif) VALUES (?, ?, ?, 1)',
+    [nama, dari, sampai],
+  )
+  return periodeToClient(await db.get('SELECT * FROM payroll_periods WHERE id = ?', [info.lastInsertRowid]))
+}
+
+export async function aktifkanPeriodeGaji(id) {
+  const ada = await db.get('SELECT id FROM payroll_periods WHERE id = ?', [id])
+  if (!ada) return null
+  await db.run('UPDATE payroll_periods SET aktif = 0')
+  await db.run('UPDATE payroll_periods SET aktif = 1 WHERE id = ?', [id])
+  return periodeToClient(await db.get('SELECT * FROM payroll_periods WHERE id = ?', [id]))
+}
+
+export async function hapusPeriodeGaji(id) {
+  const info = await db.run('DELETE FROM payroll_periods WHERE id = ?', [id])
+  return info.changes
+}
+
+// Slip gaji SATU karyawan untuk periode aktif (atau periode terpilih). Rumusnya
+// memakai laporanGaji yang sama dengan panel admin → angka selalu konsisten.
+export async function slipGajiKaryawan(employeeId, periodeId = null) {
+  const periode = periodeId
+    ? periodeToClient(await db.get('SELECT * FROM payroll_periods WHERE id = ?', [periodeId]))
+    : await periodeGajiAktif()
+  if (!periode) return null
+  const lap = await laporanGaji({ dari: periode.dari, sampai: periode.sampai, employeeId })
+  return {
+    periode,
+    slip: lap.baris[0] || null,
+    hariKerja: lap.hariKerja,
+    hariKerjaHari: lap.hariKerjaHari,
   }
 }
 

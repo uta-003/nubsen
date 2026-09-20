@@ -198,6 +198,63 @@ cek('reports dari > sampai → 400', (await req(`/api/admin/reports?dari=${hariI
 const kembali = await setJadwal(jadwal0.hariKerja)
 cek('jadwal dikembalikan seperti semula', kembali.status === 200 && kembali.data?.hariKerja?.join(',') === jadwal0.hariKerja.join(','), kembali.data?.hariKerja?.join(','))
 
+// ---- 5e. Status karyawan + aturan uang makan (telat) + periode penggajian ----
+// Status kepegawaian dari form Karyawan: nilai sah tersimpan, nilai asing ditolak.
+const ubahStatus = await req(`/api/admin/employees/${idUji}`, { method: 'PUT', token: tA, body: { statusKaryawan: 'Karyawan Kontrak' } })
+cek('ubah status karyawan → Karyawan Kontrak', ubahStatus.status === 200 && ubahStatus.data?.statusKaryawan === 'Karyawan Kontrak', ubahStatus.data?.statusKaryawan)
+cek('status karyawan tak dikenal → 400', (await req(`/api/admin/employees/${idUji}`, { method: 'PUT', token: tA, body: { statusKaryawan: 'Freelance' } })).status === 400)
+
+// Rincian kuota cuti ikut dikirim ke aplikasi karyawan (sisa cuti berkurang live).
+const profilUji = await req('/api/profile', { token: tUji })
+cek('profil memuat status + rincian cuti', profilUji.data?.statusKaryawan === 'Karyawan Kontrak' && profilUji.data?.cutiTerpakai != null && profilUji.data?.cutiDisetujui != null, `terpakai=${profilUji.data?.cutiTerpakai} disetujui=${profilUji.data?.cutiDisetujui} menunggu=${profilUji.data?.cutiMenunggu}`)
+
+// Satu hari TERLAMBAT → hari dibayar 1, tetapi uang makan 0 (tidak dapat).
+await setJadwal([0, 1, 2, 3, 4, 5, 6]) // pastikan hari ini hari kerja
+const absensiHariIni = async (empId) => ((await req(`/api/admin/attendance?employeeId=${empId}`, { token: tA })).data || []).filter((r) => r.tanggal === hariIniUji)
+const bersihkanAbsensiHariIni = async (empId) => {
+  for (const r of await absensiHariIni(empId)) await req(`/api/admin/attendance/${r.id}`, { method: 'DELETE', token: tA })
+}
+await bersihkanAbsensiHariIni(idUji)
+await req(`/api/admin/employees/${idUji}`, { method: 'PUT', token: tA, body: { gajiHarian: 100000, uangMakan: 15000, tarifLembur: 20000 } })
+await req('/api/attendance/check-in', { method: 'POST', token: tUji, body: { lat: -6.1765782, lon: 106.899041, alamat: 'Kantor Pusat', selfie: null } })
+const recUji = (await absensiHariIni(idUji))[0]
+await req(`/api/admin/attendance/${recUji.id}`, { method: 'PUT', token: tA, body: { status: 'Terlambat' } })
+
+const gajiHariIni = await req(`/api/admin/gaji?dari=${hariIniUji}&sampai=${hariIniUji}`, { token: tA })
+const barisTerlambat = gajiHariIni.data?.baris?.find((r) => r.id === idUji)
+cek('telat: 1 hari dibayar & 0 hari uang makan', barisTerlambat?.terlambat === 1 && barisTerlambat?.hariDibayar === 1 && barisTerlambat?.hariMakan === 0 && barisTerlambat?.tanpaUangMakan === 1, `dibayar=${barisTerlambat?.hariDibayar} makan=${barisTerlambat?.hariMakan} telat=${barisTerlambat?.terlambat}`)
+cek('telat: gaji harian dibayar, uang makan hangus', barisTerlambat?.subGaji === 100000 && barisTerlambat?.subMakan === 0 && barisTerlambat?.potonganUangMakan === 15000, `subGaji=${barisTerlambat?.subGaji} subMakan=${barisTerlambat?.subMakan} potongan=${barisTerlambat?.potonganUangMakan}`)
+cek('ringkasan gaji memuat total tanpa uang makan', (gajiHariIni.data?.ringkasan?.tanpaUangMakan ?? 0) >= 1 && gajiHariIni.data?.ringkasan?.potonganUangMakan >= 15000, `tanpaUangMakan=${gajiHariIni.data?.ringkasan?.tanpaUangMakan}`)
+
+// Periode penggajian → slip gaji karyawan mengikuti periode yang AKTIF.
+const periodeAwal = (await req('/api/admin/gaji/periode', { token: tA })).data || []
+const periodeAwalAktif = periodeAwal.find((p) => p.aktif) || null
+const periodeBaru = await req('/api/admin/gaji/periode', { method: 'POST', token: tA, body: { nama: '', dari: hariIniUji, sampai: hariIniUji } })
+cek('tetapkan periode penggajian (nama otomatis)', periodeBaru.status === 201 && !!periodeBaru.data?.nama && periodeBaru.data?.aktif === true, periodeBaru.data?.nama)
+cek('periode dengan tanggal tidak valid → 400', (await req('/api/admin/gaji/periode', { method: 'POST', token: tA, body: { dari: '1-9-2026', sampai: hariIniUji } })).status === 400)
+cek('periode dari > sampai → 400', (await req('/api/admin/gaji/periode', { method: 'POST', token: tA, body: { dari: hariIniUji, sampai: '2026-01-01' } })).status === 400)
+
+const slip = await req('/api/slip', { token: tUji })
+cek('slip gaji karyawan mengikuti periode aktif', slip.status === 200 && slip.data?.periode?.id === periodeBaru.data?.id && !!slip.data?.slip, `periode=${slip.data?.periode?.nama}`)
+cek('slip gaji = gaji + uang makan + lembur', slip.data?.slip?.total === (slip.data?.slip?.subGaji + slip.data?.slip?.subMakan + slip.data?.slip?.subLembur), `total=${slip.data?.slip?.total}`)
+cek('slip gaji: telat tidak dapat uang makan', slip.data?.slip?.hariMakan === 0 && slip.data?.slip?.subMakan === 0 && slip.data?.slip?.total === 100000 && slip.data?.slip?.hariMakan === (slip.data?.slip?.hadir + slip.data?.slip?.hadirLibur), `makan=${slip.data?.slip?.hariMakan} total=${slip.data?.slip?.total}`)
+cek('karyawan dapat notifikasi slip gaji', (await req('/api/notifications', { token: tUji })).data.items.some((n) => n.jenis === 'gaji'))
+cek('admin lihat daftar periode penggajian', (await req('/api/admin/gaji/periode', { token: tA })).data.some((p) => p.id === periodeBaru.data.id))
+cek('aktifkan periode tak ada → 404', (await req('/api/admin/gaji/periode/999999/aktif', { method: 'PUT', token: tA })).status === 404)
+cek('hapus periode penggajian', (await req(`/api/admin/gaji/periode/${periodeBaru.data.id}`, { method: 'DELETE', token: tA })).status === 200)
+
+// Tanpa periode aktif → slip kosong (bukan galat), lalu periode demo dipulihkan.
+const slipKosong = await req('/api/slip', { token: tB })
+cek('tanpa periode aktif → slip kosong', slipKosong.status === 200 && slipKosong.data?.periode === null && slipKosong.data?.slip === null)
+if (periodeAwalAktif) {
+  const pulih = await req(`/api/admin/gaji/periode/${periodeAwalAktif.id}/aktif`, { method: 'PUT', token: tA })
+  cek('periode penggajian demo dipulihkan', pulih.status === 200 && pulih.data?.aktif === true, pulih.data?.nama)
+}
+
+// Bersihkan absensi & jadwal uji agar data demo kembali seperti semula.
+await bersihkanAbsensiHariIni(idUji)
+await setJadwal(jadwal0.hariKerja)
+
 // ---- 6. Absensi: check-in karyawan + koreksi & hapus oleh admin ----
 const hariIni = hariIniUji
 // Bersihkan catatan absensi hari ini agar uji bisa diulang berkali-kali.

@@ -139,6 +139,8 @@ const KOLOM_TAMBAHAN = [
   // Alasan penolakan izin/lembur — ikut terkirim dalam notifikasi karyawan.
   ['leaves', "alasan_tolak TEXT DEFAULT ''"],
   ['overtime', "alasan_tolak TEXT DEFAULT ''"],
+  // Status kepegawaian (Karyawan Tetap / Karyawan Kontrak) pada form Karyawan.
+  ['employees', "status_karyawan TEXT DEFAULT 'Karyawan Tetap'"],
 ]
 
 let janjiInit = null
@@ -161,6 +163,27 @@ export function dbSiap() {
           "UPDATE employees SET lokasi_kerja = ? WHERE lokasi_kerja = 'Kantor Pusat — Jakarta'",
           ['Kantor Pusat — Kelapa Gading, Jakarta Utara'],
         )
+      } catch { /* kolom belum ada */ }
+      // Database lama: isi status kepegawaian yang belum diatur.
+      try {
+        await driver.run(
+          "UPDATE employees SET status_karyawan = 'Karyawan Tetap' WHERE status_karyawan IS NULL OR TRIM(status_karyawan) = ''",
+        )
+      } catch { /* kolom belum ada */ }
+      // Instalasi lama (dibuat sebelum fitur penghitung gaji) bisa punya tarif 0
+      // untuk dua akun demo. Isi nilai demo HANYA bila ketiganya masih kosong —
+      // angka yang sudah diatur admin tidak pernah ditimpa.
+      try {
+        for (const [email, gaji, makan, lembur] of [
+          ['afriani.putri@perusahaan.co.id', 180000, 25000, 30000],
+          ['budi.santoso@perusahaan.co.id', 150000, 20000, 25000],
+        ]) {
+          await driver.run(
+            `UPDATE employees SET gaji_harian = ?, uang_makan = ?, tarif_lembur = ?
+             WHERE email = ? AND COALESCE(gaji_harian, 0) = 0 AND COALESCE(uang_makan, 0) = 0 AND COALESCE(tarif_lembur, 0) = 0`,
+            [gaji, makan, lembur, email],
+          )
+        }
       } catch { /* kolom belum ada */ }
       return driver
     })().catch((err) => {

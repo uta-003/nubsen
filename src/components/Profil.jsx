@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
-import { Briefcase, Building2, Mail, Phone, MapPinned, BadgeCheck, Award, Plane, LogOut, HelpCircle, ChevronRight, KeyRound, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Briefcase, Building2, Mail, Phone, MapPinned, BadgeCheck, Award, Plane, LogOut, HelpCircle, ChevronRight, KeyRound, Eye, EyeOff, Loader2, Wallet } from 'lucide-react'
 import { USER_DEFAULT } from '../hooks/useAbsensi'
 import * as api from '../api'
 import Bantuan from './Bantuan'
+import SlipGaji from './SlipGaji'
 
 export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }) {
   const [bantuanOpen, setBantuanOpen] = useState(false)
+  const [slipOpen, setSlipOpen] = useState(false)
   // Warna angka rekap per status — hierarki visual kekinian.
   const WARNA_STAT = {
     Hadir: 'text-emerald-600 dark:text-emerald-400',
@@ -78,9 +80,19 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
           </div>
           <h1 className="mt-3 text-lg font-extrabold tracking-tight">{user.nama}</h1>
           <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-            <BadgeCheck size={14} className="text-emerald-500" /> NIP {user.nip} • Karyawan Aktif
+            <BadgeCheck size={14} className="text-emerald-500" /> NIP {user.nip} • Aktif
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
+            {/* Status kepegawaian (diatur admin di form Tambah/Edit Karyawan) */}
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
+                (user.statusKaryawan || 'Karyawan Tetap') === 'Karyawan Kontrak'
+                  ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                  : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+              }`}
+            >
+              <BadgeCheck size={13} /> {user.statusKaryawan || 'Karyawan Tetap'}
+            </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
               <Briefcase size={13} /> {user.jabatan}
             </span>
@@ -127,9 +139,32 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
           />
         </div>
         <p className="mt-2 text-[11px] text-slate-400">
-          Kuota {user.cutiTahunan ?? 12} hari/tahun • terpakai {(user.cutiTahunan ?? 12) - (user.sisaCuti ?? 12)} hari
+          Kuota {user.cutiTahunan ?? 12} hari/tahun • terpakai {user.cutiTerpakai ?? ((user.cutiTahunan ?? 12) - (user.sisaCuti ?? 12))} hari
+          {/* Angka ini dihitung server setiap kali data dimuat ulang — pengajuan cuti
+              yang baru dikirim langsung memotong sisa cuti di atas. */}
+          {!!user.cutiMenunggu && <> • menunggu persetujuan {user.cutiMenunggu} hari</>}
         </p>
       </div>
+
+      {/* Slip gaji per PERIODE PENGGAJIAN (periode ditetapkan admin di tab Gaji) */}
+      <button
+        onClick={() => setSlipOpen(true)}
+        className="mb-4 flex w-full items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left transition active:scale-[0.98] dark:border-emerald-500/30 dark:bg-emerald-500/10"
+      >
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+            <Wallet size={18} />
+          </span>
+          <div>
+            <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Slip Gaji</p>
+            <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80">
+              Rincian gaji, uang makan & lembur per periode penggajian
+            </p>
+          </div>
+        </div>
+        <ChevronRight size={18} className="text-emerald-400" />
+      </button>
+      <SlipGaji open={slipOpen} onClose={() => setSlipOpen(false)} user={user} toast={toast} />
 
       {/* Detail kontak */}
       <div className="card animate-rise space-y-3" style={{ animationDelay: '180ms' }}>

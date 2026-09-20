@@ -23,10 +23,24 @@ CREATE TABLE IF NOT EXISTS employees (
   cuti_tahunan INTEGER DEFAULT 12,
   pin_hash     TEXT,
   is_admin     INTEGER DEFAULT 0,
+  -- Status kepegawaian: 'Karyawan Tetap' atau 'Karyawan Kontrak' (dipilih admin
+  -- pada form Tambah/Edit Karyawan di panel admin).
+  status_karyawan TEXT DEFAULT 'Karyawan Tetap',
   -- Penghitung gaji per karyawan (Rp) — diisi admin; 0 = belum diatur.
   gaji_harian  REAL DEFAULT 0,
   uang_makan   REAL DEFAULT 0,
   tarif_lembur REAL DEFAULT 0
+);
+
+-- Periode penggajian (mis. "Gaji September 2026") yang ditetapkan admin pada
+-- tab Gaji. Slip gaji di aplikasi karyawan mengikuti periode yang AKTIF.
+CREATE TABLE IF NOT EXISTS payroll_periods (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  nama       TEXT NOT NULL,
+  dari       TEXT NOT NULL,
+  sampai     TEXT NOT NULL,
+  aktif      INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -123,4 +137,5 @@ CREATE INDEX IF NOT EXISTS idx_overtime_employee           ON overtime (employee
 CREATE INDEX IF NOT EXISTS idx_notifications_employee      ON notifications (employee_id, dibaca);
 CREATE INDEX IF NOT EXISTS idx_notifications_grup          ON notifications (grup_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_employee           ON sessions (employee_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_periode_aktif        ON payroll_periods (aktif);
 `

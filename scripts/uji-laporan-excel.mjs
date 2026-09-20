@@ -73,9 +73,10 @@ sama('tanda tangan ZIP "PK" (xlsx valid)', String.fromCharCode(bytes[0], bytes[1
 sama('ukuran berkas wajar (> 4 kB)', bytes.byteLength > 4096, true)
 
 // ---------- workbook penghitung gaji ----------
-// Perhitungan contoh: Budi hariDibayar=15 (10+2+1+1+1+0), hariMakan=13,
-// subGaji=2.250.000, subMakan=260.000, subLembur=87.500 → total 2.597.500;
-// Afriani hariDibayar=15, hariMakan=15, total 3.075.000. Ringkasan = 5.672.500.
+// Perhitungan contoh (aturan baru: Terlambat TIDAK dapat uang makan):
+// Budi hariDibayar=15 (10+2+1+1+1+0), hariMakan=11 (10+1 — 2 hari telat tidak dapat),
+// subGaji=2.250.000, subMakan=220.000, subLembur=87.500 → total 2.557.500;
+// Afriani hariDibayar=15, hariMakan=15, total 3.075.000. Ringkasan = 5.632.500.
 const dataGaji = {
   dari: '2026-09-01',
   sampai: '2026-09-20',
@@ -89,12 +90,14 @@ const dataGaji = {
   ringkasan: {
     totalKaryawan: 2,
     hariDibayar: 30,
-    hariMakan: 28,
+    hariMakan: 26,
+    tanpaUangMakan: 2,
+    potonganUangMakan: 40000,
     lembur: 3.5,
     subGaji: 4950000,
-    subMakan: 635000,
+    subMakan: 595000,
     subLembur: 87500,
-    total: 5672500,
+    total: 5632500,
   },
 }
 
@@ -107,10 +110,11 @@ sama('workbook gaji: 2 sheet (Ringkasan + Produksi)', wbGaji.worksheets.length, 
 const wsG = wbGaji.worksheets[0]
 sama('banner gaji', wsG.getCell('A1').value, 'PENGHITUNG GAJI KARYAWAN — NUBSEN')
 sama('header kolom terakhir gaji (M9)', wsG.getCell('M9').value, 'TOTAL GAJI (Rp)')
-sama('KPI TOTAL GAJI (H6)', wsG.getCell('H6').value, 5672500)
+sama('KPI TOTAL GAJI (H6)', wsG.getCell('H6').value, 5632500)
 sama('baris data gaji pertama (A10)', wsG.getCell('A10').value, 'Budi Santoso')
-sama('TOTAL gaji keseluruhan (M12)', wsG.getCell('M12').value, 5672500)
+sama('TOTAL gaji keseluruhan (M12)', wsG.getCell('M12').value, 5632500)
 sama('TOTAL sub gaji (J12)', wsG.getCell('J12').value, 4950000)
+sama('catatan aturan uang makan (telat) di Excel', /Terlambat tidak dapat/.test(String(wsG.getCell('A3').value)), true)
 
 const bufGaji = await wbGaji.xlsx.writeBuffer()
 const bytesGaji = Buffer.isBuffer(bufGaji) ? bufGaji : Buffer.from(bufGaji)

@@ -18,6 +18,12 @@ export const USER_DEFAULT = {
   telepon: '+62 812-3456-7890',
   lokasiKerja: 'Kantor Pusat — Kelapa Gading, Jakarta Utara',
   avatar: null,
+  statusKaryawan: 'Karyawan Tetap',
+  cutiTahunan: 12,
+  cutiTerpakai: 0,
+  cutiDisetujui: 0,
+  cutiMenunggu: 0,
+  sisaCuti: 12,
 }
 
 // Hook utama state absensi — bersumber dari REST API (Express + SQLite).
@@ -48,11 +54,17 @@ export function useAbsensi(enabled = true) {
     else setState({ user: null, today: null, history: [], loading: false, error: null, jadwal: JADWAL_DEFAULT })
   }, [enabled, muat])
 
-  // Setelah mutasi (absen/izin), segarkan data secara latar belakang.
+  // Setelah mutasi (absen/izin), segarkan data secara latar belakang. PROFIL ikut
+  // dimuat ulang supaya sisa cuti tahunan & data slip gaji di menu Profil
+  // langsung berkurang/terbarui tanpa perlu menutup aplikasi.
   const segarkan = useCallback(async () => {
     try {
-      const [today, history] = await Promise.all([api.getToday(), api.getHistory()])
-      setState((s) => ({ ...s, today, history }))
+      const [profil, today, history] = await Promise.all([
+        api.getProfile(),
+        api.getToday(),
+        api.getHistory(),
+      ])
+      setState((s) => ({ ...s, user: profil || s.user, today, history }))
     } catch {
       /* biarkan data lama; error sudah ditangani pemanggil */
     }
@@ -124,5 +136,5 @@ export function useAbsensi(enabled = true) {
     [segarkan],
   )
 
-  return { ...state, muatUlang: muat, catatCheckIn, catatCheckOut, ajukanIzin }
+  return { ...state, muatUlang: muat, segarkanData: segarkan, catatCheckIn, catatCheckOut, ajukanIzin }
 }

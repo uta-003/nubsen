@@ -16,6 +16,7 @@ import Notifikasi from './components/Notifikasi'
 import NotifikasiBell from './components/NotifikasiBell'
 import Admin from './components/Admin'
 import Toast from './components/Toast'
+import LogoAnimasi from './components/LogoAnimasi'
 import { tutupTeratas } from './utils/kembali'
 import { keluarAplikasi } from './utils/native'
 
@@ -28,7 +29,7 @@ export default function App() {
   const [authUser, setAuthUser] = useState(null)
   const [authSiap, setAuthSiap] = useState(false)
   const authed = !!authUser
-  const { user, today, history, loading, error, catatCheckIn, catatCheckOut, ajukanIzin, muatUlang, jadwal } =
+  const { user, today, history, loading, error, catatCheckIn, catatCheckOut, ajukanIzin, muatUlang, segarkanData, jadwal } =
     useAbsensi(authed)
   // Mode luring — status koneksi + antrean + sinkron otomatis (utils/luring.js).
   // Callback lewat ref agar identitasnya stabil (hook tak perlu re-subscribe).
@@ -58,6 +59,13 @@ export default function App() {
     }
   })
   const [toast, setToast] = useState(null)
+
+  // Membuka menu Profil → segarkan profil & data absensi TANPA skeleton. Ini yang
+  // membuat sisa cuti tahunan (dan rincian slip gaji) selalu angka terbaru —
+  // mis. langsung berkurang setelah pengajuan cuti atau setelah admin menyetujui.
+  useEffect(() => {
+    if (authed && view === 'profil') segarkanData()
+  }, [authed, view, segarkanData])
 
   // Otak tombol Back Android (dipanggil native lewat window.__nubsenBack →
   // __nubsenHandleBack). Didaftarkan ulang tiap state berubah supaya SELALU
@@ -170,15 +178,15 @@ export default function App() {
     setView('dashboard')
   }
 
-  // Splash saat memeriksa sesi tersimpan
+  // Splash saat memeriksa sesi tersimpan — memakai animasi logo yang sama
+  // (halo + sonar melingkar, bukan kotak) seperti header & halaman login.
   if (!authSiap)
     return (
       <div className="grid min-h-full place-items-center">
-        <img
-          src="/logo-mark.png"
-          alt="Logo NUBSEN"
-          className="animate-pulse-slow h-28 w-auto"
-        />
+        <div className="flex flex-col items-center gap-4">
+          <LogoAnimasi ukuran="xl" />
+          <p className="text-sm font-extrabold tracking-tight text-slate-500 dark:text-slate-400">NUBSEN</p>
+        </div>
       </div>
     )
 
@@ -282,11 +290,7 @@ export default function App() {
         }`}
       >
         <div className="flex min-w-0 items-center gap-2.5">
-          <img
-            src="/logo-icon.png"
-            alt="Logo NUBSEN"
-            className="h-9 w-9 shrink-0 object-contain sm:h-10 sm:w-10"
-          />
+          <LogoAnimasi ukuran="sm" />
           <div className="min-w-0">
             <p className="truncate text-base font-extrabold leading-none tracking-tight">NUBSEN</p>
             <p className="truncate text-[10px] font-medium text-slate-400">Cukup Satu Klik!</p>

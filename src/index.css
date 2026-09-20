@@ -111,8 +111,69 @@
 @keyframes spin-slow { to { transform: rotate(360deg); } }
 .animate-spin-slower { animation: spin-slow 9s linear infinite; }
 
+/* ============ Animasi logo: melingkar, bukan kotak ============ */
+/* Halo gradasi berputar — conic-gradient dipotong jadi cincin tipis. */
+@keyframes logo-halo-putar { to { transform: rotate(360deg); } }
+.logo-halo {
+  background: conic-gradient(
+    from 0deg,
+    rgba(126, 151, 205, 0) 0deg,
+    rgba(126, 151, 205, .85) 90deg,
+    rgba(90, 119, 171, 0) 200deg,
+    rgba(10, 29, 87, .55) 320deg,
+    rgba(126, 151, 205, 0) 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  animation: logo-halo-putar 7s linear infinite;
+}
+
+/* Gelombang sonar mengembang (kesan radar) — pengganti bingkai kotak. */
+@keyframes logo-sonar {
+  0% { transform: scale(.72); opacity: .55; }
+  70% { opacity: .12; }
+  100% { transform: scale(1.18); opacity: 0; }
+}
+.logo-sonar {
+  border: 2px solid rgba(126, 151, 205, .55);
+  animation: logo-sonar 3.2s ease-out infinite;
+}
+.logo-sonar-2 { animation-delay: 1.6s; }
+
+/* Cahaya radial lembut di belakang logo */
+@keyframes logo-cahaya {
+  0%, 100% { opacity: .55; transform: scale(.95); }
+  50% { opacity: .9; transform: scale(1.05); }
+}
+.logo-cahaya {
+  background: radial-gradient(circle, rgba(126, 151, 205, .55) 0%, rgba(126, 151, 205, .15) 55%, transparent 75%);
+  filter: blur(6px);
+  animation: logo-cahaya 4s ease-in-out infinite;
+}
+
+/* Logo mengambang + pendar biru. drop-shadow (bukan box-shadow) supaya bentuk
+   cincin/pendar mengikuti siluet logo dan tidak tampak sebagai kotak. */
+@keyframes logo-melayang {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); filter: drop-shadow(0 6px 12px rgba(10, 29, 87, .28)); }
+  50% { transform: translateY(-6px) rotate(1.5deg) scale(1.03); filter: drop-shadow(0 14px 22px rgba(70, 97, 154, .42)); }
+}
+.logo-melayang { animation: logo-melayang 4.5s ease-in-out infinite; will-change: transform; }
+
+/* Titik orbit mengelilingi logo */
+@keyframes logo-orbit-putar { to { transform: rotate(360deg); } }
+.logo-orbit { animation: logo-orbit-putar 6s linear infinite; }
+
+/* Logo muncul lembut saat aplikasi dibuka */
+@keyframes logo-muncul {
+  from { opacity: 0; transform: scale(.86); }
+  to { opacity: 1; transform: scale(1); }
+}
+.logo-wrap { animation: logo-muncul .5s cubic-bezier(.22, 1, .36, 1) both; }
+
 /* Hormati preferensi pengguna: matikan animasi bila diminta OS */
 @media (prefers-reduced-motion: reduce) {
   .animate-rise, .animate-fade-in, .animate-slide-up, .bar-anim,
-  .animate-floaty, .animate-spin-slower, .animate-pulse-slow { animation: none; }
+  .animate-floaty, .animate-spin-slower, .animate-pulse-slow,
+  .logo-wrap, .logo-halo, .logo-sonar, .logo-cahaya, .logo-melayang, .logo-orbit { animation: none; }
+  .logo-sonar, .logo-halo { opacity: .45; }
 }

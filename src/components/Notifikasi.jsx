@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Bell, Info, CalendarPlus, Clock4, CalendarCheck2, CheckCheck, Loader2, Megaphone, AlertTriangle, CalendarClock,
+  Bell, Info, CalendarPlus, Clock4, CalendarCheck2, CheckCheck, Loader2, Megaphone, AlertTriangle, CalendarClock, Wallet,
 } from 'lucide-react'
 import { getNotifikasi, tandaiNotifikasiDibaca } from '../api'
 
@@ -11,7 +11,8 @@ const JENIS = {
   jadwal: { Icon: CalendarClock, warna: 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400', label: 'Jadwal' },
   lembur: { Icon: Clock4, warna: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400', label: 'Lembur' },
   izin: { Icon: CalendarPlus, warna: 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400', label: 'Izin / Cuti' },
-  absensi: { Icon: CalendarCheck2, warna: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400' },
+  absensi: { Icon: CalendarCheck2, warna: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400', label: 'Absensi' },
+  gaji: { Icon: Wallet, warna: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400', label: 'Gaji' },
 }
 
 const formatWaktu = (s) => {

@@ -5,6 +5,23 @@ import { toISODate } from './utils/waktu.js'
 export async function seedIfEmpty() {
   await seedKaryawan()
   await seedRiwayat()
+  await seedPeriodeGaji()
+}
+
+// Periode penggajian demo (bulan berjalan) supaya slip gaji di aplikasi karyawan
+// langsung ada isinya pada instalasi baru. Admin dapat menggantinya di tab Gaji.
+async function seedPeriodeGaji() {
+  const ada = await db.get('SELECT id FROM payroll_periods LIMIT 1')
+  if (ada) return
+  const NAMA_BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+  const hariIni = toISODate()
+  const d = new Date(`${hariIni}T00:00:00Z`)
+  const nama = `Gaji ${NAMA_BULAN[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+  await db.run(
+    'INSERT INTO payroll_periods (nama, dari, sampai, aktif) VALUES (?, ?, ?, 1)',
+    [nama, `${hariIni.slice(0, 7)}-01`, hariIni],
+  )
+  console.log(`🌱 Seed: periode penggajian "${nama}" ditetapkan (aktif).`)
 }
 
 async function seedKaryawan() {
@@ -12,8 +29,8 @@ async function seedKaryawan() {
 
   if (!admin) {
     await db.run(
-      `INSERT INTO employees (id, nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash, gaji_harian, uang_makan, tarif_lembur)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, 12, 1, ?, ?, ?, ?)`,
+      `INSERT INTO employees (id, nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash, gaji_harian, uang_makan, tarif_lembur, status_karyawan)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, 12, 1, ?, ?, ?, ?, ?)`,
       [
         'Afriani Putri',
         'EMP-2024-0187',
@@ -25,6 +42,7 @@ async function seedKaryawan() {
         hashPin('123456'),
         // Tarif demo untuk penghitung gaji (Rp).
         180000, 25000, 30000,
+        'Karyawan Tetap',
       ],
     )
     // Notifikasi sambutan untuk akun baru.
@@ -45,8 +63,8 @@ async function seedKaryawan() {
   const budi = await db.get('SELECT id FROM employees WHERE id = ?', [2])
   if (!budi) {
     await db.run(
-      `INSERT INTO employees (id, nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash, gaji_harian, uang_makan, tarif_lembur)
-       VALUES (2, ?, ?, ?, ?, ?, ?, ?, 12, 0, ?, ?, ?, ?)`,
+      `INSERT INTO employees (id, nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash, gaji_harian, uang_makan, tarif_lembur, status_karyawan)
+       VALUES (2, ?, ?, ?, ?, ?, ?, ?, 12, 0, ?, ?, ?, ?, ?)`,
       [
         'Budi Santoso',
         'EMP-2024-0203',
@@ -58,6 +76,7 @@ async function seedKaryawan() {
         hashPin('654321'),
         // Tarif demo untuk penghitung gaji (Rp).
         150000, 20000, 25000,
+        'Karyawan Kontrak',
       ],
     )
   }

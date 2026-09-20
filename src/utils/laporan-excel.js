@@ -329,7 +329,7 @@ function isiSheetGaji(wb, nama, data, ringkasan, baris, aksen, labelDept) {
   // 3) Meta + keterangan aturan hitung.
   ws.mergeCells(`A3:${kolomN}3`)
   const meta = ws.getCell('A3')
-  meta.value = `Diunduh: ${stempelWaktu()}   •   Hari Dibayar = Hadir+Terlambat+Hadir Libur+Izin+Sakit+Cuti   •   Uang makan hanya hari masuk kerja   •   Lembur dari pengajuan Disetujui   •   Dibuat otomatis oleh NUBSEN`
+  meta.value = `Diunduh: ${stempelWaktu()}   •   Hari Dibayar = Hadir+Terlambat+Hadir Libur+Izin+Sakit+Cuti   •   Uang makan HANYA hari tepat waktu (Terlambat tidak dapat)   •   Lembur dari pengajuan Disetujui   •   Dibuat otomatis oleh NUBSEN`
   meta.font = { name: 'Calibri', size: 9, italic: true, color: { argb: ABU } }
   meta.alignment = { vertical: 'middle', horizontal: 'left' }
   ws.getRow(3).height = 16

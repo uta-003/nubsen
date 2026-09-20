@@ -221,3 +221,15 @@ export function adminGaji({ dari, sampai, departemen } = {}) {
   if (departemen) qs.set('departemen', departemen)
   return admin(`/gaji${qs.toString() ? `?${qs}` : ''}`)
 }
+
+// ---------- Periode penggajian (dipakai slip gaji di aplikasi karyawan) ----------
+export const adminPeriodeGaji = () => admin('/gaji/periode')
+export const adminTetapkanPeriodeGaji = (d) => admin('/gaji/periode', { method: 'POST', body: d })
+export const adminAktifkanPeriodeGaji = (id) => admin(`/gaji/periode/${id}/aktif`, { method: 'PUT' })
+export const adminHapusPeriodeGaji = (id) => admin(`/gaji/periode/${id}`, { method: 'DELETE' })
+
+// Slip gaji karyawan yang sedang login (periode aktif, atau periode terpilih).
+// Hasil: { periode, slip, hariKerja, hariKerjaHari, daftar }
+export function getSlipGaji({ periodeId } = {}) {
+  return request(`/api/slip${periodeId ? `?periodeId=${periodeId}` : ''}`)
+}

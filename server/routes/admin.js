@@ -7,12 +7,23 @@ import {
   listSemuaIzin, setStatusIzin, hapusIzin,
   listSemuaLembur, setStatusLembur, hapusLembur,
   laporanKehadiran, laporanGaji,
+  listPeriodeGaji, tetapkanPeriodeGaji, aktifkanPeriodeGaji, hapusPeriodeGaji,
+  STATUS_KARYAWAN, statusKaryawanSah,
   notifToClient, kirimNotifikasi, listSemuaNotifikasi, hapusNotifikasi,
   kirimPengumuman, ubahPengumuman, hapusPengumuman,
 } from '../models.js'
 import { wrap } from '../utils/wrap.js'
 
-const JENIS_VALID = ['pengumuman', 'penting', 'info', 'lembur', 'izin', 'absensi']
+const JENIS_VALID = ['pengumuman', 'penting', 'info', 'lembur', 'izin', 'absensi', 'gaji']
+
+// Status kepegawaian dikirim admin pada form Karyawan: hanya dua nilai yang sah.
+// Nilai kosong dianggap tidak diubah; nilai asing ditolak 400 agar tidak senyap.
+function validasiStatusKaryawan(nilai) {
+  if (nilai === undefined || nilai === null || String(nilai).trim() === '') return { ok: true }
+  const teks = String(nilai).trim()
+  if (STATUS_KARYAWAN.some((s) => s.toLowerCase() === teks.toLowerCase())) return { ok: true, nilai: statusKaryawanSah(teks) }
+  return { ok: false, pesan: `Status karyawan harus salah satu dari: ${STATUS_KARYAWAN.join(', ')}.` }
+}
 
 // Untuk menyebut hari kerja dalam pesan notifikasi perubahan jadwal.
 const NAMA_HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
@@ -85,6 +96,64 @@ router.get('/gaji', wrap(async (req, res) => {
   }) })
 }))
 
+// ---------- Periode penggajian (dipakai slip gaji di aplikasi karyawan) ----------
+const NAMA_BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+
+// Nama periode otomatis bila admin tidak mengetik: "Gaji September 2026".
+function namaPeriodeGaji(dari, sampai) {
+  const d = new Date(`${dari}T00:00:00Z`)
+  const teks = `${NAMA_BULAN[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+  return String(dari).slice(0, 7) === String(sampai).slice(0, 7)
+    ? `Gaji ${teks}`
+    : `Gaji ${teks} (${dari} s.d. ${sampai})`
+}
+
+// GET /api/admin/gaji/periode — daftar periode penggajian (yang aktif ditandai)
+router.get('/gaji/periode', wrap(async (_req, res) => {
+  res.json({ data: await listPeriodeGaji() })
+}))
+
+// POST /api/admin/gaji/periode { nama, dari, sampai } — tetapkan periode (langsung
+// AKTIF) dan beri tahu SEMUA karyawan bahwa slip gajinya sudah bisa dilihat.
+router.post('/gaji/periode', wrap(async (req, res) => {
+  const { nama, dari, sampai } = req.body || {}
+  const pola = /^\d{4}-\d{2}-\d{2}$/
+  if (!pola.test(String(dari || '')) || !pola.test(String(sampai || ''))) {
+    return res.status(400).json({ error: 'Tanggal periode harus format YYYY-MM-DD.' })
+  }
+  if (dari > sampai) return res.status(400).json({ error: 'Tanggal "dari" melebihi "sampai".' })
+  const periode = await tetapkanPeriodeGaji({
+    nama: String(nama || '').trim() || namaPeriodeGaji(dari, sampai),
+    dari, sampai,
+  })
+  await kirimNotifikasi({
+    employeeId: null,
+    judul: '🧾 Slip gaji sudah tersedia',
+    pesan: `Periode penggajian "${periode.nama}" (${periode.dari} s.d. ${periode.sampai}) telah ditetapkan. Buka Profil → Slip Gaji untuk melihat rinciannya.`,
+    jenis: 'gaji',
+  })
+  res.status(201).json({ data: periode })
+}))
+
+// PUT /api/admin/gaji/periode/:id/aktif — pindah periode aktif (slip karyawan ikut)
+router.put('/gaji/periode/:id/aktif', wrap(async (req, res) => {
+  const periode = await aktifkanPeriodeGaji(Number(req.params.id))
+  if (!periode) return res.status(404).json({ error: 'Periode penggajian tidak ditemukan.' })
+  await kirimNotifikasi({
+    employeeId: null,
+    judul: '🧾 Slip gaji periode baru',
+    pesan: `Slip gaji kini menampilkan periode "${periode.nama}" (${periode.dari} s.d. ${periode.sampai}).`,
+    jenis: 'gaji',
+  })
+  res.json({ data: periode })
+}))
+
+router.delete('/gaji/periode/:id', wrap(async (req, res) => {
+  const jumlah = await hapusPeriodeGaji(Number(req.params.id))
+  if (!jumlah) return res.status(404).json({ error: 'Periode penggajian tidak ditemukan.' })
+  res.json({ data: { ok: true } })
+}))
+
 // ---------- Laporan kehadiran (rekap per karyawan + export) ----------
 // GET /api/admin/reports?dari=YYYY-MM-DD&sampai=YYYY-MM-DD&departemen=Teknologi Informasi
 router.get('/reports', wrap(async (req, res) => {
@@ -104,6 +173,9 @@ router.get('/employees', wrap(async (_req, res) => {
 router.post('/employees', wrap(async (req, res) => {
   const d = req.body || {}
   if (!d.nama || !d.email) return res.status(400).json({ error: 'Nama dan email wajib diisi.' })
+  const status = validasiStatusKaryawan(d.statusKaryawan)
+  if (!status.ok) return res.status(400).json({ error: status.pesan })
+  if (status.nilai) d.statusKaryawan = status.nilai
   try {
     res.status(201).json({ data: await buatKaryawan(d) })
   } catch {
@@ -112,7 +184,11 @@ router.post('/employees', wrap(async (req, res) => {
 }))
 
 router.put('/employees/:id', wrap(async (req, res) => {
-  const hasil = await ubahKaryawan(Number(req.params.id), req.body || {})
+  const d = req.body || {}
+  const status = validasiStatusKaryawan(d.statusKaryawan)
+  if (!status.ok) return res.status(400).json({ error: status.pesan })
+  if (status.nilai) d.statusKaryawan = status.nilai
+  const hasil = await ubahKaryawan(Number(req.params.id), d)
   if (!hasil) return res.status(404).json({ error: 'Karyawan tidak ditemukan.' })
   res.json({ data: hasil })
 }))

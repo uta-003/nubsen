@@ -10,6 +10,7 @@ import overtimeRoutes from './routes/overtime.js'
 import notificationRoutes from './routes/notifications.js'
 import adminRoutes from './routes/admin.js'
 import jadwalRoutes from './routes/jadwal.js'
+import slipRoutes from './routes/slip.js'
 import { employeeByToken } from './models.js'
 import profileRoutes from './routes/profile.js'
 import attendanceRoutes from './routes/attendance.js'
@@ -83,6 +84,7 @@ app.use('/api/attendance', attendanceRoutes)
 app.use('/api/leaves', leaveRoutes)
 app.use('/api/overtime', overtimeRoutes)
 app.use('/api/notifications', notificationRoutes)
+app.use('/api/slip', slipRoutes) // slip gaji karyawan per periode penggajian
 
 // Panel admin — khusus karyawan ber-flag is_admin
 const requireAdmin = async (req, res, next) => {

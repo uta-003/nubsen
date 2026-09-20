@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Mail, LockKeyhole, Eye, EyeOff, Loader2, LogIn, Sparkles } from 'lucide-react'
 import * as api from '../api'
+import LogoAnimasi from './LogoAnimasi'
 
 // Halaman login dengan animasi: blob gradasi mengambang, logo berdenyut,
 // getar saat salah, dan show/hide PIN.
@@ -38,13 +39,9 @@ export default function LoginPage({ onLogin }) {
       </div>
 
       <div className={`w-full max-w-sm animate-slide-up ${goyang ? 'shake' : ''}`}>
-        {/* Logo berdenyut */}
+        {/* Logo NUBSEN dengan animasi memutar/mengambang (tanpa kotak) */}
         <div className="mb-6 text-center">
-          <img
-            src="/logo-icon.png"
-            alt="Logo NUBSEN"
-            className="animate-pulse-slow mx-auto h-20 w-20 object-contain drop-shadow-lg"
-          />
+          <LogoAnimasi ukuran="lg" kelas="mx-auto" />
           <h1 className="mt-4 text-2xl font-extrabold tracking-tight">NUBSEN</h1>
           <p className="flex items-center justify-center gap-1 text-xs text-slate-500 dark:text-slate-400">
             <Sparkles size={12} className="text-amber-400" /> Cukup Satu Klik!
