@@ -132,6 +132,17 @@ export function adminHapusLibur(tanggal) {
   return request(`/api/admin/libur/${tanggal}`, { method: 'DELETE' })
 }
 
+// ---------- Surat peringatan (SP1–SP3) & pemecatan ----------
+export function adminPeringatan(employeeId = '') {
+  return request(`/api/admin/peringatan${employeeId ? `?employeeId=${employeeId}` : ''}`)
+}
+export function adminBuatPeringatan(body) {
+  return request('/api/admin/peringatan', { method: 'POST', body })
+}
+export function adminHapusPeringatan(id) {
+  return request(`/api/admin/peringatan/${id}`, { method: 'DELETE' })
+}
+
 export async function getToday() {
   return mapRecord(await request('/api/attendance/today'))
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Briefcase, Building2, Mail, Phone, MapPinned, BadgeCheck, Award, Plane, LogOut, HelpCircle, ChevronRight, KeyRound, Eye, EyeOff, Loader2, Wallet } from 'lucide-react'
+import { Briefcase, Building2, Mail, Phone, MapPinned, BadgeCheck, Award, Plane, LogOut, HelpCircle, ChevronRight, KeyRound, Eye, EyeOff, Loader2, Wallet, FileWarning } from 'lucide-react'
 import { USER_DEFAULT } from '../hooks/useAbsensi'
 import * as api from '../api'
 import Bantuan from './Bantuan'
@@ -144,6 +144,46 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
               yang baru dikirim langsung memotong sisa cuti di atas. */}
           {!!user.cutiMenunggu && <> • menunggu persetujuan {user.cutiMenunggu} hari</>}
         </p>
+      </div>
+
+      {/* Surat peringatan (SP1–SP3) & pemecatan — diterbitkan admin, muncul di sini */}
+      <div className="card animate-rise mb-4" style={{ animationDelay: '130ms' }}>
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+          <FileWarning size={16} className="text-rose-500" /> Surat Peringatan &amp; Pemecatan
+        </h2>
+        {(user.peringatan || []).length === 0 ? (
+          <p className="flex items-center gap-2 rounded-2xl bg-emerald-50 px-3.5 py-3 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+            <BadgeCheck size={14} /> Bersih — tidak ada surat peringatan. Pertahankan!
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {user.peringatan.map((s) => {
+              const surat = s.jenis === 'Pemecatan'
+              const kelas = surat
+                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                : s.jenis === 'SP3' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300'
+                : s.jenis === 'SP2' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300'
+                : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+              return (
+                <li key={s.id} className={`rounded-2xl p-3 ${surat ? 'bg-rose-50 dark:bg-rose-500/10' : 'bg-slate-50 dark:bg-slate-800'}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${kelas}`}>
+                      {s.label || s.jenis}
+                    </span>
+                    <span className="shrink-0 font-mono text-[11px] font-semibold text-slate-500 dark:text-slate-300">
+                      {s.tanggal}
+                    </span>
+                  </div>
+                  {s.alasan && (
+                    <p className={`mt-1.5 text-xs leading-relaxed ${surat ? 'font-semibold text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}>
+                      💬 {s.alasan}
+                    </p>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
 
       {/* Slip gaji per PERIODE PENGGAJIAN (periode ditetapkan admin di tab Gaji) */}

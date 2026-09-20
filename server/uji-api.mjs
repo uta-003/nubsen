@@ -336,6 +336,24 @@ cek('laporan kembali hari kerja = 1', (await req('/api/admin/reports?dari=2027-0
 cek('hapus libur yang tak ada → 404', (await req(`/api/admin/libur/${TGL_LIBUR}`, { method: 'DELETE', token: tA })).status === 404)
 cek('libur nasional 2026 terseed otomatis', (await req('/api/admin/libur?tahun=2026', { token: tA })).data.some((l) => l.tanggal === '2026-12-25' && l.sumber === 'resmi'))
 
+// ---- 5h. Surat peringatan (SP1–SP3) & pemecatan → tampil di profil karyawan ----
+cek('peringatan: jenis tidak sah → 400', (await req('/api/admin/peringatan', { method: 'POST', token: tA, body: { employeeId: idUji, jenis: 'SP4', tanggal: hariIniUji, alasan: 'Uji jenis surat' } })).status === 400)
+cek('peringatan: alasan terlalu pendek → 400', (await req('/api/admin/peringatan', { method: 'POST', token: tA, body: { employeeId: idUji, jenis: 'SP1', tanggal: hariIniUji, alasan: 'Ya' } })).status === 400)
+cek('peringatan: tanggal tidak valid → 400', (await req('/api/admin/peringatan', { method: 'POST', token: tA, body: { employeeId: idUji, jenis: 'SP1', tanggal: '21-9-2026', alasan: 'Uji tanggal surat' } })).status === 400)
+const sp1Uji = await req('/api/admin/peringatan', { method: 'POST', token: tA, body: { employeeId: idUji, jenis: 'SP1', tanggal: hariIniUji, alasan: 'Terlambat berulang dalam sebulan' } })
+cek('SP1 terbit + notifikasi ke karyawan', sp1Uji.status === 201 && (await req('/api/notifications', { token: tUji })).data.items.some((n) => (n.judul || '').includes('Peringatan 1')), JSON.stringify(sp1Uji.data || {}))
+const phkUji = await req('/api/admin/peringatan', { method: 'POST', token: tA, body: { employeeId: idUji, jenis: 'Pemecatan', tanggal: hariIniUji, alasan: 'Pelanggaran berat kontrak kerja' } })
+cek('pemecatan terbit', phkUji.status === 201 && phkUji.data?.jenis === 'Pemecatan' && !!phkUji.data?.label)
+const profilP = await req('/api/profile', { token: tUji })
+cek('profil memuat SP1 & pemecatan (terbaru dulu)', (profilP.data?.peringatan || []).some((s) => s.jenis === 'SP1') && (profilP.data?.peringatan || []).some((s) => s.jenis === 'Pemecatan') && profilP.data.peringatan[0]?.jenis === 'Pemecatan', JSON.stringify((profilP.data?.peringatan || []).map((s) => s.jenis)))
+cek('admin lihat daftar surat dengan nama karyawan', (await req('/api/admin/peringatan', { token: tA })).data.filter((s) => s.employeeId === idUji).every((s) => !!s.nama))
+cek('daftar bisa disaring per karyawan', (await req(`/api/admin/peringatan?employeeId=${idUji}`, { token: tA })).data.length === 2)
+for (const s of (await req(`/api/admin/peringatan?employeeId=${idUji}`, { token: tA })).data || []) {
+  await req(`/api/admin/peringatan/${s.id}`, { method: 'DELETE', token: tA })
+}
+cek('profil bersih setelah surat dicabut', ((await req('/api/profile', { token: tUji })).data?.peringatan || []).length === 0)
+cek('hapus surat yang tak ada → 404', (await req('/api/admin/peringatan/999999', { method: 'DELETE', token: tA })).status === 404)
+
 // ---- 6. Absensi: check-in karyawan + koreksi & hapus oleh admin ----
 const hariIni = hariIniUji
 // Bersihkan catatan absensi hari ini agar uji bisa diulang berkali-kali.

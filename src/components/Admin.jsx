@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search, Wallet, CalendarRange, Paperclip, Camera } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search, Wallet, CalendarRange, Paperclip, Camera, FileWarning } from 'lucide-react'
 import { muatPustakaEkspor } from '../utils/ekspor'
 import { buatWorkbookLaporan, buatWorkbookGaji, KOLOM_LAPORAN } from '../utils/laporan-excel'
 import { MIME } from '../utils/berkas'
 import { unduhBerkas, pesanHasilUnduh } from '../utils/unduh'
 import * as api from '../api'
-import { formatTanggalPendek } from '../utils/date'
+import { formatTanggalPendek, toISODate } from '../utils/date'
 import ModalTolak from './ModalTolak'
 import PratinjauLampiran from './PratinjauLampiran'
 
@@ -19,6 +19,7 @@ const TABS = [
   ['absensi', 'Absensi', CalendarCheck2],
   ['izin', 'Izin', FileText],
   ['lembur', 'Lembur', Timer],
+  ['peringatan', 'Peringatan', FileWarning],
   ['notifikasi', 'Notifikasi', Bell],
 ]
 
@@ -30,6 +31,7 @@ const JENIS_NOTIF = {
   lembur: { label: '⏱️ Lembur', kelas: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300' },
   izin: { label: '📄 Izin/Cuti', kelas: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300' },
   absensi: { label: '✅ Absensi', kelas: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
+  peringatan: { label: '⚠️ Peringatan', kelas: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' },
 }
 
 const CHIP = {
@@ -124,6 +126,7 @@ export default function Admin({ user, onBack }) {
         {tab === 'absensi' && <KelolaAbsensi />}
         {tab === 'izin' && <KelolaIzin />}
         {tab === 'lembur' && <KelolaLembur />}
+        {tab === 'peringatan' && <KelolaPeringatan />}
         {tab === 'notifikasi' && <KelolaNotifikasi />}
       </div>
     </div>
@@ -334,6 +337,178 @@ function KartuHariLibur() {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  )
+}
+
+// ---------- Tab Peringatan: surat peringatan (SP1–SP3) & pemecatan ----------
+// Surat diterbitkan admin → notifikasi otomatis ke karyawan → tampil di kartu
+// "Surat Peringatan & Pemecatan" pada menu Profil karyawan terkait.
+const JENIS_SURAT = [
+  ['SP1', 'SP1', 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'],
+  ['SP2', 'SP2', 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300'],
+  ['SP3', 'SP3', 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300'],
+  ['Pemecatan', 'Pemecatan', 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'],
+]
+const LABEL_SURAT = { SP1: 'Surat Peringatan 1', SP2: 'Surat Peringatan 2', SP3: 'Surat Peringatan 3', Pemecatan: 'Surat Pemecatan' }
+const kelasSurat = (jenis) => (JENIS_SURAT.find(([j]) => j === jenis) || JENIS_SURAT[0])[2]
+
+function KelolaPeringatan() {
+  const [karyawan, setKaryawan] = useState([])
+  const [data, setData] = useState(null)
+  const [form, setForm] = useState({ employeeId: '', jenis: 'SP1', tanggal: toISODate(), alasan: '' })
+  const [proses, setProses] = useState(false)
+  const [pesan, setPesan] = useState(null)
+
+  const muat = () => api.adminPeringatan().then(setData).catch(() => {})
+  useEffect(() => {
+    muat()
+    api.adminKaryawan().then(setKaryawan).catch(() => {})
+  }, [])
+
+  const terbitkan = async (e) => {
+    e.preventDefault()
+    setProses(true)
+    try {
+      await api.adminBuatPeringatan({ ...form, employeeId: Number(form.employeeId), alasan: form.alasan.trim() })
+      setForm((f) => ({ ...f, alasan: '' }))
+      setPesan({ ok: true, teks: `${LABEL_SURAT[form.jenis]} diterbitkan — notifikasi terkirim & tampil di Profil karyawan.` })
+      muat()
+    } catch (err) {
+      setPesan({ ok: false, teks: err.message })
+    } finally {
+      setProses(false)
+    }
+  }
+
+  const hapus = async (s) => {
+    if (!confirm(`Cabut/hapus ${LABEL_SURAT[s.jenis] || s.jenis} (${formatTanggalPendek(s.tanggal)}) atas nama ${s.nama}?`)) return
+    try {
+      await api.adminHapusPeringatan(s.id)
+      setPesan({ ok: true, teks: 'Surat dicabut — karyawan menerima notifikasi pencabutan.' })
+      muat()
+    } catch (err) {
+      setPesan({ ok: false, teks: err.message })
+    }
+  }
+
+  const hitung = (jenis) => (data || []).filter((s) => s.jenis === jenis).length
+  const siap = form.employeeId && form.tanggal && form.alasan.trim().length >= 3
+
+  return (
+    <div className="animate-fade-in space-y-4">
+      <BannerPesan pesan={pesan} />
+
+      {/* Form terbitkan surat */}
+      <form onSubmit={terbitkan} className="card space-y-3">
+        <div>
+          <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+            <FileWarning size={16} className="text-rose-500" /> Terbitkan Surat
+          </h2>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">
+            SP1 → SP2 → SP3 bertahap; <b>Pemecatan</b> untuk pelanggaran berat. Surat otomatis masuk ke Profil karyawan.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1.6fr_1fr]">
+          <div>
+            <label className="label">Karyawan</label>
+            <select className="input !px-3" value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} required>
+              <option value="">Pilih karyawan…</option>
+              {karyawan.map((k) => (
+                <option key={k.id} value={k.id}>{k.nama} — {k.departemen || '-'}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Tanggal Surat</label>
+            <input type="date" className="input !px-3" value={form.tanggal} onChange={(e) => setForm((f) => ({ ...f, tanggal: e.target.value }))} required />
+          </div>
+        </div>
+        <div>
+          <label className="label">Jenis Surat</label>
+          <div className="grid grid-cols-4 gap-1.5">
+            {JENIS_SURAT.map(([j, label]) => (
+              <button
+                key={j}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, jenis: j }))}
+                aria-pressed={form.jenis === j}
+                className={`rounded-xl px-1 py-2.5 text-[11px] font-bold transition active:scale-95 ${
+                  form.jenis === j
+                    ? `${kelasSurat(j)} ring-2 ring-indigo-400 ring-offset-1 dark:ring-offset-slate-950`
+                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center justify-between">
+            <label className="label !mb-0">Alasan / Dasar Surat *</label>
+            <span className="text-[10px] font-semibold text-slate-400">{form.alasan.trim().length}/300</span>
+          </div>
+          <textarea
+            className="input mt-1 min-h-20 resize-none text-sm"
+            maxLength={300}
+            placeholder="Contoh: Terlambat 3 kali dalam sebulan tanpa keterangan."
+            value={form.alasan}
+            onChange={(e) => setForm((f) => ({ ...f, alasan: e.target.value }))}
+            required
+          />
+        </div>
+        <button type="submit" disabled={!siap || proses} className="btn-primary w-full disabled:opacity-40">
+          {proses ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          {proses ? 'Menerbitkan…' : `Terbitkan ${LABEL_SURAT[form.jenis]}`}
+        </button>
+      </form>
+
+      {/* Ringkasan jumlah per jenis */}
+      <div className="grid grid-cols-4 gap-2">
+        {JENIS_SURAT.map(([j, label]) => (
+          <div key={j} className="card !p-3 text-center">
+            <p className={`text-lg font-extrabold leading-none ${j === 'Pemecatan' ? 'text-rose-600 dark:text-rose-400' : ''}`}>{hitung(j)}</p>
+            <p className="mt-1 truncate text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Daftar surat terbitan (terbaru dulu) */}
+      {data === null ? (
+        <p className="text-xs text-slate-400">Memuat…</p>
+      ) : data.length === 0 ? (
+        <p className="card py-8 text-center text-xs text-slate-400">Belum ada surat peringatan atau pemecatan.</p>
+      ) : (
+        <div className="space-y-3 pb-2">
+          {data.map((s) => (
+            <div key={s.id} className="card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${kelasSurat(s.jenis)}`}>
+                      {LABEL_SURAT[s.jenis] || s.jenis}
+                    </span>
+                    <p className="truncate text-sm font-bold">{s.nama}</p>
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    {formatTanggalPendek(s.tanggal)}
+                  </p>
+                  {s.alasan && <p className="mt-1 text-xs leading-relaxed text-slate-400">💬 {s.alasan}</p>}
+                </div>
+                <button
+                  onClick={() => hapus(s)}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-rose-50 text-rose-500 transition active:scale-90 dark:bg-rose-500/15"
+                  aria-label="Cabut surat"
+                  title="Cabut / hapus surat"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

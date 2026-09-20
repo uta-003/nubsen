@@ -297,10 +297,93 @@ export async function hapusKaryawan(id) {
     'DELETE FROM overtime WHERE employee_id = ?',
     'DELETE FROM notifications WHERE employee_id = ?',
     'DELETE FROM sessions WHERE employee_id = ?',
+    'DELETE FROM warnings WHERE employee_id = ?',
     'DELETE FROM employees WHERE id = ?',
   ]) {
     await db.run(sql, [id])
   }
+}
+
+// ---------- Surat peringatan (SP1/SP2/SP3) & pemecatan ----------
+// Diterbitkan admin dari panel; tampil di Profil karyawan + notifikasi otomatis.
+export const JENIS_PERINGATAN = ['SP1', 'SP2', 'SP3', 'Pemecatan']
+
+export const LABEL_PERINGATAN = {
+  SP1: 'Surat Peringatan 1',
+  SP2: 'Surat Peringatan 2',
+  SP3: 'Surat Peringatan 3',
+  Pemecatan: 'Surat Pemecatan',
+}
+
+function peringatanToClient(s, nama = null) {
+  return {
+    id: s.id, employeeId: s.employee_id, nama: nama || null,
+    jenis: s.jenis, label: LABEL_PERINGATAN[s.jenis] || s.jenis,
+    tanggal: s.tanggal, alasan: s.alasan || '', dibuat: s.created_at || null,
+  }
+}
+
+// Semua surat milik satu karyawan (terbaru dulu) — disematkan ke Profil.
+export async function listPeringatan(employeeId) {
+  const rows = await db.all(
+    'SELECT * FROM warnings WHERE employee_id = ? ORDER BY id DESC',
+    [employeeId],
+  )
+  return rows.map((s) => peringatanToClient(s))
+}
+
+// Daftar seluruh surat (untuk panel admin; bisa disaring per karyawan).
+export async function listSemuaPeringatan({ employeeId } = {}) {
+  let sql = 'SELECT s.*, e.nama AS nama_karyawan FROM warnings s JOIN employees e ON e.id = s.employee_id'
+  const params = []
+  if (employeeId) { sql += ' WHERE s.employee_id = ?'; params.push(Number(employeeId)) }
+  sql += ' ORDER BY s.id DESC LIMIT 300'
+  const rows = await db.all(sql, params)
+  return rows.map((s) => peringatanToClient(s, s.nama_karyawan))
+}
+
+export async function buatPeringatan({ employeeId, jenis, tanggal, alasan = '' }) {
+  if (!JENIS_PERINGATAN.includes(jenis)) {
+    return { error: `Jenis surat harus salah satu dari: ${JENIS_PERINGATAN.join(', ')}.` }
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(tanggal || ''))) {
+    return { error: 'Tanggal surat harus format YYYY-MM-DD.' }
+  }
+  const teks = String(alasan || '').trim()
+  if (teks.length < 3 || teks.length > 300) {
+    return { error: 'Alasan wajib 3–300 karakter agar jelas bagi karyawan.' }
+  }
+  const karyawan = await db.get('SELECT id, nama FROM employees WHERE id = ?', [Number(employeeId)])
+  if (!karyawan) return { error: 'Karyawan tidak ditemukan.' }
+  const info = await db.run(
+    'INSERT INTO warnings (employee_id, jenis, tanggal, alasan) VALUES (?, ?, ?, ?)',
+    [karyawan.id, jenis, tanggal, teks],
+  )
+  const label = LABEL_PERINGATAN[jenis]
+  await kirimNotifikasi({
+    employeeId: karyawan.id,
+    judul: jenis === 'Pemecatan' ? '🚫 Surat Pemecatan diterbitkan' : `⚠️ ${label} diterbitkan`,
+    pesan:
+      `Kamu menerima ${label.toLowerCase()} per ${tanggal}. Alasan: ${teks}.` +
+      (jenis === 'Pemecatan'
+        ? ' Hubungi HRD segera untuk proses penyelesaian.'
+        : ' Segera perbaiki — surat berikutnya berakibat lebih berat.'),
+    jenis: 'peringatan',
+  })
+  return { data: peringatanToClient(await db.get('SELECT * FROM warnings WHERE id = ?', [info.lastInsertRowid]), karyawan.nama) }
+}
+
+export async function hapusPeringatan(id) {
+  const s = await db.get('SELECT * FROM warnings WHERE id = ?', [id])
+  if (!s) return null
+  await db.run('DELETE FROM warnings WHERE id = ?', [id])
+  await kirimNotifikasi({
+    employeeId: s.employee_id,
+    judul: '📄 Surat peringatan dicabut',
+    pesan: `${LABEL_PERINGATAN[s.jenis] || s.jenis} per ${s.tanggal} telah dicabut/dihapus oleh admin.`,
+    jenis: 'peringatan',
+  })
+  return peringatanToClient(s)
 }
 
 // ---------- Panel Admin: kelola absensi ----------

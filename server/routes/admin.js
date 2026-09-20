@@ -6,6 +6,7 @@ import {
   listSemuaAbsensi, ubahAbsensi, hapusAbsensi, fotoAbsensi,
   listSemuaIzin, setStatusIzin, hapusIzin, lampiranIzin,
   listSemuaLembur, setStatusLembur, hapusLembur,
+  listSemuaPeringatan, buatPeringatan, hapusPeringatan,
   laporanKehadiran, laporanGaji,
   listHariLibur, tambahHariLibur, hapusHariLibur,
   listPeriodeGaji, tetapkanPeriodeGaji, aktifkanPeriodeGaji, hapusPeriodeGaji,
@@ -124,6 +125,32 @@ router.delete('/libur/:tanggal', wrap(async (req, res) => {
     jenis: 'jadwal',
   })
   res.json({ data: { ok: true } })
+}))
+
+// ---------- Surat peringatan (SP1–SP3) & pemecatan ----------
+// GET /api/admin/peringatan?employeeId=3 — daftar surat (nama ikut).
+router.get('/peringatan', wrap(async (req, res) => {
+  res.json({ data: await listSemuaPeringatan({ employeeId: req.query.employeeId }) })
+}))
+
+// POST /api/admin/peringatan { employeeId, jenis: SP1|SP2|SP3|Pemecatan, tanggal, alasan }
+// Validasi & notifikasi ke karyawan ditangani di model.
+router.post('/peringatan', wrap(async (req, res) => {
+  const hasil = await buatPeringatan({
+    employeeId: req.body?.employeeId,
+    jenis: req.body?.jenis,
+    tanggal: req.body?.tanggal,
+    alasan: req.body?.alasan,
+  })
+  if (hasil.error) return res.status(400).json({ error: hasil.error })
+  res.status(201).json({ data: hasil.data })
+}))
+
+// DELETE /api/admin/peringatan/:id — cabut/hapus surat (karyawan dinotifikasi).
+router.delete('/peringatan/:id', wrap(async (req, res) => {
+  const data = await hapusPeringatan(Number(req.params.id))
+  if (!data) return res.status(404).json({ error: 'Surat tidak ditemukan.' })
+  res.json({ data })
 }))
 
 // ---------- Penghitung gaji (rekap gaji + uang makan + lembur) ----------

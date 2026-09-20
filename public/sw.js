@@ -5,7 +5,7 @@
  *  - /api/* (GET)     : network-first → cache → respons offline JSON
  *  - Lainnya          : stale-while-revalidate
  */
-const VERSION = 'v1.3.0'
+const VERSION = 'v1.4.0'
 const STATIC_CACHE = `absenku-static-${VERSION}`
 const RUNTIME_CACHE = `absenku-runtime-${VERSION}`
 

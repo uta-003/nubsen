@@ -115,6 +115,18 @@ CREATE TABLE IF NOT EXISTS holidays (
   sumber  TEXT DEFAULT 'admin'
 );
 
+-- Surat peringatan (SP1/SP2/SP3) & pemecatan yang diterbitkan admin. Tampil di
+-- Profil karyawan; setiap penerbitan mengirim notifikasi ke yang bersangkutan.
+CREATE TABLE IF NOT EXISTS warnings (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id INTEGER NOT NULL,
+  jenis       TEXT NOT NULL,            -- 'SP1' | 'SP2' | 'SP3' | 'Pemecatan'
+  tanggal     TEXT NOT NULL,            -- tanggal surat (YYYY-MM-DD)
+  alasan      TEXT DEFAULT '',
+  created_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_warnings_employee ON warnings (employee_id);
+
 -- Jurnal idempotensi sinkronisasi luring: setiap pengajuan dari antrean
 -- perangkat membawa requestId unik; server menolak memproses dua kali
 -- (koneksi drop setelah terkirim tidak akan menciptakan data ganda).

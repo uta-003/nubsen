@@ -24,6 +24,7 @@ export const USER_DEFAULT = {
   cutiDisetujui: 0,
   cutiMenunggu: 0,
   sisaCuti: 12,
+  peringatan: [],
 }
 
 // Hook utama state absensi — bersumber dari REST API (Express + SQLite).
