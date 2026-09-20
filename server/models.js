@@ -45,6 +45,8 @@ export function leaveToClient(row) {
     keterangan: row.keterangan || '', lampiran: row.lampiran || null, status: row.status,
     // Waktu pengajuan dibuat — ditampilkan pada Riwayat Pengajuan Izin/Cuti.
     dibuat: row.created_at || null,
+    // Alasan penolakan (bila status Ditolak) — tampil di riwayat & notifikasi.
+    alasanTolak: row.alasan_tolak || '',
   }
 }
 
@@ -107,6 +109,11 @@ function lemburToClient(row) {
   return {
     id: row.id, tanggal: row.tanggal, jamMulai: row.jam_mulai, jamSelesai: row.jam_selesai,
     keterangan: row.keterangan || '', status: row.status,
+    // Waktu pengajuan dibuat — ditampilkan pada Riwayat Pengajuan Lembur
+    // (sejajar dengan riwayat izin/cuti yang sudah menampilkannya).
+    dibuat: row.created_at || null,
+    // Alasan penolakan (bila status Ditolak) — tampil di riwayat & notifikasi.
+    alasanTolak: row.alasan_tolak || '',
   }
 }
 export { lemburToClient }
@@ -192,17 +199,22 @@ export async function listKaryawan() {
     id: e.id, nama: e.nama, nip: e.nip, jabatan: e.jabatan, departemen: e.departemen,
     email: e.email, telepon: e.telepon, lokasiKerja: e.lokasi_kerja,
     cutiTahunan: e.cuti_tahunan ?? 12, isAdmin: !!e.is_admin,
+    // Tarif gaji (Rp) untuk penghitung gaji — diubah admin di tab Karyawan/Gaji.
+    gajiHarian: Number(e.gaji_harian ?? 0),
+    uangMakan: Number(e.uang_makan ?? 0),
+    tarifLembur: Number(e.tarif_lembur ?? 0),
   }))
 }
 
 export async function buatKaryawan(d) {
   const info = await db.run(
-    `INSERT INTO employees (nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO employees (nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash, gaji_harian, uang_makan, tarif_lembur)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       d.nama, d.nip || null, d.jabatan || null, d.departemen || null, d.email,
       d.telepon || null, d.lokasiKerja || null, d.cutiTahunan ?? 12, d.isAdmin ? 1 : 0,
       hashPin(d.pin || '123456'),
+      Number(d.gajiHarian ?? 0) || 0, Number(d.uangMakan ?? 0) || 0, Number(d.tarifLembur ?? 0) || 0,
     ],
   )
   const daftar = await listKaryawan()
@@ -220,6 +232,10 @@ export async function ubahKaryawan(id, d) {
     if (d[k] !== undefined) { sets.push(`${kol} = ?`); params.push(d[k]) }
   }
   if (d.cutiTahunan !== undefined) { sets.push('cuti_tahunan = ?'); params.push(d.cutiTahunan) }
+  // Tarif gaji (Rp) — nilai dari input selalu dikonversi ke angka non-negatif.
+  for (const [k, kol] of [['gajiHarian', 'gaji_harian'], ['uangMakan', 'uang_makan'], ['tarifLembur', 'tarif_lembur']]) {
+    if (d[k] !== undefined) { sets.push(`${kol} = ?`); params.push(Math.max(0, Number(d[k]) || 0)) }
+  }
   if (d.isAdmin !== undefined) { sets.push('is_admin = ?'); params.push(d.isAdmin ? 1 : 0) }
   if (d.pin) { sets.push('pin_hash = ?'); params.push(hashPin(d.pin)) }
   if (sets.length) {
@@ -280,17 +296,21 @@ export async function listSemuaIzin() {
   return rows.map((l) => ({ ...leaveToClient(l), nama: l.nama_karyawan }))
 }
 
-export async function setStatusIzin(id, status) {
+export async function setStatusIzin(id, status, alasan = '') {
   const l = await db.get(
     'SELECT l.*, e.nama AS nama_karyawan FROM leaves l LEFT JOIN employees e ON e.id = l.employee_id WHERE l.id = ?',
     [id],
   )
   if (!l) return null
-  await db.run('UPDATE leaves SET status = ? WHERE id = ?', [status, id])
+  // Alasan penolakan disimpan bersama status; dikosongkan bila dibuka ulang.
+  const teksAlasan = status === 'Ditolak' ? String(alasan || '').trim() : ''
+  await db.run('UPDATE leaves SET status = ?, alasan_tolak = ? WHERE id = ?', [status, teksAlasan, id])
   await kirimNotifikasi({
     employeeId: l.employee_id,
     judul: status === 'Disetujui' ? '✅ Izin/cuti disetujui' : '❌ Izin/cuti ditolak',
-    pesan: `Pengajuan ${l.jenis} (${l.mulai} s.d. ${l.selesai}) telah ${status.toLowerCase()} oleh admin.`,
+    pesan:
+      `Pengajuan ${l.jenis} (${l.mulai} s.d. ${l.selesai}) telah ${status.toLowerCase()} oleh admin.` +
+      (status === 'Ditolak' && teksAlasan ? ` Alasan: ${teksAlasan}` : ''),
     jenis: 'izin',
   })
   return { ...leaveToClient(await db.get('SELECT * FROM leaves WHERE id = ?', [id])), nama: l.nama_karyawan }
@@ -308,17 +328,21 @@ export async function listSemuaLembur() {
   return rows.map((o) => ({ ...lemburToClient(o), nama: o.nama_karyawan }))
 }
 
-export async function setStatusLembur(id, status) {
+export async function setStatusLembur(id, status, alasan = '') {
   const o = await db.get(
     'SELECT o.*, e.nama AS nama_karyawan FROM overtime o LEFT JOIN employees e ON e.id = o.employee_id WHERE o.id = ?',
     [id],
   )
   if (!o) return null
-  await db.run('UPDATE overtime SET status = ? WHERE id = ?', [status, id])
+  // Alasan penolakan disimpan bersama status; dikosongkan bila dibuka ulang.
+  const teksAlasan = status === 'Ditolak' ? String(alasan || '').trim() : ''
+  await db.run('UPDATE overtime SET status = ?, alasan_tolak = ? WHERE id = ?', [status, teksAlasan, id])
   await kirimNotifikasi({
     employeeId: o.employee_id,
     judul: status === 'Disetujui' ? '✅ Lembur disetujui' : '❌ Lembur ditolak',
-    pesan: `Lembur ${o.tanggal} (${o.jam_mulai}-${o.jam_selesai}) telah ${status.toLowerCase()} oleh admin.`,
+    pesan:
+      `Lembur ${o.tanggal} (${o.jam_mulai}-${o.jam_selesai}) telah ${status.toLowerCase()} oleh admin.` +
+      (status === 'Ditolak' && teksAlasan ? ` Alasan: ${teksAlasan}` : ''),
     jenis: 'lembur',
   })
   return { ...lemburToClient(await db.get('SELECT * FROM overtime WHERE id = ?', [id])), nama: o.nama_karyawan }
@@ -493,6 +517,60 @@ export function rekapDepartemen(baris = []) {
   return [...grup.values()]
     .map((g) => ({ ...g, lembur: Math.round(g.lembur * 10) / 10, persen: g.target ? Math.min(100, Math.round((g.masuk / g.target) * 100)) : 0 }))
     .sort((a, b) => a.departemen.localeCompare(b.departemen))
+}
+
+// ---------- Panel Admin: penghitung gaji ----------
+// Gaji per karyawan untuk satu periode — dihitung dari laporan kehadiran yang
+// sama + tarif per karyawan (diisi admin di tab Karyawan/Gaji):
+//   • Hari Dibayar  = Hadir + Terlambat + Hadir Libur + Izin + Sakit + Cuti
+//     (pengajuan izin/sakit/cuti yang tidak ditolak tetap dibayar; Alpha tidak)
+//   • Hari Uang Makan = hanya hari benar-benar masuk kerja
+//     (Hadir + Terlambat + Hadir Libur) — izin/sakit/cuti tanpa uang makan
+//   • Lembur (Rp) = total jam lembur Disetujui × tarif lembur per jam
+export async function laporanGaji({ dari, sampai, departemen } = {}) {
+  const dasar = await laporanKehadiran({ dari, sampai, departemen })
+  const tarif = await db.all('SELECT id, gaji_harian, uang_makan, tarif_lembur FROM employees')
+  const peta = new Map(tarif.map((e) => [e.id, e]))
+  const rupiah = (n) => Math.round(Number(n) || 0)
+
+  const baris = dasar.baris.map((r) => {
+    const e = peta.get(r.id) || {}
+    const gajiHarian = Number(e.gaji_harian ?? 0)
+    const uangMakan = Number(e.uang_makan ?? 0)
+    const tarifLembur = Number(e.tarif_lembur ?? 0)
+    const hariDibayar = r.hadir + r.terlambat + r.hadirLibur + r.izin + r.sakit + r.cuti
+    const hariMakan = r.hadir + r.terlambat + r.hadirLibur
+    const subGaji = rupiah(hariDibayar * gajiHarian)
+    const subMakan = rupiah(hariMakan * uangMakan)
+    const subLembur = rupiah(r.lembur * tarifLembur)
+    return {
+      ...r,
+      gajiHarian, uangMakan, tarifLembur,
+      hariDibayar, hariMakan,
+      subGaji, subMakan, subLembur,
+      total: subGaji + subMakan + subLembur,
+    }
+  })
+
+  const total = (k) => baris.reduce((t, r) => t + r[k], 0)
+  return {
+    dari: dasar.dari,
+    sampai: dasar.sampai,
+    departemen: dasar.departemen,
+    hariKerja: dasar.hariKerja,
+    hariKerjaHari: dasar.hariKerjaHari,
+    baris,
+    ringkasan: {
+      totalKaryawan: baris.length,
+      hariDibayar: total('hariDibayar'),
+      hariMakan: total('hariMakan'),
+      lembur: Math.round(total('lembur') * 10) / 10,
+      subGaji: rupiah(total('subGaji')),
+      subMakan: rupiah(total('subMakan')),
+      subLembur: rupiah(total('subLembur')),
+      total: rupiah(total('total')),
+    },
+  }
 }
 
 // ---------- Panel Admin: notifikasi & pengumuman ----------

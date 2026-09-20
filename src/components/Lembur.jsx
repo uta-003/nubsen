@@ -17,6 +17,18 @@ const durasi = (a, b) => {
   return `${Math.floor(t / 60)} jam ${t % 60} mnt`
 }
 
+// Waktu pengajuan ringkas untuk kartu riwayat ("12 Sep, 14.30") — sejajar
+// dengan riwayat pengajuan izin/cuti.
+const formatWaktu = (s) => {
+  try {
+    return new Date(s.replace(' ', 'T') + 'Z').toLocaleString('id-ID', {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    })
+  } catch {
+    return s
+  }
+}
+
 // Halaman pengajuan lembur + riwayat pengajuan sendiri.
 export default function Lembur({ toast }) {
   const [form, setForm] = useState({ tanggal: toISODate(), jam_mulai: '18:00', jam_selesai: '20:00', keterangan: '' })
@@ -133,6 +145,14 @@ export default function Lembur({ toast }) {
                       {l.jamMulai} – {l.jamSelesai} • {durasi(l.jamMulai, l.jamSelesai)}
                     </p>
                     {l.keterangan && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{l.keterangan}</p>}
+                    <p className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-400">
+                      <Clock4 size={11} /> Diajukan {l.dibuat ? formatWaktu(l.dibuat) : 'baru saja'}
+                    </p>
+                    {l.status === 'Ditolak' && l.alasanTolak && (
+                      <p className="mt-1.5 rounded-xl bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold leading-relaxed text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
+                        💬 {l.alasanTolak}
+                      </p>
+                    )}
                   </div>
                   <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${kelas}`}>
                     <Icon size={12} /> {l.status}

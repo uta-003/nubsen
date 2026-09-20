@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search, Wallet } from 'lucide-react'
 import { muatPustakaEkspor } from '../utils/ekspor'
-import { buatWorkbookLaporan, KOLOM_LAPORAN } from '../utils/laporan-excel'
+import { buatWorkbookLaporan, buatWorkbookGaji, KOLOM_LAPORAN } from '../utils/laporan-excel'
 import { MIME } from '../utils/berkas'
 import { unduhBerkas, pesanHasilUnduh } from '../utils/unduh'
 import * as api from '../api'
@@ -11,6 +11,7 @@ import { formatTanggalPendek } from '../utils/date'
 const TABS = [
   ['ringkasan', 'Ringkasan', LayoutDashboard],
   ['laporan', 'Laporan', FileSpreadsheet],
+  ['gaji', 'Gaji', Wallet],
   ['jadwal', 'Jadwal', Clock],
   ['karyawan', 'Karyawan', Users],
   ['absensi', 'Absensi', CalendarCheck2],
@@ -115,6 +116,7 @@ export default function Admin({ user, onBack }) {
       <div key={tab} className="animate-slide-up">
         {tab === 'ringkasan' && <Ringkasan />}
         {tab === 'laporan' && <Laporan />}
+        {tab === 'gaji' && <Gaji />}
         {tab === 'jadwal' && <KelolaJadwal />}
         {tab === 'karyawan' && <KelolaKaryawan />}
         {tab === 'absensi' && <KelolaAbsensi />}
@@ -254,7 +256,8 @@ function Ringkasan() {
 }
 function KelolaKaryawan() {
   const kosong = {
-    nama: '', nip: '', jabatan: '', departemen: '', email: '', telepon: '', lokasiKerja: '', cutiTahunan: 12, pin: '', isAdmin: false,
+    nama: '', nip: '', jabatan: '', departemen: '', email: '', telepon: '', lokasiKerja: '', cutiTahunan: 12,
+    gajiHarian: 0, uangMakan: 0, tarifLembur: 0, pin: '', isAdmin: false,
   }
   const [data, setData] = useState([])
   const [cari, setCari] = useState('')
@@ -299,7 +302,8 @@ function KelolaKaryawan() {
     setTampilForm(true)
     setForm({
       nama: k.nama, nip: k.nip || '', jabatan: k.jabatan || '', departemen: k.departemen || '',
-      email: k.email, telepon: k.telepon || '', lokasiKerja: k.lokasiKerja || '', cutiTahunan: k.cutiTahunan, pin: '', isAdmin: k.isAdmin,
+      email: k.email, telepon: k.telepon || '', lokasiKerja: k.lokasiKerja || '', cutiTahunan: k.cutiTahunan,
+      gajiHarian: k.gajiHarian ?? 0, uangMakan: k.uangMakan ?? 0, tarifLembur: k.tarifLembur ?? 0, pin: '', isAdmin: k.isAdmin,
     })
     setPesan(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -340,6 +344,9 @@ function KelolaKaryawan() {
             <div className="sm:col-span-2"><label className="label">Email *</label><input type="email" className="input" value={form.email} onChange={(e) => set('email', e.target.value)} required /></div>
             <div><label className="label">Telepon</label><input className="input" value={form.telepon} onChange={(e) => set('telepon', e.target.value)} /></div>
             <div><label className="label">Cuti/Tahun</label><input type="number" min="0" className="input" value={form.cutiTahunan} onChange={(e) => set('cutiTahunan', Number(e.target.value))} /></div>
+            <div><label className="label">Gaji Harian (Rp)</label><input type="number" min="0" className="input" value={form.gajiHarian} onChange={(e) => set('gajiHarian', Number(e.target.value))} placeholder="cth. 150000" /></div>
+            <div><label className="label">Uang Makan/Hari (Rp)</label><input type="number" min="0" className="input" value={form.uangMakan} onChange={(e) => set('uangMakan', Number(e.target.value))} placeholder="cth. 20000" /></div>
+            <div><label className="label">Tarif Lembur/jam (Rp)</label><input type="number" min="0" className="input" value={form.tarifLembur} onChange={(e) => set('tarifLembur', Number(e.target.value))} placeholder="cth. 25000" /></div>
             <div><label className="label">{editId ? 'PIN Baru (opsional)' : 'PIN (default 123456)'}</label><input className="input" maxLength={6} value={form.pin} onChange={(e) => set('pin', e.target.value.replace(/\D/g, ''))} placeholder="••••••" /></div>
             <label className="flex items-center gap-2 self-end pb-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
               <input type="checkbox" checked={form.isAdmin} onChange={(e) => set('isAdmin', e.target.checked)} className="h-4 w-4 rounded" /> Jadikan Admin
@@ -381,6 +388,9 @@ function KelolaKaryawan() {
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">{k.jabatan || '—'} • {k.departemen || '—'}</p>
                   <p className="mt-0.5 truncate text-[11px] text-slate-400">{k.email}</p>
+                  <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                    💰 {rupiah(k.gajiHarian)}/hari • makan {rupiah(k.uangMakan)} • lembur {rupiah(k.tarifLembur)}/jam
+                  </p>
                   {k.lokasiKerja && (
                     <p className="mt-1 flex min-w-0 items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                       <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
@@ -504,19 +514,28 @@ function KelolaIzin() {
   const [data, setData] = useState([])
   const [memuat, setMemuat] = useState(true)
   const [pesan, setPesan] = useState(null)
+  // Modal alasan penolakan — { id } pengajuan yang sedang akan ditolak.
+  const [tolak, setTolak] = useState(null)
+  const [alasan, setAlasan] = useState('')
+  const [proses, setProses] = useState(false)
 
   const muat = () => api.adminIzin().then(setData).catch(() => {}).finally(() => setMemuat(false))
   useEffect(() => {
     muat()
   }, [])
 
-  const aksi = async (id, status) => {
+  const aksi = async (id, status, alasanTolak = '') => {
+    setProses(true)
     try {
-      await api.adminStatusIzin(id, status)
+      await api.adminStatusIzin(id, status, alasanTolak)
       setPesan({ ok: true, teks: `Pengajuan ${status.toLowerCase()} — notifikasi dikirim ke karyawan.` })
+      setTolak(null)
+      setAlasan('')
       muat()
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
+    } finally {
+      setProses(false)
     }
   }
 
@@ -534,6 +553,39 @@ function KelolaIzin() {
   return (
     <div className="animate-fade-in">
       <BannerPesan pesan={pesan} />
+
+      {/* Modal alasan penolakan — alasan WAJIB, terkirim ke notifikasi karyawan
+          dan tampil pada riwayat pengajuannya di aplikasi karyawan. */}
+      {tolak && (
+        <form
+          onSubmit={(e) => { e.preventDefault(); aksi(tolak.id, 'Ditolak', alasan.trim()) }}
+          className="fixed inset-0 z-[60] flex animate-fade-in items-end justify-center bg-black/70 px-3 pb-6 sm:items-center sm:px-4"
+        >
+          <div className="card w-full max-w-sm space-y-3">
+            <p className="text-sm font-bold">❌ Tolak Pengajuan Izin</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Alasan wajib diisi — dikirim sebagai notifikasi ke karyawan dan tampil di riwayat pengajuannya.
+            </p>
+            <textarea
+              className="input min-h-24 resize-none"
+              placeholder="Contoh: Kuota cuti tahunan sudah habis — silakan ajukan kembali bulan depan."
+              value={alasan}
+              onChange={(e) => setAlasan(e.target.value)}
+              autoFocus
+              required
+            />
+            <div className="flex gap-2">
+              <button type="submit" disabled={proses} className="flex-1 rounded-xl bg-rose-500 px-3 py-2.5 text-xs font-bold text-white transition active:scale-95 disabled:opacity-50">
+                {proses ? <Loader2 size={14} className="inline animate-spin" /> : <X size={14} />} Tolak dengan Alasan
+              </button>
+              <button type="button" onClick={() => { setTolak(null); setAlasan('') }} className="rounded-xl bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-500 transition active:scale-95 dark:bg-slate-800 dark:text-slate-400">
+                Batal
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+
       {memuat ? (
         <p className="text-xs text-slate-400">Memuat…</p>
       ) : data.length === 0 ? (
@@ -549,6 +601,9 @@ function KelolaIzin() {
                     {formatTanggalPendek(l.mulai)} – {formatTanggalPendek(l.selesai)}
                   </p>
                   {l.keterangan && <p className="mt-1 text-xs text-slate-400">{l.keterangan}</p>}
+                  {l.status === 'Ditolak' && l.alasanTolak && (
+                    <p className="mt-1 rounded-xl bg-rose-50 px-2.5 py-1 text-[11px] font-semibold leading-relaxed text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">💬 {l.alasanTolak}</p>
+                  )}
                   {l.lampiran && (
                     <a
                       href={api.assetUrl(l.lampiran)}
@@ -567,7 +622,7 @@ function KelolaIzin() {
                   <button onClick={() => aksi(l.id, 'Disetujui')} className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✓ Setujui</button>
                 )}
                 {l.status !== 'Ditolak' && (
-                  <button onClick={() => aksi(l.id, 'Ditolak')} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✕ Tolak</button>
+                  <button onClick={() => { setTolak({ id: l.id }); setAlasan('') }} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✕ Tolak</button>
                 )}
                 <button onClick={() => hapus(l.id)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500 transition active:scale-95 dark:bg-slate-800 dark:text-slate-400">Hapus</button>
               </div>
@@ -582,19 +637,28 @@ function KelolaLembur() {
   const [data, setData] = useState([])
   const [memuat, setMemuat] = useState(true)
   const [pesan, setPesan] = useState(null)
+  // Modal alasan penolakan — { id } pengajuan yang sedang akan ditolak.
+  const [tolak, setTolak] = useState(null)
+  const [alasan, setAlasan] = useState('')
+  const [proses, setProses] = useState(false)
 
   const muat = () => api.adminLembur().then(setData).catch(() => {}).finally(() => setMemuat(false))
   useEffect(() => {
     muat()
   }, [])
 
-  const aksi = async (id, status) => {
+  const aksi = async (id, status, alasanTolak = '') => {
+    setProses(true)
     try {
-      await api.adminStatusLembur(id, status)
+      await api.adminStatusLembur(id, status, alasanTolak)
       setPesan({ ok: true, teks: `Lembur ${status.toLowerCase()} — notifikasi dikirim ke karyawan.` })
+      setTolak(null)
+      setAlasan('')
       muat()
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
+    } finally {
+      setProses(false)
     }
   }
 
@@ -612,6 +676,39 @@ function KelolaLembur() {
   return (
     <div className="animate-fade-in">
       <BannerPesan pesan={pesan} />
+
+      {/* Modal alasan penolakan — alasan WAJIB, terkirim ke notifikasi karyawan
+          dan tampil pada riwayat pengajuannya di aplikasi karyawan. */}
+      {tolak && (
+        <form
+          onSubmit={(e) => { e.preventDefault(); aksi(tolak.id, 'Ditolak', alasan.trim()) }}
+          className="fixed inset-0 z-[60] flex animate-fade-in items-end justify-center bg-black/70 px-3 pb-6 sm:items-center sm:px-4"
+        >
+          <div className="card w-full max-w-sm space-y-3">
+            <p className="text-sm font-bold">❌ Tolak Pengajuan Lembur</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Alasan wajib diisi — dikirim sebagai notifikasi ke karyawan dan tampil di riwayat pengajuannya.
+            </p>
+            <textarea
+              className="input min-h-24 resize-none"
+              placeholder="Contoh: Beban kerja bulan ini sudah penuh — lembur belum bisa disetujui."
+              value={alasan}
+              onChange={(e) => setAlasan(e.target.value)}
+              autoFocus
+              required
+            />
+            <div className="flex gap-2">
+              <button type="submit" disabled={proses} className="flex-1 rounded-xl bg-rose-500 px-3 py-2.5 text-xs font-bold text-white transition active:scale-95 disabled:opacity-50">
+                {proses ? <Loader2 size={14} className="inline animate-spin" /> : <X size={14} />} Tolak dengan Alasan
+              </button>
+              <button type="button" onClick={() => { setTolak(null); setAlasan('') }} className="rounded-xl bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-500 transition active:scale-95 dark:bg-slate-800 dark:text-slate-400">
+                Batal
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+
       {memuat ? (
         <p className="text-xs text-slate-400">Memuat…</p>
       ) : data.length === 0 ? (
@@ -625,6 +722,9 @@ function KelolaLembur() {
                   <p className="text-sm font-bold">{o.nama} <span className="text-xs font-normal text-slate-400">• {formatTanggalPendek(o.tanggal)}</span></p>
                   <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">{o.jamMulai} – {o.jamSelesai}</p>
                   {o.keterangan && <p className="mt-1 text-xs text-slate-400">{o.keterangan}</p>}
+                  {o.status === 'Ditolak' && o.alasanTolak && (
+                    <p className="mt-1 rounded-xl bg-rose-50 px-2.5 py-1 text-[11px] font-semibold leading-relaxed text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">💬 {o.alasanTolak}</p>
+                  )}
                 </div>
                 <Chip status={o.status} />
               </div>
@@ -633,7 +733,7 @@ function KelolaLembur() {
                   <button onClick={() => aksi(o.id, 'Disetujui')} className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✓ Setujui</button>
                 )}
                 {o.status !== 'Ditolak' && (
-                  <button onClick={() => aksi(o.id, 'Ditolak')} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✕ Tolak</button>
+                  <button onClick={() => { setTolak({ id: o.id }); setAlasan('') }} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✕ Tolak</button>
                 )}
                 <button onClick={() => hapus(o.id)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500 transition active:scale-95 dark:bg-slate-800 dark:text-slate-400">Hapus</button>
               </div>
@@ -858,6 +958,220 @@ function KelolaNotifikasi() {
 
 
 
+
+// Tab Gaji — penghitung gaji per karyawan & per hari: gaji harian + uang makan
+// (hanya hari benar-benar masuk kerja) + lembur Disetujui. Tarif tiap karyawan
+// diedit langsung di tabel (tersimpan ke database) dan semua hitungan dihitung
+// ulang seketika; hasil bisa diekspor ke Excel bergaya sama dengan laporan.
+const rupiah = (n) => `Rp${Math.round(Number(n) || 0).toLocaleString('id-ID')}`
+
+// Hitung ulang satu baris gaji dari angka kehadiran + tarif saat ini.
+function hitungBarisGaji(r) {
+  const hariDibayar = r.hadir + r.terlambat + r.hadirLibur + r.izin + r.sakit + r.cuti
+  const hariMakan = r.hadir + r.terlambat + r.hadirLibur
+  const subGaji = Math.round(hariDibayar * (Number(r.gajiHarian) || 0))
+  const subMakan = Math.round(hariMakan * (Number(r.uangMakan) || 0))
+  const subLembur = Math.round((r.lembur || 0) * (Number(r.tarifLembur) || 0))
+  return { ...r, hariDibayar, hariMakan, subGaji, subMakan, subLembur, total: subGaji + subMakan + subLembur }
+}
+
+function Gaji() {
+  const hariIniISO = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  const [dari, setDari] = useState(`${hariIniISO().slice(0, 7)}-01`) // default: awal bulan berjalan
+  const [sampai, setSampai] = useState(hariIniISO)
+  const [dept, setDept] = useState('')
+  const [daftarDept, setDaftarDept] = useState([])
+  const [data, setData] = useState(null)
+  const [memuat, setMemuat] = useState(true)
+  const [pesan, setPesan] = useState(null)
+  const [ekspor, setEkspor] = useState(false)
+
+  const muat = () => {
+    setMemuat(true)
+    setPesan(null)
+    api.adminGaji({ dari, sampai, departemen: dept || undefined })
+      .then((d) => setData({ ...d, baris: (d.baris || []).map(hitungBarisGaji) }))
+      .catch((e) => setPesan({ ok: false, teks: e.message }))
+      .finally(() => setMemuat(false))
+  }
+
+  useEffect(() => {
+    api.adminKaryawan()
+      .then((list) => setDaftarDept([...new Set(list.map((k) => k.departemen || '-'))].filter(Boolean).sort()))
+      .catch(() => {})
+    muat()
+  }, [])
+
+  const adaData = !!data?.baris?.length
+  const totalKeseluruhan = data ? data.baris.reduce((t, r) => t + r.total, 0) : 0
+
+  // Edit tarif di tabel: perubahan dihitung ulang seketika (onChange); tersimpan
+  // ke server saat kolom ditinggalkan (onBlur). Bila gagal, daftar dimuat ulang.
+  const ubahTarifLokal = (id, kolom, nilai) => {
+    setData((d) => (d ? { ...d, baris: d.baris.map((r) => (r.id === id ? hitungBarisGaji({ ...r, [kolom]: nilai }) : r)) } : d))
+  }
+  const simpanTarif = async (id, kolom, nilai) => {
+    try {
+      await api.adminUbahKaryawan(id, { [kolom]: Math.max(0, Number(nilai) || 0) })
+      setPesan({ ok: true, teks: 'Tarif disimpan — hitungan gaji diperbarui.' })
+    } catch (e) {
+      setPesan({ ok: false, teks: e.message })
+      muat()
+    }
+  }
+
+  const eksporExcelGaji = async () => {
+    if (!adaData) return
+    setEkspor(true)
+    try {
+      const { ExcelJS } = await muatPustakaEkspor()
+      const wb = await buatWorkbookGaji(data, ExcelJS)
+      const array = await wb.xlsx.writeBuffer()
+      const hasil = await unduhBerkas({
+        nama: `laporan-gaji-${data.dari}_sd_${data.sampai}.xlsx`,
+        isi: new Blob([array], { type: MIME.xlsx }),
+        mime: MIME.xlsx,
+        judul: 'Penghitung Gaji NUBSEN',
+      })
+      const jumlahSheet = new Set(data.baris.map((r) => r.departemen)).size + 1
+      setPesan({ ok: true, teks: pesanHasilUnduh(hasil, `Excel (${jumlahSheet} sheet)`) })
+    } catch (e) {
+      setPesan({ ok: false, teks: `Gagal membuat Excel: ${e.message}` })
+    } finally {
+      setEkspor(false)
+    }
+  }
+
+  const kolomTarif = [
+    ['gajiHarian', 'Gaji/hari'],
+    ['uangMakan', 'Makan/hari'],
+    ['tarifLembur', 'Lembur/jam'],
+  ]
+
+  return (
+    <div className="animate-fade-in">
+      <BannerPesan pesan={pesan} />
+
+      <div className="card mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div><label className="label">Dari</label><input type="date" className="input !px-3" value={dari} onChange={(e) => setDari(e.target.value)} /></div>
+        <div><label className="label">Sampai</label><input type="date" className="input !px-3" value={sampai} onChange={(e) => setSampai(e.target.value)} /></div>
+        <div><label className="label">Departemen</label>
+          <select className="input !px-3" value={dept} onChange={(e) => setDept(e.target.value)}>
+            <option value="">Semua</option>
+            {daftarDept.map((d) => <option key={d} value={d === '-' ? '' : d}>{d}</option>)}
+          </select>
+        </div>
+        <button onClick={muat} disabled={memuat} className="btn-primary col-span-2 !py-2.5 sm:col-span-1">
+          {memuat ? <Loader2 size={16} className="animate-spin" /> : <Filter size={16} />} Tampilkan
+        </button>
+      </div>
+
+      {/* KPI ringkasan gaji periode terpilih */}
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          ['💰', data?.ringkasan?.subGaji, 'Gaji'],
+          ['🍱', data?.ringkasan?.subMakan, 'Uang Makan'],
+          ['⏱️', data?.ringkasan?.subLembur, 'Lembur'],
+          ['🧾', data?.ringkasan?.total, 'TOTAL GAJI'],
+        ].map(([emoji, angka, label]) => (
+          <div key={label} className="card text-center">
+            <p className="text-xl">{emoji}</p>
+            <p className="mt-1 text-sm font-extrabold">{angka != null ? rupiah(angka) : '—'}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {memuat && !adaData ? (
+        <p className="card flex items-center justify-center gap-2 py-8 text-sm text-slate-400"><Loader2 size={16} className="animate-spin" /> Memuat penghitung gaji…</p>
+      ) : !adaData ? (
+        <p className="card py-8 text-center text-xs text-slate-400">
+          Belum ada data pada filter ini — ubah periode/departemen lalu tekan Tampilkan.
+        </p>
+      ) : (
+        <>
+          <div className="card tabel-geser p-0">
+            <table className="w-full min-w-[900px] whitespace-nowrap text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:border-slate-800">
+                  <th className="px-3 py-2.5">Karyawan</th>
+                  <th className="px-2 py-2.5 text-center">Hari Dibayar</th>
+                  <th className="px-2 py-2.5 text-center">Hari Makan</th>
+                  <th className="px-2 py-2.5 text-center">Lembur</th>
+                  <th className="px-2 py-2.5 text-center">Gaji/hari</th>
+                  <th className="px-2 py-2.5 text-center">Makan/hari</th>
+                  <th className="px-2 py-2.5 text-center">Lembur/jam</th>
+                  <th className="px-2 py-2.5 text-right">Gaji</th>
+                  <th className="px-2 py-2.5 text-right">Uang Makan</th>
+                  <th className="px-2 py-2.5 text-right">Lembur</th>
+                  <th className="px-3 py-2.5 text-right">TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.baris.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-50 last:border-0 dark:border-slate-800/60">
+                    <td className="px-3 py-2.5">
+                      <p className="font-bold text-slate-700 dark:text-slate-200">{r.nama}</p>
+                      <p className="text-[10px] text-slate-400">{r.departemen}</p>
+                    </td>
+                    <td className="px-2 py-2.5 text-center font-bold text-emerald-600 dark:text-emerald-400">{r.hariDibayar}</td>
+                    <td className="px-2 py-2.5 text-center text-teal-600 dark:text-teal-400">{r.hariMakan}</td>
+                    <td className="px-2 py-2.5 text-center text-slate-500 dark:text-slate-400">{r.lembur}j</td>
+                    {kolomTarif.map(([kolom, label]) => (
+                      <td key={kolom} className="px-2 py-2.5 text-center">
+                        <input
+                          type="number" min="0" inputMode="numeric"
+                          aria-label={`${label} — ${r.nama}`}
+                          value={r[kolom]}
+                          onChange={(e) => ubahTarifLokal(r.id, kolom, e.target.value)}
+                          onBlur={(e) => simpanTarif(r.id, kolom, e.target.value)}
+                          className="w-20 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-center text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        />
+                      </td>
+                    ))}
+                    <td className="px-2 py-2.5 text-right font-semibold text-slate-600 dark:text-slate-300">{rupiah(r.subGaji)}</td>
+                    <td className="px-2 py-2.5 text-right font-semibold text-slate-600 dark:text-slate-300">{rupiah(r.subMakan)}</td>
+                    <td className="px-2 py-2.5 text-right font-semibold text-slate-600 dark:text-slate-300">{rupiah(r.subLembur)}</td>
+                    <td className="px-3 py-2.5 text-right font-extrabold text-indigo-600 dark:text-indigo-300">{rupiah(r.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-indigo-100 bg-indigo-50/60 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+                  <td className="px-3 py-2.5 font-bold text-slate-700 dark:text-slate-200">TOTAL</td>
+                  <td className="px-2 py-2.5 text-center font-bold">{data.ringkasan.hariDibayar}</td>
+                  <td className="px-2 py-2.5 text-center font-bold">{data.ringkasan.hariMakan}</td>
+                  <td className="px-2 py-2.5 text-center font-bold">{data.ringkasan.lembur}j</td>
+                  <td colSpan={3} />
+                  <td className="px-2 py-2.5 text-right font-bold">{rupiah(data.ringkasan.subGaji)}</td>
+                  <td className="px-2 py-2.5 text-right font-bold">{rupiah(data.ringkasan.subMakan)}</td>
+                  <td className="px-2 py-2.5 text-right font-bold">{rupiah(data.ringkasan.subLembur)}</td>
+                  <td className="px-3 py-2.5 text-right font-extrabold text-indigo-600 dark:text-indigo-300">{rupiah(totalKeseluruhan)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <p className="mt-1 text-center text-[10px] font-semibold text-slate-400 sm:hidden">← Geser tabel ke samping untuk melihat kolom lain →</p>
+
+          {adaData && (
+            <button onClick={eksporExcelGaji} disabled={ekspor} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 transition active:scale-95 disabled:opacity-40">
+              {ekspor ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />} Export Excel Gaji
+            </button>
+          )}
+
+          <p className="mt-4 rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
+            🧾 <b>Cara hitung:</b> <b>Hari Dibayar</b> = Hadir + Terlambat + Hadir Libur + Izin + Sakit + Cuti (pengajuan yang tidak ditolak; Alpha tidak dibayar).
+            <b> Hari Uang Makan</b> = hanya hari benar-benar masuk kerja (Hadir + Terlambat + Hadir Libur). <b>Lembur (Rp)</b> = total jam lembur <b>Disetujui</b> × tarif lembur per jam.
+            Ubah tarif langsung di tabel — tersimpan otomatis dan terpakai juga untuk periode berikutnya.
+          </p>
+        </>
+      )}
+    </div>
+  )
+}
 
 // Tab Laporan — rekap kehadiran per karyawan pada satu periode, lengkap dengan
 // export Excel bergaya modern (utils/laporan-excel.js, ExcelJS: sheet Ringkasan

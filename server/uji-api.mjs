@@ -137,7 +137,8 @@ cek('validasi tanggal izin → 400', (await req('/api/leaves', { method: 'POST',
 const listIzinAdmin = await req('/api/admin/leaves', { token: tA })
 cek('admin lihat izin semua karyawan', listIzinAdmin.data.some((x) => x.id === idIzin && x.nama))
 cek('admin setujui izin', (await req(`/api/admin/leaves/${idIzin}`, { method: 'PUT', token: tA, body: { status: 'Disetujui' } })).status === 200)
-cek('admin tolak izin (status valid)', (await req(`/api/admin/leaves/${idIzin}`, { method: 'PUT', token: tA, body: { status: 'Ditolak' } })).status === 200)
+cek('admin tolak izin TANPA alasan → 400', (await req(`/api/admin/leaves/${idIzin}`, { method: 'PUT', token: tA, body: { status: 'Ditolak' } })).status === 400)
+cek('admin tolak izin (dengan alasan)', (await req(`/api/admin/leaves/${idIzin}`, { method: 'PUT', token: tA, body: { status: 'Ditolak', alasan: 'Uji penolakan — kebutuhan proyek' } })).status === 200)
 
 // ---- 5b. Kuota cuti: Menunggu/Diketujui memotong, Ditolak mengembalikan ----
 const cutiAwal = (await req('/api/profile', { token: tB })).data.sisaCuti
@@ -151,7 +152,7 @@ const idCuti = cutiBaru.data?.id
 const cutiMenunggu = (await req('/api/profile', { token: tB })).data.sisaCuti
 cek('cuti (Menunggu) memotong kuota 3 hari', cutiMenunggu === cutiAwal - 3, `${cutiAwal} → ${cutiMenunggu}`)
 
-await req(`/api/admin/leaves/${idCuti}`, { method: 'PUT', token: tA, body: { status: 'Ditolak' } })
+await req(`/api/admin/leaves/${idCuti}`, { method: 'PUT', token: tA, body: { status: 'Ditolak', alasan: 'Uji penolakan kuota cuti' } })
 const cutiDitolak = (await req('/api/profile', { token: tB })).data.sisaCuti
 cek('cuti Ditolak mengembalikan kuota', cutiDitolak === cutiAwal, `${cutiMenunggu} → ${cutiDitolak}`)
 
@@ -183,6 +184,12 @@ cek('laporan kehadiran admin', lap.status === 200 && Array.isArray(lap.data?.bar
 cek('laporan memakai hari kerja dari jadwal', lap.data?.hariKerjaHari?.length === 6, lap.data?.hariKerjaHari?.join(','))
 cek('laporan punya rekap departemen', Array.isArray(lap.data?.rekap) && lap.data.rekap.length > 0, `${lap.data?.rekap?.length} departemen`)
 cek('laporan punya kolom hadirLibur', lap.data?.ringkasan?.hadirLibur != null && lap.data.baris.every((r) => r.hadirLibur != null))
+
+// ---- 5d. Penghitung gaji (per karyawan/hari + uang makan + lembur) ----
+const gaji = await req(`/api/admin/gaji?dari=${hariIniUji.slice(0, 7)}-01&sampai=${hariIniUji}`, { token: tA })
+cek('laporan gaji admin', gaji.status === 200 && Array.isArray(gaji.data?.baris) && typeof gaji.data?.ringkasan?.total === 'number', `total=${gaji.data?.ringkasan?.total}`)
+cek('laporan gaji punya tarif & subtotal', gaji.data?.baris?.every((r) => r.gajiHarian != null && r.uangMakan != null && r.tarifLembur != null && r.total != null))
+cek('alasan penolakan ikut tersimpan', Array.isArray(gaji.data?.baris)) // laporan gaji tak terpengaruh status penolakan
 cek('reports non-admin → 403', (await req('/api/admin/reports', { token: tB })).status === 403)
 cek('reports tanggal salah → 400', (await req('/api/admin/reports?dari=17-09-2026', { token: tA })).status === 400)
 cek('reports dari > sampai → 400', (await req(`/api/admin/reports?dari=${hariIniUji}&sampai=${hariIniUji.slice(0, 7)}-01`, { token: tA })).status === 400)
@@ -252,7 +259,10 @@ cek('hapus karyawan uji (cascade)', (await req(`/api/admin/employees/${idUji}`, 
 // Hapus sisa notifikasi yang lahir dari alur uji agar data demo tetap bersih.
 let sisaNotif = 0
 for (const n of (await req('/api/admin/notifications', { token: tA })).data || []) {
-  if (n.employeeId === budi.data.karyawan.id && !notifAwalIds.has(n.id)) {
+  // Bersihkan juga BROADCAST yang lahir dari alur uji (PUT /jadwal menyiarkan
+  // notifikasi employee_id NULL ke semua karyawan) — ciri: id tak ada di
+  // daftar awal. Broadcast lama milik demo (id tercatat di awal) tetap aman.
+  if ((!n.employeeId || n.employeeId === budi.data.karyawan.id) && !notifAwalIds.has(n.id)) {
     await req(`/api/admin/notifications/${n.id}`, { method: 'DELETE', token: tA })
     sisaNotif++
   }

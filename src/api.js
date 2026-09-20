@@ -193,10 +193,10 @@ export const adminAbsensi = (q = '') => admin(`/attendance${q}`)
 export const adminUbahAbsensi = (id, d) => admin(`/attendance/${id}`, { method: 'PUT', body: d })
 export const adminHapusAbsensi = (id) => admin(`/attendance/${id}`, { method: 'DELETE' })
 export const adminIzin = () => admin('/leaves')
-export const adminStatusIzin = (id, status) => admin(`/leaves/${id}`, { method: 'PUT', body: { status } })
+export const adminStatusIzin = (id, status, alasan = '') => admin(`/leaves/${id}`, { method: 'PUT', body: { status, alasan } })
 export const adminHapusIzin = (id) => admin(`/leaves/${id}`, { method: 'DELETE' })
 export const adminLembur = () => admin('/overtime')
-export const adminStatusLembur = (id, status) => admin(`/overtime/${id}`, { method: 'PUT', body: { status } })
+export const adminStatusLembur = (id, status, alasan = '') => admin(`/overtime/${id}`, { method: 'PUT', body: { status, alasan } })
 export const adminHapusLembur = (id) => admin(`/overtime/${id}`, { method: 'DELETE' })
 export const adminNotifikasi = () => admin('/notifications')
 export const adminKirimNotifikasi = (d) => admin('/notifications', { method: 'POST', body: d })
@@ -211,4 +211,13 @@ export function adminLaporan({ dari, sampai, departemen } = {}) {
   if (sampai) qs.set('sampai', sampai)
   if (departemen) qs.set('departemen', departemen)
   return admin(`/reports${qs.toString() ? `?${qs}` : ''}`)
+}
+
+// ---------- Penghitung Gaji (per karyawan/hari + uang makan + lembur) ----------
+export function adminGaji({ dari, sampai, departemen } = {}) {
+  const qs = new URLSearchParams()
+  if (dari) qs.set('dari', dari)
+  if (sampai) qs.set('sampai', sampai)
+  if (departemen) qs.set('departemen', departemen)
+  return admin(`/gaji${qs.toString() ? `?${qs}` : ''}`)
 }

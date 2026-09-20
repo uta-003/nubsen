@@ -12,8 +12,8 @@ async function seedKaryawan() {
 
   if (!admin) {
     await db.run(
-      `INSERT INTO employees (id, nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, 12, 1, ?)`,
+      `INSERT INTO employees (id, nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash, gaji_harian, uang_makan, tarif_lembur)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, 12, 1, ?, ?, ?, ?)`,
       [
         'Afriani Putri',
         'EMP-2024-0187',
@@ -23,6 +23,8 @@ async function seedKaryawan() {
         '+62 812-3456-7890',
         'Kantor Pusat — Kelapa Gading, Jakarta Utara',
         hashPin('123456'),
+        // Tarif demo untuk penghitung gaji (Rp).
+        180000, 25000, 30000,
       ],
     )
     // Notifikasi sambutan untuk akun baru.
@@ -43,8 +45,8 @@ async function seedKaryawan() {
   const budi = await db.get('SELECT id FROM employees WHERE id = ?', [2])
   if (!budi) {
     await db.run(
-      `INSERT INTO employees (id, nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash)
-       VALUES (2, ?, ?, ?, ?, ?, ?, ?, 12, 0, ?)`,
+      `INSERT INTO employees (id, nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash, gaji_harian, uang_makan, tarif_lembur)
+       VALUES (2, ?, ?, ?, ?, ?, ?, ?, 12, 0, ?, ?, ?, ?)`,
       [
         'Budi Santoso',
         'EMP-2024-0203',
@@ -54,6 +56,8 @@ async function seedKaryawan() {
         '+62 813-2222-3333',
         'Kantor Pusat — Kelapa Gading, Jakarta Utara',
         hashPin('654321'),
+        // Tarif demo untuk penghitung gaji (Rp).
+        150000, 20000, 25000,
       ],
     )
   }

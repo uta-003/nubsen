@@ -22,7 +22,11 @@ CREATE TABLE IF NOT EXISTS employees (
   lokasi_kerja TEXT,
   cuti_tahunan INTEGER DEFAULT 12,
   pin_hash     TEXT,
-  is_admin     INTEGER DEFAULT 0
+  is_admin     INTEGER DEFAULT 0,
+  -- Penghitung gaji per karyawan (Rp) — diisi admin; 0 = belum diatur.
+  gaji_harian  REAL DEFAULT 0,
+  uang_makan   REAL DEFAULT 0,
+  tarif_lembur REAL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -39,6 +43,8 @@ CREATE TABLE IF NOT EXISTS overtime (
   jam_selesai TEXT NOT NULL,
   keterangan  TEXT DEFAULT '',
   status      TEXT DEFAULT 'Menunggu',
+  -- Alasan penolakan dari admin (tampil di notifikasi & riwayat karyawan).
+  alasan_tolak TEXT DEFAULT '',
   created_at  TEXT DEFAULT (datetime('now'))
 );
 
@@ -105,6 +111,8 @@ CREATE TABLE IF NOT EXISTS leaves (
   keterangan  TEXT DEFAULT '',
   lampiran    TEXT,
   status      TEXT DEFAULT 'Menunggu',
+  -- Alasan penolakan dari admin (tampil di notifikasi & riwayat karyawan).
+  alasan_tolak TEXT DEFAULT '',
   created_at  TEXT DEFAULT (datetime('now'))
 );
 

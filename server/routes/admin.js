@@ -6,7 +6,7 @@ import {
   listSemuaAbsensi, ubahAbsensi, hapusAbsensi,
   listSemuaIzin, setStatusIzin, hapusIzin,
   listSemuaLembur, setStatusLembur, hapusLembur,
-  laporanKehadiran,
+  laporanKehadiran, laporanGaji,
   notifToClient, kirimNotifikasi, listSemuaNotifikasi, hapusNotifikasi,
   kirimPengumuman, ubahPengumuman, hapusPengumuman,
 } from '../models.js'
@@ -73,6 +73,16 @@ router.put('/jadwal', wrap(async (req, res) => {
   // meneruskan `json.data` — dipakai panel admin untuk memberi tahu bahwa
   // broadcast sudah terkirim (atau tidak ada perubahan sehingga tidak ada notif).
   res.json({ data: { ...(await getJadwal()), notifikasiDikirim: !!berubah } })
+}))
+
+// ---------- Penghitung gaji (rekap gaji + uang makan + lembur) ----------
+// GET /api/admin/gaji?dari=YYYY-MM-DD&sampai=YYYY-MM-DD&departemen=Teknologi
+router.get('/gaji', wrap(async (req, res) => {
+  res.json({ data: await laporanGaji({
+    dari: req.query.dari,
+    sampai: req.query.sampai,
+    departemen: req.query.departemen,
+  }) })
 }))
 
 // ---------- Laporan kehadiran (rekap per karyawan + export) ----------
@@ -143,7 +153,13 @@ router.put('/leaves/:id', wrap(async (req, res) => {
   if (!['Disetujui', 'Ditolak', 'Menunggu'].includes(status)) {
     return res.status(400).json({ error: 'Status tidak valid.' })
   }
-  const hasil = await setStatusIzin(Number(req.params.id), status)
+  // Alasan penolakan WAJIB saat menolak — dikirim ke notifikasi & riwayat
+  // karyawan agar penolakan tidak "tanpa penjelasan".
+  const alasan = String(req.body?.alasan || '').trim()
+  if (status === 'Ditolak' && !alasan) {
+    return res.status(400).json({ error: 'Alasan penolakan wajib diisi.' })
+  }
+  const hasil = await setStatusIzin(Number(req.params.id), status, alasan)
   if (!hasil) return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' })
   res.json({ data: hasil })
 }))
@@ -163,7 +179,13 @@ router.put('/overtime/:id', wrap(async (req, res) => {
   if (!['Disetujui', 'Ditolak', 'Menunggu'].includes(status)) {
     return res.status(400).json({ error: 'Status tidak valid.' })
   }
-  const hasil = await setStatusLembur(Number(req.params.id), status)
+  // Alasan penolakan WAJIB saat menolak — dikirim ke notifikasi & riwayat
+  // karyawan agar penolakan tidak "tanpa penjelasan".
+  const alasan = String(req.body?.alasan || '').trim()
+  if (status === 'Ditolak' && !alasan) {
+    return res.status(400).json({ error: 'Alasan penolakan wajib diisi.' })
+  }
+  const hasil = await setStatusLembur(Number(req.params.id), status, alasan)
   if (!hasil) return res.status(404).json({ error: 'Pengajuan lembur tidak ditemukan.' })
   res.json({ data: hasil })
 }))

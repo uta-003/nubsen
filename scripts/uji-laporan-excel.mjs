@@ -4,7 +4,7 @@
 // Workbook dibuat lewat ExcelJS langsung di Node (pustaka yang sama dengan
 // aplikasi), ditulis ke buffer, lalu diperiksa strukturnya: tanda tangan ZIP
 // 'PK' (.xlsx valid), jumlah sheet, banner/header, baris data, dan TOTAL.
-import { buatWorkbookLaporan, KOLOM_LAPORAN, barisLaporanExcel } from '../src/utils/laporan-excel.js'
+import { buatWorkbookLaporan, buatWorkbookGaji, KOLOM_LAPORAN, KOLOM_GAJI, barisLaporanExcel, barisGajiExcel } from '../src/utils/laporan-excel.js'
 
 let gagal = 0
 const sama = (nama, dapat, harus) => {
@@ -71,6 +71,50 @@ const buffer = await wb.xlsx.writeBuffer()
 const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer)
 sama('tanda tangan ZIP "PK" (xlsx valid)', String.fromCharCode(bytes[0], bytes[1]), 'PK')
 sama('ukuran berkas wajar (> 4 kB)', bytes.byteLength > 4096, true)
+
+// ---------- workbook penghitung gaji ----------
+// Perhitungan contoh: Budi hariDibayar=15 (10+2+1+1+1+0), hariMakan=13,
+// subGaji=2.250.000, subMakan=260.000, subLembur=87.500 → total 2.597.500;
+// Afriani hariDibayar=15, hariMakan=15, total 3.075.000. Ringkasan = 5.672.500.
+const dataGaji = {
+  dari: '2026-09-01',
+  sampai: '2026-09-20',
+  departemen: '',
+  hariKerja: 15,
+  hariKerjaHari: [1, 2, 3, 4, 5, 6],
+  baris: [
+    { id: 1, nama: 'Budi Santoso', nip: 'NIP-002', departemen: 'Produksi', hadir: 10, terlambat: 2, hadirLibur: 1, izin: 1, sakit: 1, cuti: 0, alpha: 1, lembur: 3.5, gajiHarian: 150000, uangMakan: 20000, tarifLembur: 25000 },
+    { id: 2, nama: 'Afriani Putri', nip: 'NIP-001', departemen: 'Produksi', hadir: 13, terlambat: 0, hadirLibur: 2, izin: 0, sakit: 0, cuti: 0, alpha: 0, lembur: 0, gajiHarian: 180000, uangMakan: 25000, tarifLembur: 30000 },
+  ],
+  ringkasan: {
+    totalKaryawan: 2,
+    hariDibayar: 30,
+    hariMakan: 28,
+    lembur: 3.5,
+    subGaji: 4950000,
+    subMakan: 635000,
+    subLembur: 87500,
+    total: 5672500,
+  },
+}
+
+sama('KOLOM_GAJI berisi 13 kolom', KOLOM_GAJI.length, 13)
+sama('kolom terakhir gaji = TOTAL GAJI (Rp)', KOLOM_GAJI[12], 'TOTAL GAJI (Rp)')
+sama('baris gaji 13 sel', barisGajiExcel(dataGaji.baris[0]).length, 13)
+
+const wbGaji = await buatWorkbookGaji(dataGaji, ExcelJS)
+sama('workbook gaji: 2 sheet (Ringkasan + Produksi)', wbGaji.worksheets.length, 2)
+const wsG = wbGaji.worksheets[0]
+sama('banner gaji', wsG.getCell('A1').value, 'PENGHITUNG GAJI KARYAWAN — NUBSEN')
+sama('header kolom terakhir gaji (M9)', wsG.getCell('M9').value, 'TOTAL GAJI (Rp)')
+sama('KPI TOTAL GAJI (H6)', wsG.getCell('H6').value, 5672500)
+sama('baris data gaji pertama (A10)', wsG.getCell('A10').value, 'Budi Santoso')
+sama('TOTAL gaji keseluruhan (M12)', wsG.getCell('M12').value, 5672500)
+sama('TOTAL sub gaji (J12)', wsG.getCell('J12').value, 4950000)
+
+const bufGaji = await wbGaji.xlsx.writeBuffer()
+const bytesGaji = Buffer.isBuffer(bufGaji) ? bufGaji : Buffer.from(bufGaji)
+sama('xlsx gaji valid (PK)', String.fromCharCode(bytesGaji[0], bytesGaji[1]), 'PK')
 
 console.log(gagal === 0 ? '\nSemua uji laporan-excel LULUS ✅' : `\n${gagal} uji GAGAL ❌`)
 process.exit(gagal === 0 ? 0 : 1)

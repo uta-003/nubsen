@@ -281,3 +281,179 @@ export async function buatWorkbookLaporan(data, ExcelJS) {
   }
   return wb
 }
+
+// ============ Workbook "penghitung gaji" (ExcelJS) ============
+// Gaya sama dengan laporan kehadiran (banner + KPI + tabel berwarna + TOTAL +
+// autofilter); kolom uang memakai format '#,##0' (rupiah tanpa desimal).
+export const KOLOM_GAJI = ['Nama', 'NIP', 'Departemen', 'Hari Dibayar', 'Hari Uang Makan', 'Lembur (jam)', 'Gaji Harian (Rp)', 'Uang Makan/Hari (Rp)', 'Tarif Lembur/jam (Rp)', 'Gaji (Rp)', 'Uang Makan (Rp)', 'Lembur (Rp)', 'TOTAL GAJI (Rp)']
+
+// Satu baris Excel dari baris gaji (nilai uang berupa ANGKA — bisa dijumlahkan).
+export function barisGajiExcel(r) {
+  return [r.nama, r.nip, r.departemen, r.hariDibayar, r.hariMakan, r.lembur, r.gajiHarian, r.uangMakan, r.tarifLembur, r.subGaji, r.subMakan, r.subLembur, r.total]
+}
+
+const RUPIAH = '#,##0'
+
+function isiSheetGaji(wb, nama, data, ringkasan, baris, aksen, labelDept) {
+  const ws = wb.addWorksheet(nama, {
+    views: [{ state: 'frozen', xSplit: 1 }],
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  })
+  const nKol = KOLOM_GAJI.length // 13 → kolom M
+  const kolomN = hurufKolom(nKol)
+  const lebar = [22, 13, 18, 11, 13, 11, 14, 15, 14, 14, 14, 13, 16]
+  lebar.forEach((w, i) => { ws.getColumn(i + 1).width = w })
+  const garis = { style: 'thin', color: { argb: GARIS } }
+  const bingkai = { top: garis, bottom: garis, left: garis, right: garis }
+
+  // 1) Banner judul.
+  ws.mergeCells(`A1:${kolomN}1`)
+  const judul = ws.getCell('A1')
+  judul.value = labelDept
+    ? `PENGHITUNG GAJI — ${String(labelDept).toUpperCase()}`
+    : 'PENGHITUNG GAJI KARYAWAN — NUBSEN'
+  judul.font = { name: 'Calibri', size: 14, bold: true, color: { argb: PUTIH } }
+  judul.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } }
+  judul.alignment = { vertical: 'middle', horizontal: 'center' }
+  ws.getRow(1).height = 34
+
+  // 2) Sub-banner periode.
+  ws.mergeCells(`A2:${kolomN}2`)
+  const sub = ws.getCell('A2')
+  sub.value = `Periode: ${tanggalPendek(data.dari)} s.d. ${tanggalPendek(data.sampai)}   •   ${ringkasan.totalKaryawan} karyawan   •   Total gaji ${Math.round(ringkasan.total || 0).toLocaleString('id-ID')} Rp`
+  sub.font = { name: 'Calibri', size: 10, bold: true, color: { argb: INDIGO_TEKS } }
+  sub.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: INDIGO_SUB } }
+  sub.alignment = { vertical: 'middle', horizontal: 'center' }
+  ws.getRow(2).height = 20
+
+  // 3) Meta + keterangan aturan hitung.
+  ws.mergeCells(`A3:${kolomN}3`)
+  const meta = ws.getCell('A3')
+  meta.value = `Diunduh: ${stempelWaktu()}   •   Hari Dibayar = Hadir+Terlambat+Hadir Libur+Izin+Sakit+Cuti   •   Uang makan hanya hari masuk kerja   •   Lembur dari pengajuan Disetujui   •   Dibuat otomatis oleh NUBSEN`
+  meta.font = { name: 'Calibri', size: 9, italic: true, color: { argb: ABU } }
+  meta.alignment = { vertical: 'middle', horizontal: 'left' }
+  ws.getRow(3).height = 16
+  ws.getRow(4).height = 6
+
+  // 4) Blok KPI (8 metrik pertama).
+  const kpi = [
+    ['Karyawan', 'FFE0E7FF', 'FF3730A3', ringkasan.totalKaryawan],
+    ['Hari Dibayar', 'FFD1FAE5', 'FF047857', ringkasan.hariDibayar],
+    ['Hari Uang Makan', 'FFCCFBF1', 'FF0F766E', ringkasan.hariMakan],
+    ['Lembur (jam)', 'FFE0E7FF', 'FF4338CA', ringkasan.lembur, '0.0'],
+    ['Gaji (Rp)', 'FFEDE9FE', 'FF6D28D9', ringkasan.subGaji, RUPIAH],
+    ['Uang Makan (Rp)', 'FFFEF3C7', 'FFB45309', ringkasan.subMakan, RUPIAH],
+    ['Lembur (Rp)', 'FFE0F2FE', 'FF0369A1', ringkasan.subLembur, RUPIAH],
+    ['TOTAL GAJI (Rp)', 'FFD1FAE5', 'FF047857', ringkasan.total, RUPIAH],
+  ]
+  kpi.forEach(([label, latar, teks, nilai, fmt], i) => {
+    const kol = i + 1
+    const selLabel = ws.getCell(5, kol)
+    selLabel.value = label
+    selLabel.font = { name: 'Calibri', size: 8.5, bold: true, color: { argb: ABU } }
+    selLabel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: latar } }
+    selLabel.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+    const selNilai = ws.getCell(6, kol)
+    selNilai.value = nilai
+    if (fmt) selNilai.numFmt = fmt
+    selNilai.font = { name: 'Calibri', size: 12, bold: true, color: { argb: teks } }
+    selNilai.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: latar } }
+    selNilai.alignment = { vertical: 'middle', horizontal: 'center' }
+  })
+  ws.getRow(5).height = 15
+  ws.getRow(6).height = 24
+  ws.getRow(7).height = 6
+
+  // 5) Judul seksi tabel.
+  ws.mergeCells(`A8:${kolomN}8`)
+  const seksi = ws.getCell('A8')
+  seksi.value = 'REKAP GAJI PER KARYAWAN'
+  seksi.font = { name: 'Calibri', size: 10, bold: true, color: { argb: aksen } }
+  seksi.alignment = { vertical: 'middle', horizontal: 'left' }
+  ws.getRow(8).height = 18
+
+  // 6) Header tabel.
+  KOLOM_GAJI.forEach((teks, i) => {
+    const sel = ws.getCell(9, i + 1)
+    sel.value = teks
+    sel.font = { name: 'Calibri', size: 10, bold: true, color: { argb: PUTIH } }
+    sel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: aksen } }
+    sel.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+    sel.border = bingkai
+  })
+  ws.getRow(9).height = 22
+
+  // 7) Baris data: uang berformat '#,##0', angka di tengah, teks di kiri.
+  baris.forEach((r, i) => {
+    const no = 10 + i
+    barisGajiExcel(r).forEach((v, j) => {
+      const sel = ws.getCell(no, j + 1)
+      sel.value = v
+      sel.border = bingkai
+      sel.font = { name: 'Calibri', size: 10, color: { argb: SLATE } }
+      sel.alignment = { vertical: 'middle', horizontal: j <= 2 ? 'left' : 'center' }
+      if (j === 5) sel.numFmt = '0.0'  // Lembur (jam)
+      if (j >= 6) sel.numFmt = RUPIAH  // Kolom uang (tarif & subtotal)
+      if (i % 2 === 1) sel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } }
+    })
+    ws.getRow(no).height = 16
+  })
+
+  // 8) Baris TOTAL (di luar rentang autofilter): kolom tarif tidak dijumlahkan.
+  const barisTotal = 10 + baris.length
+  ws.mergeCells(`A${barisTotal}:C${barisTotal}`)
+  const totalNilai = { 4: ringkasan.hariDibayar, 5: ringkasan.hariMakan, 6: ringkasan.lembur, 10: ringkasan.subGaji, 11: ringkasan.subMakan, 12: ringkasan.subLembur, 13: ringkasan.total }
+  for (let j = 1; j <= nKol; j++) {
+    const sel = ws.getCell(barisTotal, j)
+    sel.border = { top: { style: 'medium', color: { argb: aksen } }, bottom: garis, left: garis, right: garis }
+    sel.font = { name: 'Calibri', size: 10, bold: true, color: { argb: INDIGO_TEKS } }
+    sel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: INDIGO_MUDA } }
+    if (j === 1) {
+      sel.value = 'TOTAL'
+      sel.alignment = { vertical: 'middle', horizontal: 'center' }
+    } else if (totalNilai[j] !== undefined) {
+      sel.value = totalNilai[j]
+      sel.numFmt = j === 6 ? '0.0' : RUPIAH
+      sel.alignment = { vertical: 'middle', horizontal: 'center' }
+    }
+  }
+  ws.getRow(barisTotal).height = 18
+
+  // 9) Filter otomatis pada header + baris data.
+  ws.autoFilter = { from: { row: 9, column: 1 }, to: { row: 10 + baris.length - 1, column: nKol } }
+
+  return ws
+}
+
+// Workbook penghitung gaji lengkap: sheet Ringkasan + satu sheet per departemen
+// (aksen teal, TOTAL-nya total departemen masing-masing).
+export async function buatWorkbookGaji(data, ExcelJS) {
+  const wb = new ExcelJS.Workbook()
+  wb.creator = 'NUBSEN'
+  wb.created = new Date()
+
+  isiSheetGaji(wb, 'Ringkasan', data, data.ringkasan, data.baris, INDIGO)
+
+  const dipakai = new Set(['ringkasan'])
+  const grup = new Map()
+  for (const r of data.baris) {
+    if (!grup.has(r.departemen)) grup.set(r.departemen, [])
+    grup.get(r.departemen).push(r)
+  }
+  for (const [namaDept, list] of grup) {
+    const jumlah = (k) => list.reduce((t, r) => t + r[k], 0)
+    const ringkasanDept = {
+      totalKaryawan: list.length,
+      hariDibayar: jumlah('hariDibayar'),
+      hariMakan: jumlah('hariMakan'),
+      lembur: Math.round(jumlah('lembur') * 10) / 10,
+      subGaji: Math.round(jumlah('subGaji')),
+      subMakan: Math.round(jumlah('subMakan')),
+      subLembur: Math.round(jumlah('subLembur')),
+      total: Math.round(jumlah('total')),
+    }
+    isiSheetGaji(wb, namaSheetExcel(namaDept, dipakai), data, ringkasanDept, list, TEAL, namaDept)
+  }
+  return wb
+}
+

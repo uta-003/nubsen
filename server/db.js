@@ -131,6 +131,14 @@ const KOLOM_TAMBAHAN = [
   ['attendance', 'di_luar_area_out INTEGER'],
   ['attendance', 'jarak_out INTEGER'],
   ['notifications', 'grup_id TEXT'],
+  // Penghitung gaji per karyawan (Rp): gaji harian, uang makan per hari hadir,
+  // tarif lembur per jam — diisi admin pada tab Karyawan / Gaji.
+  ['employees', 'gaji_harian REAL DEFAULT 0'],
+  ['employees', 'uang_makan REAL DEFAULT 0'],
+  ['employees', 'tarif_lembur REAL DEFAULT 0'],
+  // Alasan penolakan izin/lembur — ikut terkirim dalam notifikasi karyawan.
+  ['leaves', "alasan_tolak TEXT DEFAULT ''"],
+  ['overtime', "alasan_tolak TEXT DEFAULT ''"],
 ]
 
 let janjiInit = null

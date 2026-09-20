@@ -258,6 +258,11 @@ export default function Izin({ onSubmit, sisaCuti = null }) {
                     <p className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-400">
                       <Clock4 size={11} /> Diajukan {l.dibuat ? formatWaktu(l.dibuat) : 'baru saja'}
                     </p>
+                    {l.status === 'Ditolak' && l.alasanTolak && (
+                      <p className="mt-1.5 rounded-xl bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold leading-relaxed text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
+                        💬 {l.alasanTolak}
+                      </p>
+                    )}
                     {l.luring && (
                       <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                         ⏳ Menunggu sinkron (luring)
