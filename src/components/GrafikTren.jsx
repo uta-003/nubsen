@@ -43,23 +43,23 @@ export default function GrafikTren({ tren }) {
           <BarChart3 size={16} className="shrink-0 text-indigo-500" />
           <span className="truncate">Tren Kehadiran 7 Hari</span>
         </h2>
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+        <span className="flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
           <Users size={12} /> {tren.totalKaryawan ?? '—'} karyawan
         </span>
       </div>
 
       <div className="mb-3 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-2xl bg-indigo-50 py-2 dark:bg-indigo-500/10">
-          <p className="text-base font-extrabold leading-none text-indigo-600 dark:text-indigo-300">{persen}%</p>
-          <p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">Kehadiran</p>
+        <div className="rounded-2xl bg-indigo-50 py-2.5 dark:bg-indigo-500/10">
+          <p className="text-lg font-extrabold leading-none text-indigo-600 dark:text-indigo-300">{persen}%</p>
+          <p className="mt-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">Kehadiran</p>
         </div>
-        <div className="rounded-2xl bg-emerald-50 py-2 dark:bg-emerald-500/10">
-          <p className="text-base font-extrabold leading-none text-emerald-600 dark:text-emerald-400">{totalMasuk}</p>
-          <p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">Total Masuk</p>
+        <div className="rounded-2xl bg-emerald-50 py-2.5 dark:bg-emerald-500/10">
+          <p className="text-lg font-extrabold leading-none text-emerald-600 dark:text-emerald-400">{totalMasuk}</p>
+          <p className="mt-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">Masuk</p>
         </div>
-        <div className="rounded-2xl bg-rose-50 py-2 dark:bg-rose-500/10">
-          <p className="text-base font-extrabold leading-none text-rose-600 dark:text-rose-400">{totalAlpha}</p>
-          <p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">Total Alpha</p>
+        <div className="rounded-2xl bg-rose-50 py-2.5 dark:bg-rose-500/10">
+          <p className="text-lg font-extrabold leading-none text-rose-600 dark:text-rose-400">{totalAlpha}</p>
+          <p className="mt-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">Alpha</p>
         </div>
       </div>
 
@@ -71,7 +71,7 @@ export default function GrafikTren({ tren }) {
         <>
           <div className="flex gap-2">
             {/* Sumbu Y — jumlah karyawan */}
-            <div className="relative h-32 w-7 shrink-0 text-right text-[9px] font-bold text-slate-400">
+            <div className="relative h-32 w-7 shrink-0 text-right text-[10px] font-semibold text-slate-500 dark:text-slate-400">
               <span className="absolute right-0 top-0 -translate-y-1/2">{tren.totalKaryawan}</span>
               <span className="absolute right-0 top-1/2 -translate-y-1/2">{Math.round(tren.totalKaryawan / 2)}</span>
               <span className="absolute bottom-0 right-0 translate-y-1/2">0</span>
@@ -101,7 +101,7 @@ export default function GrafikTren({ tren }) {
                       }`}
                     >
                       {/* Label nilai (jumlah masuk) di atas batang */}
-                      <span className={`mb-0.5 text-[9px] font-extrabold leading-none ${b.masuk ? 'text-emerald-600 dark:text-emerald-400' : 'text-transparent'}`}>
+                      <span className={`mb-1 text-[11px] font-extrabold leading-none tabular-nums ${b.masuk ? 'text-emerald-600 dark:text-emerald-400' : 'text-transparent'}`}>
                         {b.masuk || '-'}
                       </span>
                       <span
@@ -131,10 +131,10 @@ export default function GrafikTren({ tren }) {
                 const d = new Date(`${b.tanggal}T00:00:00`)
                 return (
                   <div key={b.tanggal} className="min-w-0 flex-1 text-center">
-                    <p className={`truncate text-[10px] font-bold ${b.hariKerja ? 'text-slate-500 dark:text-slate-300' : 'text-rose-400'}`}>
+                    <p className={`truncate text-[11px] font-bold ${b.hariKerja ? 'text-slate-500 dark:text-slate-300' : 'text-rose-500 dark:text-rose-400'}`}>
                       {HARI[d.getDay()]}
                     </p>
-                    <p className="text-[9px] font-semibold text-slate-400">{String(d.getDate()).padStart(2, '0')}</p>
+                    <p className="text-[10px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">{String(d.getDate()).padStart(2, '0')}</p>
                   </div>
                 )
               })}
@@ -147,11 +147,11 @@ export default function GrafikTren({ tren }) {
       {detail && (
         <div className="mt-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-800/60">
           <div className="flex items-center justify-between gap-2">
-            <p className="min-w-0 truncate text-xs font-bold">{formatTanggalLengkap(new Date(`${detail.tanggal}T00:00:00`))}</p>
-            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+            <p className="min-w-0 truncate text-sm font-bold">{formatTanggalLengkap(new Date(`${detail.tanggal}T00:00:00`))}</p>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
               detail.hariKerja ? 'bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300' : 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300'
             }`}>
-              {detail.hariKerja ? 'Hari kerja' : 'Libur / non-kerja'}
+              {detail.hariKerja ? 'Hari kerja' : 'Libur'}
             </span>
           </div>
           <div className="mt-2 grid grid-cols-4 gap-2 text-center">
@@ -159,11 +159,11 @@ export default function GrafikTren({ tren }) {
               ['Masuk', detail.masuk, 'text-emerald-600 dark:text-emerald-400'],
               ['Izin', detail.izin, 'text-sky-600 dark:text-sky-400'],
               ['Alpha', detail.alpha, 'text-rose-600 dark:text-rose-400'],
-              ['Belum', Math.max(0, (tren.totalKaryawan || 0) - detail.masuk - detail.izin - detail.alpha), 'text-slate-500 dark:text-slate-400'],
+              ['Belum', Math.max(0, (tren.totalKaryawan || 0) - detail.masuk - detail.izin - detail.alpha), 'text-slate-600 dark:text-slate-300'],
             ].map(([label, angka, warna]) => (
-              <div key={label} className="rounded-xl bg-white py-1.5 dark:bg-slate-900">
-                <p className={`text-sm font-extrabold leading-none ${warna}`}>{angka}</p>
-                <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+              <div key={label} className="rounded-xl bg-white py-2 dark:bg-slate-900">
+                <p className={`text-base font-extrabold leading-none tabular-nums ${warna}`}>{angka}</p>
+                <p className="mt-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">{label}</p>
               </div>
             ))}
           </div>
@@ -171,14 +171,14 @@ export default function GrafikTren({ tren }) {
       )}
 
       {/* Legenda & catatan */}
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] font-medium text-slate-400">
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
         <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-emerald-500" /> Masuk</span>
         <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-sky-500" /> Izin</span>
         <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-rose-500" /> Alpha</span>
-        <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-sm border border-dashed border-slate-300 dark:border-slate-600" /> Libur / non-kerja</span>
+        <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-sm border border-dashed border-slate-300 dark:border-slate-600" /> Libur</span>
       </div>
-      <p className="mt-2 text-center text-[10px] text-slate-400">
-        Tinggi batang = jumlah karyawan dari total <b>{tren.totalKaryawan ?? '—'}</b>; ketuk batang untuk detail harian.
+      <p className="mt-2.5 text-center text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+        Tinggi batang = jumlah karyawan dari total <b>{tren.totalKaryawan ?? '—'}</b>. Ketuk batang untuk detail harian.
       </p>
     </div>
   )

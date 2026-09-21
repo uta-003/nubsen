@@ -10,7 +10,7 @@ import ModalTolak from './ModalTolak'
 import PratinjauLampiran from './PratinjauLampiran'
 import GrafikTren from './GrafikTren'
 
-// Tab admin: [id, label, ikon] â€” tampil sebagai grid ikon rapi 4 kolom.
+// Tab admin: [id, label, ikon] — tampil sebagai grid ikon rapi 4 kolom.
 const TABS = [
   ['ringkasan', 'Ringkasan', LayoutDashboard],
   ['laporan', 'Laporan', FileSpreadsheet],
@@ -26,13 +26,13 @@ const TABS = [
 
 // Label & warna jenis notifikasi yang tampil di panel admin.
 const JENIS_NOTIF = {
-  pengumuman: { label: 'ðŸ“¢ Pengumuman', kelas: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
-  penting: { label: 'âš ï¸ Penting', kelas: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' },
-  info: { label: 'â„¹ï¸ Info', kelas: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
-  lembur: { label: 'â±ï¸ Lembur', kelas: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300' },
-  izin: { label: 'ðŸ“„ Izin/Cuti', kelas: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300' },
-  absensi: { label: 'âœ… Absensi', kelas: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
-  peringatan: { label: 'âš ï¸ Peringatan', kelas: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' },
+  pengumuman: { label: '📢 Pengumuman', kelas: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
+  penting: { label: '⚠️ Penting', kelas: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' },
+  info: { label: 'ℹ️ Info', kelas: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
+  lembur: { label: '⏱️ Lembur', kelas: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300' },
+  izin: { label: '📄 Izin/Cuti', kelas: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300' },
+  absensi: { label: '✅ Absensi', kelas: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
+  peringatan: { label: '⚠️ Peringatan', kelas: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' },
 }
 
 const CHIP = {
@@ -57,12 +57,12 @@ function BannerPesan({ pesan }) {
   if (!pesan) return null
   return (
     <p className={`mb-3 rounded-2xl px-3.5 py-2.5 text-xs font-semibold ${pesan.ok ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400'}`}>
-      {pesan.ok ? 'âœ… ' : 'âš ï¸ '}{pesan.teks}
+      {pesan.ok ? '✅ ' : '⚠️ '}{pesan.teks}
     </p>
   )
 }
 
-// Panel Admin â€” website backend untuk mengelola seluruh data aplikasi.
+// Panel Admin — website backend untuk mengelola seluruh data aplikasi.
 export default function Admin({ user, onBack }) {
   const [tab, setTab] = useState('ringkasan')
   const pilihTab = (id) => {
@@ -82,11 +82,11 @@ export default function Admin({ user, onBack }) {
         </button>
         <div className="min-w-0">
           <h1 className="truncate text-lg font-extrabold tracking-tight sm:text-xl">Panel Admin</h1>
-          <p className="truncate text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">{user?.nama} â€¢ akses penuh semua data</p>
+          <p className="truncate text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">{user?.nama} • akses penuh semua data</p>
         </div>
       </div>
 
-      {/* Tab animasi: grid ikon rapi 4 kolom â€” semua tab selalu tampil, tidak ada yang tersembunyi.
+      {/* Tab animasi: grid ikon rapi 4 kolom — semua tab selalu tampil, tidak ada yang tersembunyi.
           Chip masuk bertahap (stagger), tile aktif ber-pop dengan gradasi brand. Label panjang
           dipotong (truncate) supaya 8 tab tetap rapi di layar ponsel sempit. */}
       <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-2">
@@ -137,7 +137,7 @@ export default function Admin({ user, onBack }) {
 // Nama hari untuk pemilih hari kerja (indeks = getDay(): 0 = Minggu).
 const NAMA_HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 
-// Kelola jadwal kerja: jam masuk (batas Terlambat), jam pulang, dan hari kerja â€”
+// Kelola jadwal kerja: jam masuk (batas Terlambat), jam pulang, dan hari kerja —
 // tersimpan di server dan langsung dipakai seluruh karyawan (status, countdown,
 // pengingat) serta perhitungan hari kerja pada laporan kehadiran.
 function KelolaJadwal() {
@@ -168,7 +168,7 @@ function KelolaJadwal() {
       const soalNotif = d.notifikasiDikirim
         ? 'Notifikasi perubahan sudah dikirim ke seluruh karyawan.'
         : 'Tidak ada nilai yang berubah, jadi notifikasi tidak dikirim.'
-      setPesan({ ok: true, teks: `Jadwal tersimpan â€” masuk batas ${d.jamMasukBatas}, pulang ${d.jamPulang}, hari kerja ${labelHari}. Semua karyawan langsung memakai jadwal baru. ${soalNotif}` })
+      setPesan({ ok: true, teks: `Jadwal tersimpan — masuk batas ${d.jamMasukBatas}, pulang ${d.jamPulang}, hari kerja ${labelHari}. Semua karyawan langsung memakai jadwal baru. ${soalNotif}` })
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
     } finally {
@@ -222,13 +222,13 @@ function KelolaJadwal() {
         </button>
       </div>
       <p className="rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
-        â° <b>Cara kerja:</b> check-in setelah <b>Jam Masuk (Batas)</b> otomatis berstatus <b>Terlambat</b> (dihitung di server,
+        ⏰ <b>Cara kerja:</b> check-in setelah <b>Jam Masuk (Batas)</b> otomatis berstatus <b>Terlambat</b> (dihitung di server,
         tahan manipulasi jam HP). Countdown di Beranda, pengingat notifikasi, dan tulisan &quot;Batas:&quot; langsung mengikuti jadwal ini
         untuk semua karyawan. Format 24 jam HH:MM. Pilihan <b>Hari Kerja</b> dipakai untuk menghitung hari kerja pada laporan
-        kehadiran (Laporan) â€” pilih <b>Senâ€“Sab</b> bila perusahaan bekerja enam hari.
+        kehadiran (Laporan) — pilih <b>Sen–Sab</b> bila perusahaan bekerja enam hari.
       </p>
 
-      {/* Identitas perusahaan â€” dipakai KOP surat peringatan/pemecatan */}
+      {/* Identitas perusahaan — dipakai KOP surat peringatan/pemecatan */}
       <IdentitasPerusahaan />
 
       {/* Hari libur: nasional/cuti bersama (prefill resmi) + khusus yang ditetapkan admin */}
@@ -255,7 +255,7 @@ function IdentitasPerusahaan() {
     try {
       const hasil = await api.adminUpdatePerusahaan(form.nama.trim(), form.alamat.trim())
       setForm({ nama: hasil?.nama || form.nama, alamat: hasil?.alamat || form.alamat })
-      setPesan({ ok: true, teks: 'Identitas perusahaan tersimpan â€” dipakai pada KOP surat resmi.' })
+      setPesan({ ok: true, teks: 'Identitas perusahaan tersimpan — dipakai pada KOP surat resmi.' })
     } catch (err) {
       setPesan({ ok: false, teks: err.message })
     } finally {
@@ -325,7 +325,7 @@ function KartuHariLibur() {
     try {
       await api.adminTambahLibur(form.tanggal, form.nama.trim())
       setForm({ tanggal: '', nama: '' })
-      setPesan({ ok: true, teks: 'Hari libur ditetapkan â€” semua karyawan menerima notifikasi.' })
+      setPesan({ ok: true, teks: 'Hari libur ditetapkan — semua karyawan menerima notifikasi.' })
       muat()
     } catch (err) {
       setPesan({ ok: false, teks: err.message })
@@ -335,10 +335,10 @@ function KartuHariLibur() {
   }
 
   const hapus = async (l) => {
-    if (!confirm(`Batalkan libur ${l.tanggal} â€” ${l.nama}?`)) return
+    if (!confirm(`Batalkan libur ${l.tanggal} — ${l.nama}?`)) return
     try {
       await api.adminHapusLibur(l.tanggal)
-      setPesan({ ok: true, teks: 'Hari libur dibatalkan â€” notifikasi dikirim ke karyawan.' })
+      setPesan({ ok: true, teks: 'Hari libur dibatalkan — notifikasi dikirim ke karyawan.' })
       muat()
     } catch (err) {
       setPesan({ ok: false, teks: err.message })
@@ -351,9 +351,9 @@ function KartuHariLibur() {
     <div className="card space-y-3">
       <BannerPesan pesan={pesan} />
       <div>
-        <h3 className="flex items-center gap-1.5 text-sm font-extrabold">ðŸŒ´ Hari Libur</h3>
+        <h3 className="flex items-center gap-1.5 text-sm font-extrabold">🌴 Hari Libur</h3>
         <p className="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-          Hari terdaftar tidak menjadikan karyawan Alpha dan tidak dihitung pada Laporan/Gaji. Daftar {tahun}â€“{tahun + 1}.
+          Hari terdaftar tidak menjadikan karyawan Alpha dan tidak dihitung pada Laporan/Gaji. Daftar {tahun}–{tahun + 1}.
         </p>
       </div>
       <form onSubmit={tambah} className="grid grid-cols-[1fr_1.5fr_auto] gap-2">
@@ -377,10 +377,10 @@ function KartuHariLibur() {
         </button>
       </form>
       {daftar === null ? (
-        <p className="text-xs text-slate-400">Memuatâ€¦</p>
+        <p className="text-xs text-slate-400">Memuat…</p>
       ) : daftar.length === 0 ? (
         <p className="rounded-2xl bg-slate-50 px-3 py-2.5 text-xs text-slate-400 dark:bg-slate-800/60">
-          Belum ada hari libur pada {tahun}â€“{tahun + 1}.
+          Belum ada hari libur pada {tahun}–{tahun + 1}.
         </p>
       ) : (
         <ul className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
@@ -412,8 +412,8 @@ function KartuHariLibur() {
   )
 }
 
-// ---------- Tab Peringatan: surat peringatan (SP1â€“SP3) & pemecatan ----------
-// Surat diterbitkan admin â†’ notifikasi otomatis ke karyawan â†’ tampil di kartu
+// ---------- Tab Peringatan: surat peringatan (SP1–SP3) & pemecatan ----------
+// Surat diterbitkan admin → notifikasi otomatis ke karyawan → tampil di kartu
 // "Surat Peringatan & Pemecatan" pada menu Profil karyawan terkait.
 const JENIS_SURAT = [
   ['SP1', 'SP1', 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'],
@@ -443,7 +443,7 @@ function KelolaPeringatan() {
     try {
       await api.adminBuatPeringatan({ ...form, employeeId: Number(form.employeeId), alasan: form.alasan.trim() })
       setForm((f) => ({ ...f, alasan: '' }))
-      setPesan({ ok: true, teks: `${LABEL_SURAT[form.jenis]} diterbitkan â€” notifikasi terkirim & tampil di Profil karyawan.` })
+      setPesan({ ok: true, teks: `${LABEL_SURAT[form.jenis]} diterbitkan — notifikasi terkirim & tampil di Profil karyawan.` })
       muat()
     } catch (err) {
       setPesan({ ok: false, teks: err.message })
@@ -456,7 +456,7 @@ function KelolaPeringatan() {
     if (!confirm(`Cabut/hapus ${LABEL_SURAT[s.jenis] || s.jenis} (${formatTanggalPendek(s.tanggal)}) atas nama ${s.nama}?`)) return
     try {
       await api.adminHapusPeringatan(s.id)
-      setPesan({ ok: true, teks: 'Surat dicabut â€” karyawan menerima notifikasi pencabutan.' })
+      setPesan({ ok: true, teks: 'Surat dicabut — karyawan menerima notifikasi pencabutan.' })
       muat()
     } catch (err) {
       setPesan({ ok: false, teks: err.message })
@@ -477,16 +477,16 @@ function KelolaPeringatan() {
             <FileWarning size={16} className="text-rose-500" /> Terbitkan Surat
           </h2>
           <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">
-            SP1 â†’ SP2 â†’ SP3 bertahap; <b>Pemecatan</b> untuk pelanggaran berat. Surat otomatis masuk ke Profil karyawan.
+            SP1 → SP2 → SP3 bertahap; <b>Pemecatan</b> untuk pelanggaran berat. Surat otomatis masuk ke Profil karyawan.
           </p>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1.6fr_1fr]">
           <div>
             <label className="label">Karyawan</label>
             <select className="input !px-3" value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} required>
-              <option value="">Pilih karyawanâ€¦</option>
+              <option value="">Pilih karyawan…</option>
               {karyawan.map((k) => (
-                <option key={k.id} value={k.id}>{k.nama} â€” {k.departemen || '-'}</option>
+                <option key={k.id} value={k.id}>{k.nama} — {k.departemen || '-'}</option>
               ))}
             </select>
           </div>
@@ -531,7 +531,7 @@ function KelolaPeringatan() {
         </div>
         <button type="submit" disabled={!siap || proses} className="btn-primary w-full disabled:opacity-40">
           {proses ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-          {proses ? 'Menerbitkanâ€¦' : `Terbitkan ${LABEL_SURAT[form.jenis]}`}
+          {proses ? 'Menerbitkan…' : `Terbitkan ${LABEL_SURAT[form.jenis]}`}
         </button>
       </form>
 
@@ -547,7 +547,7 @@ function KelolaPeringatan() {
 
       {/* Daftar surat terbitan (terbaru dulu) */}
       {data === null ? (
-        <p className="text-xs text-slate-400">Memuatâ€¦</p>
+        <p className="text-xs text-slate-400">Memuat…</p>
       ) : data.length === 0 ? (
         <p className="card py-8 text-center text-xs text-slate-400">Belum ada surat peringatan atau pemecatan.</p>
       ) : (
@@ -562,11 +562,11 @@ function KelolaPeringatan() {
                     </span>
                     <p className="truncate text-sm font-bold">{s.nama}</p>
                   </div>
-                  <p className="mt-0.5 font-mono text-[10px] text-slate-400">{s.nomor || 'â€”'}</p>
+                  <p className="mt-0.5 font-mono text-[10px] text-slate-400">{s.nomor || '—'}</p>
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                     {formatTanggalPendek(s.tanggal)}
                   </p>
-                  {s.alasan && <p className="mt-1 text-xs leading-relaxed text-slate-400">ðŸ’¬ {s.alasan}</p>}
+                  {s.alasan && <p className="mt-1 text-xs leading-relaxed text-slate-400">💬 {s.alasan}</p>}
                 </div>
                 <button
                   onClick={() => hapus(s)}
@@ -593,29 +593,31 @@ function Ringkasan() {
     api.adminTren().then(setTren).catch(() => {})
   }, [])
   const kartu = [
-    ['ðŸ‘¥', d?.totalKaryawan, 'Total Karyawan'],
-    ['âœ…', d?.hadirHariIni, 'Hadir Hari Ini'],
-    ['ðŸ“„', d?.izinMenunggu, 'Izin Menunggu'],
-    ['â±ï¸', d?.lemburMenunggu, 'Lembur Menunggu'],
+    ['👥', d?.totalKaryawan, 'Total Karyawan'],
+    ['✅', d?.hadirHariIni, 'Hadir Hari Ini'],
+    ['📄', d?.izinMenunggu, 'Izin Menunggu'],
+    ['⏱️', d?.lemburMenunggu, 'Lembur Menunggu'],
   ]
   // Grafik tren 7 hari ditangani komponen GrafikTren (skala jumlah karyawan).
   return (
     <div className="animate-fade-in">
       <div className="grid grid-cols-2 gap-3">
         {kartu.map(([emoji, angka, label]) => (
-          <div key={label} className="card text-center">
-            <p className="text-2xl">{emoji}</p>
-            <p className="mt-1 text-2xl font-extrabold">{angka ?? 'â€”'}</p>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+          <div key={label} className="card flex items-center gap-3 !p-3.5">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-slate-100 text-xl dark:bg-slate-800">{emoji}</span>
+            <div className="min-w-0">
+              <p className="text-2xl font-extrabold leading-none tabular-nums">{angka ?? '—'}</p>
+              <p className="mt-1 truncate text-xs font-bold leading-tight text-slate-600 dark:text-slate-300">{label}</p>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Tren kehadiran 7 hari — grafik berskala + detail harian (komponen GrafikTren) */}
+      {/* Tren kehadiran 7 hari — grafik berskala jumlah karyawan (komponen GrafikTren) */}
       <GrafikTren tren={tren} />
 
       <p className="mt-4 rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
-        ðŸ’¡ Tab <b>Karyawan</b> untuk tambah/edit/hapus akun (termasuk reset PIN), <b>Absensi</b> untuk koreksi manual,
+        💡 Tab <b>Karyawan</b> untuk tambah/edit/hapus akun (termasuk reset PIN), <b>Absensi</b> untuk koreksi manual,
         <b> Izin & Lembur</b> untuk persetujuan, <b>Peringatan</b> untuk surat SP/pemecatan, dan <b>Notifikasi</b> untuk mengirim pengumuman ke semua karyawan.
       </p>
     </div>
@@ -625,7 +627,7 @@ function KelolaKaryawan() {
   const kosong = {
     nama: '', nip: '', jabatan: '', departemen: '', email: '', telepon: '', lokasiKerja: '', cutiTahunan: 12,
     gajiHarian: 0, uangMakan: 0, tarifLembur: 0, pin: '', isAdmin: false,
-    // Status kepegawaian â€” dipilih admin (Karyawan Tetap / Karyawan Kontrak).
+    // Status kepegawaian — dipilih admin (Karyawan Tetap / Karyawan Kontrak).
     statusKaryawan: 'Karyawan Tetap',
   }
   const [data, setData] = useState([])
@@ -703,14 +705,14 @@ function KelolaKaryawan() {
 
       {tampilForm && (
         <form onSubmit={simpan} className="card mb-4 space-y-3">
-          {/* Satu kolom di ponsel sempit, dua kolom mulai sm â€” label panjang tidak
+          {/* Satu kolom di ponsel sempit, dua kolom mulai sm — label panjang tidak
               lagi memaksa input menjadi sempit/berdesakan. */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div><label className="label">Nama *</label><input className="input" value={form.nama} onChange={(e) => set('nama', e.target.value)} required /></div>
             <div><label className="label">NIP</label><input className="input" value={form.nip} onChange={(e) => set('nip', e.target.value)} /></div>
             <div><label className="label">Jabatan</label><input className="input" value={form.jabatan} onChange={(e) => set('jabatan', e.target.value)} /></div>
             <div><label className="label">Departemen</label><input className="input" value={form.departemen} onChange={(e) => set('departemen', e.target.value)} /></div>
-            <div className="sm:col-span-2"><label className="label">Lokasi Kerja</label><input className="input" value={form.lokasiKerja} onChange={(e) => set('lokasiKerja', e.target.value)} placeholder="cth. Kantor Pusat â€” Kelapa Gading, Jakarta Utara" /></div>
+            <div className="sm:col-span-2"><label className="label">Lokasi Kerja</label><input className="input" value={form.lokasiKerja} onChange={(e) => set('lokasiKerja', e.target.value)} placeholder="cth. Kantor Pusat — Kelapa Gading, Jakarta Utara" /></div>
             <div className="sm:col-span-2"><label className="label">Email *</label><input type="email" className="input" value={form.email} onChange={(e) => set('email', e.target.value)} required /></div>
             <div><label className="label">Telepon</label><input className="input" value={form.telepon} onChange={(e) => set('telepon', e.target.value)} /></div>
             <div>
@@ -724,7 +726,7 @@ function KelolaKaryawan() {
             <div><label className="label">Gaji Harian (Rp)</label><input type="number" min="0" className="input" value={form.gajiHarian} onChange={(e) => set('gajiHarian', Number(e.target.value))} placeholder="cth. 150000" /></div>
             <div><label className="label">Uang Makan/Hari (Rp)</label><input type="number" min="0" className="input" value={form.uangMakan} onChange={(e) => set('uangMakan', Number(e.target.value))} placeholder="cth. 20000" /></div>
             <div><label className="label">Tarif Lembur/jam (Rp)</label><input type="number" min="0" className="input" value={form.tarifLembur} onChange={(e) => set('tarifLembur', Number(e.target.value))} placeholder="cth. 25000" /></div>
-            <div><label className="label">{editId ? 'PIN Baru (opsional)' : 'PIN (default 123456)'}</label><input className="input" maxLength={6} value={form.pin} onChange={(e) => set('pin', e.target.value.replace(/\D/g, ''))} placeholder="â€¢â€¢â€¢â€¢â€¢â€¢" /></div>
+            <div><label className="label">{editId ? 'PIN Baru (opsional)' : 'PIN (default 123456)'}</label><input className="input" maxLength={6} value={form.pin} onChange={(e) => set('pin', e.target.value.replace(/\D/g, ''))} placeholder="••••••" /></div>
             <label className="flex items-center gap-2 self-end pb-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
               <input type="checkbox" checked={form.isAdmin} onChange={(e) => set('isAdmin', e.target.checked)} className="h-4 w-4 rounded" /> Jadikan Admin
             </label>
@@ -736,17 +738,17 @@ function KelolaKaryawan() {
       )}
 
       {memuat ? (
-        <p className="text-xs text-slate-400">Memuatâ€¦</p>
+        <p className="text-xs text-slate-400">Memuat…</p>
       ) : (
         <>
-          {/* Pencarian karyawan â€” filter nama/email/jabatan/departemen/NIP langsung di klien */}
+          {/* Pencarian karyawan — filter nama/email/jabatan/departemen/NIP langsung di klien */}
           <div className="relative mb-2">
             <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={cari}
               onChange={(e) => setCari(e.target.value)}
               className="input !py-2.5 !pl-10 text-sm"
-              placeholder="Cari nama, email, jabatanâ€¦"
+              placeholder="Cari nama, email, jabatan…"
             />
           </div>
           <p className="mb-2 text-[11px] font-medium text-slate-400">
@@ -773,10 +775,10 @@ function KelolaKaryawan() {
                       {k.statusKaryawan === 'Karyawan Kontrak' ? 'KONTRAK' : 'TETAP'}
                     </span>
                   </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{k.jabatan || 'â€”'} â€¢ {k.departemen || 'â€”'}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{k.jabatan || '—'} • {k.departemen || '—'}</p>
                   <p className="mt-0.5 truncate text-[11px] text-slate-400">{k.email}</p>
                   <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                    ðŸ’° {rupiah(k.gajiHarian)}/hari â€¢ makan {rupiah(k.uangMakan)} â€¢ lembur {rupiah(k.tarifLembur)}/jam
+                    💰 {rupiah(k.gajiHarian)}/hari • makan {rupiah(k.uangMakan)} • lembur {rupiah(k.tarifLembur)}/jam
                   </p>
                   {k.lokasiKerja && (
                     <p className="mt-1 flex min-w-0 items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
@@ -809,7 +811,7 @@ function KelolaAbsensi() {
   const [foto, setFoto] = useState(null)
 
   const bukaFoto = async (rec, jenis) => {
-    const judul = `Foto selfie ${jenis === 'pulang' ? 'pulang' : 'masuk'} â€” ${rec.nama}`
+    const judul = `Foto selfie ${jenis === 'pulang' ? 'pulang' : 'masuk'} — ${rec.nama}`
     setFoto({ buka: true, judul, memuat: true, isi: null, galat: null })
     try {
       const d = await api.adminFotoAbsensi(rec.id, jenis)
@@ -868,7 +870,7 @@ function KelolaAbsensi() {
       </div>
 
       {memuat ? (
-        <p className="text-xs text-slate-400">Memuatâ€¦</p>
+        <p className="text-xs text-slate-400">Memuat…</p>
       ) : data.length === 0 ? (
         <p className="card py-8 text-center text-xs text-slate-400">Tidak ada catatan absensi.</p>
       ) : (
@@ -876,7 +878,7 @@ function KelolaAbsensi() {
           {data.map((a) =>
             edit?.id === a.id ? (
               <div key={a.id} className="card space-y-2 p-4 ring-1 ring-indigo-300 dark:ring-indigo-500/40">
-                <p className="text-sm font-bold">{a.nama} â€” {formatTanggalPendek(a.tanggal)}</p>
+                <p className="text-sm font-bold">{a.nama} — {formatTanggalPendek(a.tanggal)}</p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <input type="time" className="input !px-3" value={edit.checkIn || ''} onChange={(e) => setEdit({ ...edit, checkIn: e.target.value })} />
                   <input type="time" className="input !px-3" value={edit.checkOut || ''} onChange={(e) => setEdit({ ...edit, checkOut: e.target.value })} />
@@ -893,8 +895,8 @@ function KelolaAbsensi() {
               <div key={a.id} className="card p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold">{a.nama} <span className="font-normal text-slate-400">â€¢ {formatTanggalPendek(a.tanggal)}</span></p>
-                    <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">Masuk {a.checkIn || 'â€”'} â€¢ Pulang {a.checkOut || 'â€”'}</p>
+                    <p className="text-sm font-bold">{a.nama} <span className="font-normal text-slate-400">• {formatTanggalPendek(a.tanggal)}</span></p>
+                    <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">Masuk {a.checkIn || '—'} • Pulang {a.checkOut || '—'}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     {a.adaSelfie && (
@@ -918,7 +920,7 @@ function KelolaAbsensi() {
         </div>
       )}
 
-      {/* Pratinjau foto selfie â€” diambil dari server saat tombol kamera ditekan */}
+      {/* Pratinjau foto selfie — diambil dari server saat tombol kamera ditekan */}
       <PratinjauLampiran
         {...(foto || {})}
         onClose={() => setFoto(null)}
@@ -943,7 +945,7 @@ function KelolaIzin() {
   }, [])
 
   const bukaLampiran = async (l) => {
-    setLampiran({ buka: true, judul: `Lampiran ${l.jenis} â€” ${l.nama}`, memuat: true, isi: null, galat: null })
+    setLampiran({ buka: true, judul: `Lampiran ${l.jenis} — ${l.nama}`, memuat: true, isi: null, galat: null })
     try {
       const d = await api.adminLampiranIzin(l.id)
       setLampiran((s) => ({ ...s, isi: d.lampiran, memuat: false }))
@@ -955,11 +957,11 @@ function KelolaIzin() {
   const aksi = async (id, status, alasanTolak = '') => {
     setProses(true)
     try {
-      // Respons server berisi baris terbaru â†’ cukup perbarui baris itu di daftar
+      // Respons server berisi baris terbaru → cukup perbarui baris itu di daftar
       // (tanpa memuat ulang seluruh daftar, jadi tombol Setujui/Tolak terasa instan).
       const hasil = await api.adminStatusIzin(id, status, alasanTolak)
       setData((d) => d.map((x) => (x.id === id ? { ...x, ...(hasil || {}), lampiran: null } : x)))
-      setPesan({ ok: true, teks: `Pengajuan ${status.toLowerCase()} â€” notifikasi dikirim ke karyawan.` })
+      setPesan({ ok: true, teks: `Pengajuan ${status.toLowerCase()} — notifikasi dikirim ke karyawan.` })
       setTolak(null)
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
@@ -984,18 +986,18 @@ function KelolaIzin() {
     <div className="animate-fade-in">
       <BannerPesan pesan={pesan} />
 
-      {/* Modal penolakan (komponen bersama, tampilan dirapikan) â€” alasan WAJIB,
+      {/* Modal penolakan (komponen bersama, tampilan dirapikan) — alasan WAJIB,
           terkirim ke notifikasi karyawan dan tampil pada riwayat pengajuannya. */}
       <ModalTolak
         buka={!!tolak}
         jenis="izin"
         nama={tolak?.nama}
-        detail={tolak ? `${tolak.jenis} â€¢ ${formatTanggalPendek(tolak.mulai)} â€“ ${formatTanggalPendek(tolak.selesai)}${tolak.keterangan ? ` â€¢ ${tolak.keterangan}` : ''}` : ''}
+        detail={tolak ? `${tolak.jenis} • ${formatTanggalPendek(tolak.mulai)} – ${formatTanggalPendek(tolak.selesai)}${tolak.keterangan ? ` • ${tolak.keterangan}` : ''}` : ''}
         onTutup={() => setTolak(null)}
         onKirim={(teksAlasan) => aksi(tolak.id, 'Ditolak', teksAlasan)}
       />
 
-      {/* Pratinjau lampiran â€” berkas diambil saat tombol ditekan (daftar tetap ringan) */}
+      {/* Pratinjau lampiran — berkas diambil saat tombol ditekan (daftar tetap ringan) */}
       <PratinjauLampiran
         {...(lampiran || {})}
         onClose={() => setLampiran(null)}
@@ -1003,7 +1005,7 @@ function KelolaIzin() {
       />
 
       {memuat ? (
-        <p className="text-xs text-slate-400">Memuatâ€¦</p>
+        <p className="text-xs text-slate-400">Memuat…</p>
       ) : data.length === 0 ? (
         <p className="card py-8 text-center text-xs text-slate-400">Belum ada pengajuan izin.</p>
       ) : (
@@ -1012,13 +1014,13 @@ function KelolaIzin() {
             <div key={l.id} className="card p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold">{l.nama} <span className="text-xs font-normal text-slate-400">â€¢ {l.jenis}</span></p>
+                  <p className="text-sm font-bold">{l.nama} <span className="text-xs font-normal text-slate-400">• {l.jenis}</span></p>
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    {formatTanggalPendek(l.mulai)} â€“ {formatTanggalPendek(l.selesai)}
+                    {formatTanggalPendek(l.mulai)} – {formatTanggalPendek(l.selesai)}
                   </p>
                   {l.keterangan && <p className="mt-1 text-xs text-slate-400">{l.keterangan}</p>}
                   {l.status === 'Ditolak' && l.alasanTolak && (
-                    <p className="mt-1 rounded-xl bg-rose-50 px-2.5 py-1 text-[11px] font-semibold leading-relaxed text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">ðŸ’¬ {l.alasanTolak}</p>
+                    <p className="mt-1 rounded-xl bg-rose-50 px-2.5 py-1 text-[11px] font-semibold leading-relaxed text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">💬 {l.alasanTolak}</p>
                   )}
                   {l.adaLampiran ? (
                     <button
@@ -1035,10 +1037,10 @@ function KelolaIzin() {
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {l.status !== 'Disetujui' && (
-                  <button onClick={() => aksi(l.id, 'Disetujui')} className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">âœ“ Setujui</button>
+                  <button onClick={() => aksi(l.id, 'Disetujui')} className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✓ Setujui</button>
                 )}
                 {l.status !== 'Ditolak' && (
-                  <button onClick={() => setTolak(l)} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">âœ• Tolak</button>
+                  <button onClick={() => setTolak(l)} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✕ Tolak</button>
                 )}
                 <button onClick={() => hapus(l.id)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500 transition active:scale-95 dark:bg-slate-800 dark:text-slate-400">Hapus</button>
               </div>
@@ -1065,11 +1067,11 @@ function KelolaLembur() {
   const aksi = async (id, status, alasanTolak = '') => {
     setProses(true)
     try {
-      // Baris terbaru dari server langsung menggantikan baris lama di daftar â€”
+      // Baris terbaru dari server langsung menggantikan baris lama di daftar —
       // tidak ada pemuatan ulang seluruh daftar (respons lebih cepat).
       const hasil = await api.adminStatusLembur(id, status, alasanTolak)
       setData((d) => d.map((x) => (x.id === id ? { ...x, ...(hasil || {}) } : x)))
-      setPesan({ ok: true, teks: `Lembur ${status.toLowerCase()} â€” notifikasi dikirim ke karyawan.` })
+      setPesan({ ok: true, teks: `Lembur ${status.toLowerCase()} — notifikasi dikirim ke karyawan.` })
       setTolak(null)
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
@@ -1094,19 +1096,19 @@ function KelolaLembur() {
     <div className="animate-fade-in">
       <BannerPesan pesan={pesan} />
 
-      {/* Modal penolakan (komponen bersama) â€” alasan WAJIB, terkirim ke notifikasi
+      {/* Modal penolakan (komponen bersama) — alasan WAJIB, terkirim ke notifikasi
           karyawan dan tampil pada riwayat pengajuan lemburnya. */}
       <ModalTolak
         buka={!!tolak}
         jenis="lembur"
         nama={tolak?.nama}
-        detail={tolak ? `Lembur ${formatTanggalPendek(tolak.tanggal)} â€¢ pukul ${tolak.jamMulai}â€“${tolak.jamSelesai}${tolak.keterangan ? ` â€¢ ${tolak.keterangan}` : ''}` : ''}
+        detail={tolak ? `Lembur ${formatTanggalPendek(tolak.tanggal)} • pukul ${tolak.jamMulai}–${tolak.jamSelesai}${tolak.keterangan ? ` • ${tolak.keterangan}` : ''}` : ''}
         onTutup={() => setTolak(null)}
         onKirim={(teksAlasan) => aksi(tolak.id, 'Ditolak', teksAlasan)}
       />
 
       {memuat ? (
-        <p className="text-xs text-slate-400">Memuatâ€¦</p>
+        <p className="text-xs text-slate-400">Memuat…</p>
       ) : data.length === 0 ? (
         <p className="card py-8 text-center text-xs text-slate-400">Belum ada pengajuan lembur.</p>
       ) : (
@@ -1115,21 +1117,21 @@ function KelolaLembur() {
             <div key={o.id} className="card p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold">{o.nama} <span className="text-xs font-normal text-slate-400">â€¢ {formatTanggalPendek(o.tanggal)}</span></p>
-                  <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">{o.jamMulai} â€“ {o.jamSelesai}</p>
+                  <p className="text-sm font-bold">{o.nama} <span className="text-xs font-normal text-slate-400">• {formatTanggalPendek(o.tanggal)}</span></p>
+                  <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">{o.jamMulai} – {o.jamSelesai}</p>
                   {o.keterangan && <p className="mt-1 text-xs text-slate-400">{o.keterangan}</p>}
                   {o.status === 'Ditolak' && o.alasanTolak && (
-                    <p className="mt-1 rounded-xl bg-rose-50 px-2.5 py-1 text-[11px] font-semibold leading-relaxed text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">ðŸ’¬ {o.alasanTolak}</p>
+                    <p className="mt-1 rounded-xl bg-rose-50 px-2.5 py-1 text-[11px] font-semibold leading-relaxed text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">💬 {o.alasanTolak}</p>
                   )}
                 </div>
                 <Chip status={o.status} />
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {o.status !== 'Disetujui' && (
-                  <button onClick={() => aksi(o.id, 'Disetujui')} className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">âœ“ Setujui</button>
+                  <button onClick={() => aksi(o.id, 'Disetujui')} className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✓ Setujui</button>
                 )}
                 {o.status !== 'Ditolak' && (
-                  <button onClick={() => setTolak(o)} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">âœ• Tolak</button>
+                  <button onClick={() => setTolak(o)} className="flex-1 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95">✕ Tolak</button>
                 )}
                 <button onClick={() => hapus(o.id)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500 transition active:scale-95 dark:bg-slate-800 dark:text-slate-400">Hapus</button>
               </div>
@@ -1172,7 +1174,7 @@ function KelolaNotifikasi() {
         ok: true,
         teks: form.employeeId
           ? `Notifikasi terkirim ke ${namaTujuan || 'karyawan tersebut'}.`
-          : `ðŸ“¢ Pemberitahuan terkirim ke ${hasil.jumlah} karyawan â€” langsung muncul di menu Notifikasi mereka.`,
+          : `📢 Pemberitahuan terkirim ke ${hasil.jumlah} karyawan — langsung muncul di menu Notifikasi mereka.`,
       })
       setForm(kosong)
       muat()
@@ -1228,20 +1230,20 @@ function KelolaNotifikasi() {
         <Megaphone size={16} className="mt-0.5 shrink-0" />
         <span>
           Buat <b>pemberitahuan</b> di sini. Pilih <b>Semua Karyawan</b> agar pengumuman muncul di
-          menu <b>ðŸ”” Notifikasi</b> setiap karyawan, lengkap dengan status baca per orang.
+          menu <b>🔔 Notifikasi</b> setiap karyawan, lengkap dengan status baca per orang.
         </span>
       </div>
 
       {edit && (
         <form onSubmit={simpanEdit} className="card mb-4 space-y-3 ring-2 ring-indigo-300 dark:ring-indigo-500/40">
-          <p className="text-sm font-bold">âœï¸ Edit pengumuman â€¢ {edit.total} penerima</p>
+          <p className="text-sm font-bold">✏️ Edit pengumuman • {edit.total} penerima</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="label">Jenis</label>
               <select className="input" value={edit.jenis} onChange={(e) => setEdit((s) => ({ ...s, jenis: e.target.value }))}>
-                <option value="pengumuman">ðŸ“¢ Pengumuman</option>
-                <option value="penting">âš ï¸ Penting</option>
-                <option value="info">â„¹ï¸ Info</option>
+                <option value="pengumuman">📢 Pengumuman</option>
+                <option value="penting">⚠️ Penting</option>
+                <option value="info">ℹ️ Info</option>
               </select>
             </div>
             <div>
@@ -1267,22 +1269,22 @@ function KelolaNotifikasi() {
           <div>
             <label className="label">Penerima</label>
             <select className="input" value={form.employeeId} onChange={(e) => set('employeeId', e.target.value)}>
-              <option value="">ðŸ“¢ SEMUA KARYAWAN (pemberitahuan)</option>
-              {karyawan.map((k) => <option key={k.id} value={k.id}>ðŸ‘¤ {k.nama}</option>)}
+              <option value="">📢 SEMUA KARYAWAN (pemberitahuan)</option>
+              {karyawan.map((k) => <option key={k.id} value={k.id}>👤 {k.nama}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div><label className="label">Jenis</label>
               <select className="input" value={form.jenis} onChange={(e) => set('jenis', e.target.value)}>
-                <option value="pengumuman">ðŸ“¢ Pengumuman</option>
-                <option value="penting">âš ï¸ Penting</option>
-                <option value="info">â„¹ï¸ Info</option>
+                <option value="pengumuman">📢 Pengumuman</option>
+                <option value="penting">⚠️ Penting</option>
+                <option value="info">ℹ️ Info</option>
               </select>
             </div>
             <div><label className="label">Judul *</label><input className="input" value={form.judul} onChange={(e) => set('judul', e.target.value)} required placeholder="Contoh: Rapat pagi besok" /></div>
           </div>
           <div><label className="label">Pesan</label>
-            <textarea className="input min-h-20 resize-none" value={form.pesan} onChange={(e) => set('pesan', e.target.value)} placeholder="Isi detail pengumumanâ€¦" />
+            <textarea className="input min-h-20 resize-none" value={form.pesan} onChange={(e) => set('pesan', e.target.value)} placeholder="Isi detail pengumuman…" />
           </div>
           <button type="submit" disabled={proses} className="btn-primary w-full">
             {proses ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
@@ -1310,7 +1312,7 @@ function KelolaNotifikasi() {
                           <Users size={11} /> {n.total} penerima
                         </span>
                       ) : (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">ðŸ‘¤ {n.nama}</span>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">👤 {n.nama}</span>
                       )}
                     </div>
                     <p className="text-sm font-bold">{n.judul}</p>
@@ -1319,11 +1321,11 @@ function KelolaNotifikasi() {
                       <p className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
                         <CheckCheck size={11} /> {n.dibaca}/{n.total} sudah dibaca
                         {n.belumBaca.length > 0 && (
-                          <span className="font-normal text-slate-400">â€¢ belum: {n.belumBaca.join(', ')}</span>
+                          <span className="font-normal text-slate-400">• belum: {n.belumBaca.join(', ')}</span>
                         )}
                       </p>
                     ) : (
-                      <p className="mt-1.5 text-[10px] text-slate-400">{n.dibaca ? 'âœ… sudah dibaca' : 'â€¢ belum dibaca'}</p>
+                      <p className="mt-1.5 text-[10px] text-slate-400">{n.dibaca ? '✅ sudah dibaca' : '• belum dibaca'}</p>
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col gap-1.5">
@@ -1355,17 +1357,17 @@ function KelolaNotifikasi() {
 
 
 
-// Tab Gaji â€” penghitung gaji per karyawan & per hari: gaji harian + uang makan
-// (HANYA hari masuk tepat waktu â€” Terlambat tidak dapat uang makan) + lembur
+// Tab Gaji — penghitung gaji per karyawan & per hari: gaji harian + uang makan
+// (HANYA hari masuk tepat waktu — Terlambat tidak dapat uang makan) + lembur
 // Disetujui. Tarif tiap karyawan diedit langsung di tabel (tersimpan ke database)
 // dan semua hitungan dihitung ulang seketika. Admin juga menetapkan PERIODE
-// PENGGAJIAN di sini â€” periode aktif itulah yang muncul sebagai slip gaji di
-// aplikasi karyawan (menu Profil â†’ Slip Gaji).
+// PENGGAJIAN di sini — periode aktif itulah yang muncul sebagai slip gaji di
+// aplikasi karyawan (menu Profil → Slip Gaji).
 const rupiah = (n) => `Rp${Math.round(Number(n) || 0).toLocaleString('id-ID')}`
 
 // Hitung ulang satu baris gaji dari angka kehadiran + tarif saat ini.
 // Aturan uang makan: hanya hari masuk TEPAT WAKTU (Hadir + Hadir Libur) yang
-// dapat uang makan â€” hari Terlambat tetap dibayar gaji harian tanpa uang makan.
+// dapat uang makan — hari Terlambat tetap dibayar gaji harian tanpa uang makan.
 function hitungBarisGaji(r) {
   const hariDibayar = r.hadir + r.terlambat + r.hadirLibur + r.izin + r.sakit + r.cuti
   const hariMakan = r.hadir + r.hadirLibur
@@ -1428,7 +1430,7 @@ function Gaji() {
       const p = await api.adminTetapkanPeriodeGaji({ nama: namaPeriode.trim() || undefined, dari, sampai })
       setNamaPeriode('')
       setPeriode(await api.adminPeriodeGaji())
-      setPesan({ ok: true, teks: `Periode "${p.nama}" ditetapkan & aktif â€” slip gaji karyawan diperbarui (notifikasi terkirim).` })
+      setPesan({ ok: true, teks: `Periode "${p.nama}" ditetapkan & aktif — slip gaji karyawan diperbarui (notifikasi terkirim).` })
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
     } finally {
@@ -1469,7 +1471,7 @@ function Gaji() {
   const simpanTarif = async (id, kolom, nilai) => {
     try {
       await api.adminUbahKaryawan(id, { [kolom]: Math.max(0, Number(nilai) || 0) })
-      setPesan({ ok: true, teks: 'Tarif disimpan â€” hitungan gaji diperbarui.' })
+      setPesan({ ok: true, teks: 'Tarif disimpan — hitungan gaji diperbarui.' })
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
       muat()
@@ -1522,7 +1524,7 @@ function Gaji() {
         </button>
       </div>
 
-      {/* Periode penggajian â€” admin menetapkan periode; slip gaji karyawan (menu
+      {/* Periode penggajian — admin menetapkan periode; slip gaji karyawan (menu
           Profil) menampilkan periode yang AKTIF beserta rinciannya. */}
       <div className="card mb-4">
         <h3 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
@@ -1531,11 +1533,11 @@ function Gaji() {
         <p className="mb-3 rounded-2xl bg-emerald-50 px-3.5 py-2.5 text-[11px] leading-relaxed text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
           {periodeAktif ? (
             <>
-              Aktif sekarang: <b>{periodeAktif.nama}</b> ({formatTanggalPendek(periodeAktif.dari)} â€“ {formatTanggalPendek(periodeAktif.sampai)}) â€”
+              Aktif sekarang: <b>{periodeAktif.nama}</b> ({formatTanggalPendek(periodeAktif.dari)} – {formatTanggalPendek(periodeAktif.sampai)}) —
               slip gaji karyawan memakai periode ini.
             </>
           ) : (
-            <>Belum ada periode aktif â€” slip gaji karyawan masih kosong. Tetapkan periode di bawah.</>
+            <>Belum ada periode aktif — slip gaji karyawan masih kosong. Tetapkan periode di bawah.</>
           )}
         </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -1549,7 +1551,7 @@ function Gaji() {
             />
           </div>
           <button onClick={tetapkanPeriode} disabled={prosesPeriode} className="btn-primary self-end !py-2.5 sm:self-end">
-            {prosesPeriode ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Tetapkan {formatTanggalPendek(dari)}â€“{formatTanggalPendek(sampai)}
+            {prosesPeriode ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Tetapkan {formatTanggalPendek(dari)}–{formatTanggalPendek(sampai)}
           </button>
         </div>
         {periode.length > 0 && (
@@ -1561,7 +1563,7 @@ function Gaji() {
                     {p.nama}
                     {p.aktif && <span className="ml-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">AKTIF</span>}
                   </p>
-                  <p className="text-[10px] text-slate-400">{formatTanggalPendek(p.dari)} â€“ {formatTanggalPendek(p.sampai)}</p>
+                  <p className="text-[10px] text-slate-400">{formatTanggalPendek(p.dari)} – {formatTanggalPendek(p.sampai)}</p>
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   {!p.aktif && (
@@ -1582,14 +1584,14 @@ function Gaji() {
       {/* KPI ringkasan gaji periode terpilih */}
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
-          ['ðŸ’°', data?.ringkasan?.subGaji, 'Gaji'],
-          ['ðŸ±', data?.ringkasan?.subMakan, 'Uang Makan'],
-          ['â±ï¸', data?.ringkasan?.subLembur, 'Lembur'],
-          ['ðŸ§¾', data?.ringkasan?.total, 'TOTAL GAJI'],
+          ['💰', data?.ringkasan?.subGaji, 'Gaji'],
+          ['🍱', data?.ringkasan?.subMakan, 'Uang Makan'],
+          ['⏱️', data?.ringkasan?.subLembur, 'Lembur'],
+          ['🧾', data?.ringkasan?.total, 'TOTAL GAJI'],
         ].map(([emoji, angka, label]) => (
           <div key={label} className="card text-center">
             <p className="text-xl">{emoji}</p>
-            <p className="mt-1 text-sm font-extrabold">{angka != null ? rupiah(angka) : 'â€”'}</p>
+            <p className="mt-1 text-sm font-extrabold">{angka != null ? rupiah(angka) : '—'}</p>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
           </div>
         ))}
@@ -1597,16 +1599,16 @@ function Gaji() {
 
       {(data?.ringkasan?.tanpaUangMakan ?? 0) > 0 && (
         <p className="mb-4 rounded-3xl bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
-          âš ï¸ <b>{data.ringkasan.tanpaUangMakan} hari Terlambat</b> tidak mendapat uang makan â€” potongan uang makan
+          ⚠️ <b>{data.ringkasan.tanpaUangMakan} hari Terlambat</b> tidak mendapat uang makan — potongan uang makan
           periode ini <b>{rupiah(data.ringkasan.potonganUangMakan)}</b> (gaji hariannya tetap dibayar).
         </p>
       )}
 
       {memuat && !adaData ? (
-        <p className="card flex items-center justify-center gap-2 py-8 text-sm text-slate-400"><Loader2 size={16} className="animate-spin" /> Memuat penghitung gajiâ€¦</p>
+        <p className="card flex items-center justify-center gap-2 py-8 text-sm text-slate-400"><Loader2 size={16} className="animate-spin" /> Memuat penghitung gaji…</p>
       ) : !adaData ? (
         <p className="card py-8 text-center text-xs text-slate-400">
-          Belum ada data pada filter ini â€” ubah periode/departemen lalu tekan Tampilkan.
+          Belum ada data pada filter ini — ubah periode/departemen lalu tekan Tampilkan.
         </p>
       ) : (
         <>
@@ -1617,7 +1619,7 @@ function Gaji() {
                   <th className="px-3 py-2.5">Karyawan</th>
                   <th className="px-2 py-2.5 text-center">Hari Dibayar</th>
                   <th className="px-2 py-2.5 text-center">Hari Makan</th>
-                  <th className="px-2 py-2.5 text-center" title="Hari Terlambat â€” gaji harian tetap dibayar, tetapi uang makan tidak diberikan">Telat âš ï¸</th>
+                  <th className="px-2 py-2.5 text-center" title="Hari Terlambat — gaji harian tetap dibayar, tetapi uang makan tidak diberikan">Telat ⚠️</th>
                   <th className="px-2 py-2.5 text-center">Lembur</th>
                   <th className="px-2 py-2.5 text-center">Gaji/hari</th>
                   <th className="px-2 py-2.5 text-center">Makan/hari</th>
@@ -1637,7 +1639,7 @@ function Gaji() {
                     </td>
                     <td className="px-2 py-2.5 text-center font-bold text-emerald-600 dark:text-emerald-400">{r.hariDibayar}</td>
                     <td className="px-2 py-2.5 text-center text-teal-600 dark:text-teal-400">{r.hariMakan}</td>
-                    <td className="px-2 py-2.5 text-center font-semibold text-amber-600 dark:text-amber-400" title={`${r.terlambat} hari terlambat â€” uang makan hangus ${rupiah(r.potonganUangMakan)}`}>
+                    <td className="px-2 py-2.5 text-center font-semibold text-amber-600 dark:text-amber-400" title={`${r.terlambat} hari terlambat — uang makan hangus ${rupiah(r.potonganUangMakan)}`}>
                       {r.terlambat}
                     </td>
                     <td className="px-2 py-2.5 text-center text-slate-500 dark:text-slate-400">{r.lembur}j</td>
@@ -1645,7 +1647,7 @@ function Gaji() {
                       <td key={kolom} className="px-2 py-2.5 text-center">
                         <input
                           type="number" min="0" inputMode="numeric"
-                          aria-label={`${label} â€” ${r.nama}`}
+                          aria-label={`${label} — ${r.nama}`}
                           value={r[kolom]}
                           onChange={(e) => ubahTarifLokal(r.id, kolom, e.target.value)}
                           onBlur={(e) => simpanTarif(r.id, kolom, e.target.value)}
@@ -1676,7 +1678,7 @@ function Gaji() {
               </tfoot>
             </table>
           </div>
-          <p className="mt-1 text-center text-[10px] font-semibold text-slate-400 sm:hidden">â† Geser tabel ke samping untuk melihat kolom lain â†’</p>
+          <p className="mt-1 text-center text-[10px] font-semibold text-slate-400 sm:hidden">← Geser tabel ke samping untuk melihat kolom lain →</p>
 
           {adaData && (
             <button onClick={eksporExcelGaji} disabled={ekspor} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 transition active:scale-95 disabled:opacity-40">
@@ -1685,11 +1687,11 @@ function Gaji() {
           )}
 
           <p className="mt-4 rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
-            ðŸ§¾ <b>Cara hitung:</b> <b>Hari Dibayar</b> = Hadir + Terlambat + Hadir Libur + Izin + Sakit + Cuti (pengajuan yang tidak ditolak; Alpha tidak dibayar).
-            <b> Hari Uang Makan</b> = hanya hari masuk <b>tepat waktu</b> (Hadir + Hadir Libur) â€” hari <b>Terlambat tidak dapat uang makan</b>.
-            <b> Lembur (Rp)</b> = total jam lembur <b>Disetujui</b> Ã— tarif lembur per jam.
-            Periode penggajian di atas yang muncul sebagai <b>slip gaji</b> di aplikasi karyawan (Profil â†’ Slip Gaji).
-            Ubah tarif langsung di tabel â€” tersimpan otomatis dan terpakai juga untuk periode berikutnya.
+            🧾 <b>Cara hitung:</b> <b>Hari Dibayar</b> = Hadir + Terlambat + Hadir Libur + Izin + Sakit + Cuti (pengajuan yang tidak ditolak; Alpha tidak dibayar).
+            <b> Hari Uang Makan</b> = hanya hari masuk <b>tepat waktu</b> (Hadir + Hadir Libur) — hari <b>Terlambat tidak dapat uang makan</b>.
+            <b> Lembur (Rp)</b> = total jam lembur <b>Disetujui</b> × tarif lembur per jam.
+            Periode penggajian di atas yang muncul sebagai <b>slip gaji</b> di aplikasi karyawan (Profil → Slip Gaji).
+            Ubah tarif langsung di tabel — tersimpan otomatis dan terpakai juga untuk periode berikutnya.
           </p>
         </>
       )}
@@ -1697,11 +1699,11 @@ function Gaji() {
   )
 }
 
-// Tab Laporan â€” rekap kehadiran per karyawan pada satu periode, lengkap dengan
+// Tab Laporan — rekap kehadiran per karyawan pada satu periode, lengkap dengan
 // export Excel bergaya modern (utils/laporan-excel.js, ExcelJS: sheet Ringkasan
 // + satu sheet per departemen) dan PDF (jsPDF + autoTable).
 
-// Satu baris tabel dari data karyawan (dipakai tabel PDF â€” % sebagai teks).
+// Satu baris tabel dari data karyawan (dipakai tabel PDF — % sebagai teks).
 function barisLaporan(r) {
   return [r.nama, r.nip, r.jabatan, r.departemen, r.hadir, r.terlambat, r.hadirLibur, r.izin, r.sakit, r.cuti, r.alpha, r.lembur, r.hariKerja, `${r.persen}%`]
 }
@@ -1744,7 +1746,7 @@ function Laporan() {
       : p >= 75 ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
         : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400'
 
-  // ---------- Export Excel (XLSX bergaya modern â€” ExcelJS) ----------
+  // ---------- Export Excel (XLSX bergaya modern — ExcelJS) ----------
   const eksporExcel = async () => {
     if (!adaData) return
     setEkspor('xlsx')
@@ -1752,7 +1754,7 @@ function Laporan() {
       // Pustaka exceljs dimuat di sini (bukan saat aplikasi dibuka) agar bundel awal ringan.
       const { ExcelJS } = await muatPustakaEkspor()
       const wb = await buatWorkbookLaporan(data, ExcelJS)
-      // Workbook ditulis ke ArrayBuffer â†’ Blob â†’ unduhBerkas (unduh peramban
+      // Workbook ditulis ke ArrayBuffer → Blob → unduhBerkas (unduh peramban
       // di web; berkas langsung ke folder Unduhan HP di aplikasi Android).
       const array = await wb.xlsx.writeBuffer()
       const hasil = await unduhBerkas({
@@ -1779,11 +1781,11 @@ function Laporan() {
       const { jsPDF, autoTable } = await muatPustakaEkspor()
       const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
       doc.setFontSize(14)
-      doc.text('Laporan Kehadiran Karyawan â€” NUBSEN', 40, 36)
+      doc.text('Laporan Kehadiran Karyawan — NUBSEN', 40, 36)
       doc.setFontSize(9)
       doc.setTextColor(90)
       const labelHari = (data.hariKerjaHari || []).map((n) => NAMA_HARI[n]).join('/')
-      doc.text(`Periode: ${formatTanggalPendek(data.dari)} s.d. ${formatTanggalPendek(data.sampai)}   â€¢   Hari kerja: ${data.hariKerja} hari${labelHari ? ` (${labelHari})` : ''}   â€¢   Departemen: ${data.departemen || 'Semua'}`, 40, 52)
+      doc.text(`Periode: ${formatTanggalPendek(data.dari)} s.d. ${formatTanggalPendek(data.sampai)}   •   Hari kerja: ${data.hariKerja} hari${labelHari ? ` (${labelHari})` : ''}   •   Departemen: ${data.departemen || 'Semua'}`, 40, 52)
 
       autoTable(doc, {
         startY: 66,
@@ -1803,7 +1805,7 @@ function Laporan() {
         headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: 'bold' },
       })
 
-      // doc.save() (triger klik <a download>) juga gagal di WebView Android â€”
+      // doc.save() (triger klik <a download>) juga gagal di WebView Android —
       // output sebagai Blob lalu lewat unduhBerkas yang sama dengan Excel.
       const hasil = await unduhBerkas({
         nama: namaBerkasLaporan(data, 'pdf'),
@@ -1821,17 +1823,17 @@ function Laporan() {
 
   const clsInput = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800'
   const kartu = [
-    ['ðŸ‘¥', data?.ringkasan?.totalKaryawan, 'Karyawan'],
-    ['ðŸ“…', data?.hariKerja, 'Hari Kerja'],
-    ['ðŸ“ˆ', data?.ringkasan?.persen != null ? `${data.ringkasan.persen}%` : null, 'Rata-rata Hadir'],
-    ['âœ…', data?.ringkasan?.hadir, 'Hadir'],
-    ['â°', data?.ringkasan?.terlambat, 'Terlambat'],
-    ['ðŸŒ´', data?.ringkasan?.hadirLibur, 'Hadir Libur'],
-    ['âŒ', data?.ringkasan?.alpha, 'Alpha'],
-    ['ðŸ“„', data?.ringkasan?.izin, 'Izin'],
-    ['ðŸ–ï¸', data?.ringkasan?.cuti, 'Cuti'],
-    ['ðŸ¤’', data?.ringkasan?.sakit, 'Sakit'],
-    ['â±ï¸', data?.ringkasan?.lembur, 'Jam Lembur'],
+    ['👥', data?.ringkasan?.totalKaryawan, 'Karyawan'],
+    ['📅', data?.hariKerja, 'Hari Kerja'],
+    ['📈', data?.ringkasan?.persen != null ? `${data.ringkasan.persen}%` : null, 'Rata-rata Hadir'],
+    ['✅', data?.ringkasan?.hadir, 'Hadir'],
+    ['⏰', data?.ringkasan?.terlambat, 'Terlambat'],
+    ['🌴', data?.ringkasan?.hadirLibur, 'Hadir Libur'],
+    ['❌', data?.ringkasan?.alpha, 'Alpha'],
+    ['📄', data?.ringkasan?.izin, 'Izin'],
+    ['🏖️', data?.ringkasan?.cuti, 'Cuti'],
+    ['🤒', data?.ringkasan?.sakit, 'Sakit'],
+    ['⏱️', data?.ringkasan?.lembur, 'Jam Lembur'],
   ]
 
   return (
@@ -1868,7 +1870,7 @@ function Laporan() {
           {kartu.map(([emoji, angka, label]) => (
             <div key={label} className="card p-2.5 text-center">
               <p className="text-base leading-none">{emoji}</p>
-              <p className="mt-1 text-sm font-extrabold leading-none">{angka ?? 'â€”'}</p>
+              <p className="mt-1 text-sm font-extrabold leading-none">{angka ?? '—'}</p>
               <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
             </div>
           ))}
@@ -1889,10 +1891,10 @@ function Laporan() {
 
       {/* Tabel rekap per karyawan */}
       {memuat && !adaData ? (
-        <p className="card flex items-center justify-center gap-2 py-8 text-sm text-slate-400"><Loader2 size={16} className="animate-spin" /> Memuat laporanâ€¦</p>
+        <p className="card flex items-center justify-center gap-2 py-8 text-sm text-slate-400"><Loader2 size={16} className="animate-spin" /> Memuat laporan…</p>
       ) : !adaData ? (
         <p className="card py-8 text-center text-xs text-slate-400">
-          Belum ada data pada filter ini â€” ubah periode/departemen lalu tekan Tampilkan Laporan.
+          Belum ada data pada filter ini — ubah periode/departemen lalu tekan Tampilkan Laporan.
         </p>
       ) : (
         <div className="card tabel-geser p-0">
@@ -1917,7 +1919,7 @@ function Laporan() {
                 <tr key={r.id} className="border-b border-slate-50 last:border-0 dark:border-slate-800/60">
                   <td className="px-3 py-2.5">
                     <p className="font-bold text-slate-700 dark:text-slate-200">{r.nama}</p>
-                    <p className="text-[10px] text-slate-400">{r.nip} â€¢ {r.jabatan}</p>
+                    <p className="text-[10px] text-slate-400">{r.nip} • {r.jabatan}</p>
                   </td>
                   <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400">{r.departemen}</td>
                   <td className="px-2 py-2.5 text-center font-bold text-emerald-600 dark:text-emerald-400">{r.hadir}</td>
@@ -1939,14 +1941,14 @@ function Laporan() {
       )}
 
       {adaData && (
-        <p className="text-center text-[10px] font-semibold text-slate-400 sm:hidden">â† Geser tabel ke samping untuk melihat kolom lain â†’</p>
+        <p className="text-center text-[10px] font-semibold text-slate-400 sm:hidden">← Geser tabel ke samping untuk melihat kolom lain →</p>
       )}
 
       <p className="rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
-        ðŸ“Š <b>Cara hitung:</b> Hari kerja mengikuti pengaturan <b>Hari Kerja</b> di tab Jadwal (contoh Seninâ€“Jumat) pada rentang terpilih.
-        <b> % Kehadiran</b> = (Hadir + Terlambat) Ã· Hari Kerja. Absensi di luar hari kerja tercatat pada kolom <b>Hadir Libur</b> dan
+        📊 <b>Cara hitung:</b> Hari kerja mengikuti pengaturan <b>Hari Kerja</b> di tab Jadwal (contoh Senin–Jumat) pada rentang terpilih.
+        <b> % Kehadiran</b> = (Hadir + Terlambat) ÷ Hari Kerja. Absensi di luar hari kerja tercatat pada kolom <b>Hadir Libur</b> dan
         tidak menambah persentase. Izin/Sakit/Cuti dihitung dari pengajuan yang tidak ditolak (hari tumpang-tindih periode); lembur dari pengajuan yang
-        <b> Disetujui</b>. Alpha = hari kerja âˆ’ masuk âˆ’ izin. Excel berisi sheet <b>Ringkasan</b> + satu sheet per departemen.
+        <b> Disetujui</b>. Alpha = hari kerja − masuk − izin. Excel berisi sheet <b>Ringkasan</b> + satu sheet per departemen.
       </p>
     </div>
   )
