@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search, Wallet, CalendarRange, Paperclip, Camera, FileWarning } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search, Wallet, CalendarRange, Paperclip, Camera, FileWarning, BarChart3, Building2 } from 'lucide-react'
 import { muatPustakaEkspor } from '../utils/ekspor'
 import { buatWorkbookLaporan, buatWorkbookGaji, KOLOM_LAPORAN } from '../utils/laporan-excel'
 import { MIME } from '../utils/berkas'
@@ -227,9 +227,78 @@ function KelolaJadwal() {
         kehadiran (Laporan) — pilih <b>Sen–Sab</b> bila perusahaan bekerja enam hari.
       </p>
 
+      {/* Identitas perusahaan — dipakai KOP surat peringatan/pemecatan */}
+      <IdentitasPerusahaan />
+
       {/* Hari libur: nasional/cuti bersama (prefill resmi) + khusus yang ditetapkan admin */}
       <KartuHariLibur />
     </div>
+  )
+}
+
+// ---------- Identitas Perusahaan (tab Jadwal) ----------
+// Nama & alamat perusahaan dipakai pada KOP surat peringatan/pemecatan yang
+// diterbitkan sistem dan diunduh karyawan sebagai PDF.
+function IdentitasPerusahaan() {
+  const [form, setForm] = useState({ nama: '', alamat: '' })
+  const [proses, setProses] = useState(false)
+  const [pesan, setPesan] = useState(null)
+
+  useEffect(() => {
+    api.adminPerusahaan().then((p) => setForm({ nama: p?.nama || '', alamat: p?.alamat || '' })).catch(() => {})
+  }, [])
+
+  const simpan = async (e) => {
+    e.preventDefault()
+    setProses(true)
+    try {
+      const hasil = await api.adminUpdatePerusahaan(form.nama.trim(), form.alamat.trim())
+      setForm({ nama: hasil?.nama || form.nama, alamat: hasil?.alamat || form.alamat })
+      setPesan({ ok: true, teks: 'Identitas perusahaan tersimpan — dipakai pada KOP surat resmi.' })
+    } catch (err) {
+      setPesan({ ok: false, teks: err.message })
+    } finally {
+      setProses(false)
+    }
+  }
+
+  const siap = form.nama.trim().length >= 2
+  return (
+    <form onSubmit={simpan} className="card space-y-3">
+      <BannerPesan pesan={pesan} />
+      <div>
+        <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+          <Building2 size={15} className="text-indigo-500" /> Identitas Perusahaan
+        </h3>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">
+          Tercetak pada KOP surat peringatan/pemecatan yang diterbitkan & diunduh karyawan.
+        </p>
+      </div>
+      <div>
+        <label className="label">Nama Perusahaan</label>
+        <input
+          className="input !px-3"
+          placeholder="PT Nubsen Indonesia"
+          value={form.nama}
+          maxLength={80}
+          onChange={(e) => setForm((f) => ({ ...f, nama: e.target.value }))}
+          required
+        />
+      </div>
+      <div>
+        <label className="label">Alamat Perusahaan</label>
+        <input
+          className="input !px-3"
+          placeholder="Kelapa Gading, Jakarta Utara"
+          value={form.alamat}
+          maxLength={140}
+          onChange={(e) => setForm((f) => ({ ...f, alamat: e.target.value }))}
+        />
+      </div>
+      <button type="submit" disabled={!siap || proses} className="btn-primary w-full disabled:opacity-40">
+        {proses ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Simpan Identitas
+      </button>
+    </form>
   )
 }
 
@@ -492,6 +561,7 @@ function KelolaPeringatan() {
                     </span>
                     <p className="truncate text-sm font-bold">{s.nama}</p>
                   </div>
+                  <p className="mt-0.5 font-mono text-[10px] text-slate-400">{s.nomor || '—'}</p>
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                     {formatTanggalPendek(s.tanggal)}
                   </p>
@@ -516,8 +586,10 @@ function KelolaPeringatan() {
 
 function Ringkasan() {
   const [d, setD] = useState(null)
+  const [tren, setTren] = useState(null)
   useEffect(() => {
     api.adminRingkasan().then(setD).catch(() => {})
+    api.adminTren().then(setTren).catch(() => {})
   }, [])
   const kartu = [
     ['👥', d?.totalKaryawan, 'Total Karyawan'],
@@ -525,6 +597,9 @@ function Ringkasan() {
     ['📄', d?.izinMenunggu, 'Izin Menunggu'],
     ['⏱️', d?.lemburMenunggu, 'Lembur Menunggu'],
   ]
+  // Grafik tren 7 hari: batang bertumpuk (hijau=masuk, biru=izin, merah=alpha).
+  const totalRef = Math.max(1, tren?.totalKaryawan || 1)
+  const hariPendek = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
   return (
     <div className="animate-fade-in">
       <div className="grid grid-cols-2 gap-3">
@@ -536,9 +611,48 @@ function Ringkasan() {
           </div>
         ))}
       </div>
+
+      {/* Tren kehadiran 7 hari — batang bertumpuk per hari */}
+      <div className="card mt-3">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+            <BarChart3 size={16} className="text-indigo-500" /> Tren Kehadiran 7 Hari
+          </h2>
+          <div className="flex items-center gap-2 text-[10px] font-semibold text-slate-400">
+            <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-emerald-500" /> Masuk</span>
+            <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-sky-500" /> Izin</span>
+            <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-rose-500" /> Alpha</span>
+          </div>
+        </div>
+        {!tren ? (
+          <p className="py-10 text-center text-xs text-slate-400">Memuat grafik…</p>
+        ) : (
+          <div className="flex h-32 items-end gap-1.5 sm:gap-2">
+            {(tren.baris || []).map((b) => {
+              const tanggal = new Date(`${b.tanggal}T00:00:00`)
+              const tinggi = (n) => `${Math.min(100, (n / totalRef) * 100)}%`
+              return (
+                <div key={b.tanggal} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+                  <div className="flex h-28 w-full flex-col justify-end overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+                    {b.alpha > 0 && <div style={{ height: tinggi(b.alpha) }} className="w-full bg-rose-500" title={`Alpha ${b.alpha}`} />}
+                    {b.izin > 0 && <div style={{ height: tinggi(b.izin) }} className="w-full bg-sky-500" title={`Izin ${b.izin}`} />}
+                    {b.masuk > 0 && <div style={{ height: tinggi(b.masuk) }} className="w-full bg-emerald-500" title={`Masuk ${b.masuk}`} />}
+                  </div>
+                  <span className="text-[9px] font-bold text-slate-400">{hariPendek[tanggal.getDay()]}</span>
+                  <span className="text-[9px] text-slate-300 dark:text-slate-500">{String(tanggal.getDate()).padStart(2, '0')}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        <p className="mt-2 text-center text-[10px] text-slate-400">
+          {tren?.totalKaryawan ?? '—'} karyawan • hari libur & hari ini (belum pulang) tidak dihitung alpha
+        </p>
+      </div>
+
       <p className="mt-4 rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
         💡 Tab <b>Karyawan</b> untuk tambah/edit/hapus akun (termasuk reset PIN), <b>Absensi</b> untuk koreksi manual,
-        <b> Izin & Lembur</b> untuk persetujuan, dan <b>Notifikasi</b> untuk mengirim pengumuman ke semua karyawan.
+        <b> Izin & Lembur</b> untuk persetujuan, <b>Peringatan</b> untuk surat SP/pemecatan, dan <b>Notifikasi</b> untuk mengirim pengumuman ke semua karyawan.
       </p>
     </div>
   )

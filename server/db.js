@@ -141,6 +141,8 @@ const KOLOM_TAMBAHAN = [
   ['overtime', "alasan_tolak TEXT DEFAULT ''"],
   // Status kepegawaian (Karyawan Tetap / Karyawan Kontrak) pada form Karyawan.
   ['employees', "status_karyawan TEXT DEFAULT 'Karyawan Tetap'"],
+  // Nomor surat resmi pada surat peringatan & pemecatan.
+  ['warnings', 'nomor TEXT'],
 ]
 
 let janjiInit = null
@@ -265,6 +267,15 @@ export async function getJadwal() {
     jamMasukBatas: await getSetting('jamMasukBatas', JAM_MASUK_BATAS),
     jamPulang: await getSetting('jamPulang', JAM_PULANG_DEFAULT),
     hariKerja: await hariKerjaAktif(),
+  }
+}
+
+// Identitas perusahaan — dipakai KOP surat peringatan/pemecatan & dokumen lain.
+// Diubah admin (Panel → Jadwal → Identitas Perusahaan).
+export async function getPerusahaan() {
+  return {
+    nama: await getSetting('perusahaanNama', 'PT Nubsen Indonesia'),
+    alamat: await getSetting('perusahaanAlamat', 'Kelapa Gading, Jakarta Utara'),
   }
 }
 

@@ -319,6 +319,7 @@ function peringatanToClient(s, nama = null) {
   return {
     id: s.id, employeeId: s.employee_id, nama: nama || null,
     jenis: s.jenis, label: LABEL_PERINGATAN[s.jenis] || s.jenis,
+    nomor: s.nomor || '',
     tanggal: s.tanggal, alasan: s.alasan || '', dibuat: s.created_at || null,
   }
 }
@@ -355,16 +356,26 @@ export async function buatPeringatan({ employeeId, jenis, tanggal, alasan = '' }
   }
   const karyawan = await db.get('SELECT id, nama FROM employees WHERE id = ?', [Number(employeeId)])
   if (!karyawan) return { error: 'Karyawan tidak ditemukan.' }
+  // Nomor surat resmi otomatis: urut per jenis per tahun, format
+  // 001/SP-HRD/IX/2026 (SP) atau 001/PHK-HRD/IX/2026 (pemecatan).
+  const tahun = String(tanggal).slice(0, 4)
+  const jumlah = (await db.get(
+    'SELECT COUNT(*) AS n FROM warnings WHERE jenis = ? AND substr(tanggal, 1, 4) = ?',
+    [jenis, tahun],
+  ))?.n ?? 0
+  const ROMAWI = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+  const kode = jenis === 'Pemecatan' ? 'PHK-HRD' : 'SP-HRD'
+  const nomor = `${String(jumlah + 1).padStart(3, '0')}/${kode}/${ROMAWI[Number(String(tanggal).slice(5, 7)) - 1] || 'I'}/${tahun}`
   const info = await db.run(
-    'INSERT INTO warnings (employee_id, jenis, tanggal, alasan) VALUES (?, ?, ?, ?)',
-    [karyawan.id, jenis, tanggal, teks],
+    'INSERT INTO warnings (employee_id, jenis, nomor, tanggal, alasan) VALUES (?, ?, ?, ?, ?)',
+    [karyawan.id, jenis, nomor, tanggal, teks],
   )
   const label = LABEL_PERINGATAN[jenis]
   await kirimNotifikasi({
     employeeId: karyawan.id,
     judul: jenis === 'Pemecatan' ? '🚫 Surat Pemecatan diterbitkan' : `⚠️ ${label} diterbitkan`,
     pesan:
-      `Kamu menerima ${label.toLowerCase()} per ${tanggal}. Alasan: ${teks}.` +
+      `Nomor ${nomor} — kamu menerima ${label.toLowerCase()} per ${tanggal}. Alasan: ${teks}.` +
       (jenis === 'Pemecatan'
         ? ' Hubungi HRD segera untuk proses penyelesaian.'
         : ' Segera perbaiki — surat berikutnya berakibat lebih berat.'),
@@ -914,6 +925,41 @@ export async function ringkasanAdmin() {
     izinMenunggu: await satu(`SELECT COUNT(*) AS n FROM leaves WHERE status = 'Menunggu'`),
     lemburMenunggu: await satu(`SELECT COUNT(*) AS n FROM overtime WHERE status = 'Menunggu'`),
   }
+}
+
+// Tren kehadiran N hari terakhir (default 7) untuk grafik Ringkasan admin:
+// per hari = jumlah masuk (Hadir+Terlambat), izin (cuti/izin berjalan), dan
+// alpha (hari kerja yang terlewat — dihitung seperti pada riwayat karyawan).
+export async function trenKehadiran(hari = 7) {
+  const hariIni = toISODate()
+  const mulai = new Date(`${hariIni}T00:00:00Z`)
+  mulai.setUTCDate(mulai.getUTCDate() - (Math.max(1, Number(hari) || 7) - 1))
+  const t0 = toISODate(mulai)
+  const aktif = new Set(await hariKerjaAktif())
+  const liburSet = await setTanggalLibur(t0, hariIni)
+  const { jamPulang } = await getJadwal()
+  const totalKaryawan = (await db.get('SELECT COUNT(*) AS n FROM employees'))?.n ?? 0
+  const att = await db.all(
+    'SELECT tanggal, status, COALESCE(hari_libur, 0) AS hari_libur FROM attendance WHERE tanggal >= ? AND tanggal <= ?',
+    [t0, hariIni],
+  )
+  const leaves = await db.all(
+    "SELECT mulai, selesai FROM leaves WHERE status <> 'Ditolak' AND mulai <= ? AND selesai >= ?",
+    [hariIni, t0],
+  )
+  const baris = []
+  for (const d = new Date(`${t0}T00:00:00Z`); toISODate(d) <= hariIni; d.setUTCDate(d.getUTCDate() + 1)) {
+    const tanggal = toISODate(d)
+    const hariKerja = aktif.has(d.getUTCDay()) && !liburSet.has(tanggal)
+    const masuk = att.filter((r) => r.tanggal === tanggal && ['Hadir', 'Terlambat'].includes(r.status) && !r.hari_libur).length
+    const izinAbsen = att.filter((r) => r.tanggal === tanggal && r.status === 'Izin').length
+    const izinSurat = leaves.filter((l) => l.mulai <= tanggal && tanggal <= l.selesai).length
+    const izin = Math.max(izinAbsen, izinSurat)
+    const sudahLewat = tanggal < hariIni || (tanggal === hariIni && jamSekarang() >= jamPulang)
+    const alpha = hariKerja && sudahLewat ? Math.max(0, totalKaryawan - masuk - izin) : 0
+    baris.push({ tanggal, masuk, izin, alpha, hariKerja })
+  }
+  return { dari: t0, sampai: hariIni, totalKaryawan, baris }
 }
 
 // ---------- Absensi karyawan ----------

@@ -1,7 +1,8 @@
 import { Router } from 'express'
-import { getJadwal, setSetting } from '../db.js'
+import { getJadwal, setSetting, getPerusahaan } from '../db.js'
 import {
   ringkasanAdmin,
+  trenKehadiran,
   listKaryawan, buatKaryawan, ubahKaryawan, hapusKaryawan,
   listSemuaAbsensi, ubahAbsensi, hapusAbsensi, fotoAbsensi,
   listSemuaIzin, setStatusIzin, hapusIzin, lampiranIzin,
@@ -35,6 +36,30 @@ const router = Router()
 // GET /api/admin/overview — ringkasan angka untuk dasbor admin
 router.get('/overview', wrap(async (_req, res) => {
   res.json({ data: await ringkasanAdmin() })
+}))
+
+// ---------- Identitas perusahaan (KOP surat peringatan/pemecatan) ----------
+router.get('/perusahaan', wrap(async (_req, res) => {
+  res.json({ data: await getPerusahaan() })
+}))
+
+router.put('/perusahaan', wrap(async (req, res) => {
+  const nama = String(req.body?.nama || '').trim()
+  const alamat = String(req.body?.alamat || '').trim()
+  if (nama.length < 2 || nama.length > 80) {
+    return res.status(400).json({ error: 'Nama perusahaan wajib 2–80 karakter.' })
+  }
+  if (alamat.length > 140) {
+    return res.status(400).json({ error: 'Alamat perusahaan maksimal 140 karakter.' })
+  }
+  await setSetting('perusahaanNama', nama)
+  if (alamat) await setSetting('perusahaanAlamat', alamat)
+  res.json({ data: await getPerusahaan() })
+}))
+
+// ---------- Tren kehadiran 7 hari terakhir (grafik Ringkasan) ----------
+router.get('/tren', wrap(async (_req, res) => {
+  res.json({ data: await trenKehadiran(7) })
 }))
 
 // ---------- Jadwal kerja ----------

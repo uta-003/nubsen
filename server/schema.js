@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS warnings (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   employee_id INTEGER NOT NULL,
   jenis       TEXT NOT NULL,            -- 'SP1' | 'SP2' | 'SP3' | 'Pemecatan'
+  nomor       TEXT,                     -- nomor surat resmi (001/SP-HRD/IX/2026)
   tanggal     TEXT NOT NULL,            -- tanggal surat (YYYY-MM-DD)
   alasan      TEXT DEFAULT '',
   created_at  TEXT DEFAULT (datetime('now'))

@@ -354,6 +354,23 @@ for (const s of (await req(`/api/admin/peringatan?employeeId=${idUji}`, { token:
 cek('profil bersih setelah surat dicabut', ((await req('/api/profile', { token: tUji })).data?.peringatan || []).length === 0)
 cek('hapus surat yang tak ada → 404', (await req('/api/admin/peringatan/999999', { method: 'DELETE', token: tA })).status === 404)
 
+// ---- 5i. Identitas perusahaan (KOP surat), nomor surat & tren 7 hari ----
+const perusahaan0 = await req('/api/admin/perusahaan', { token: tA })
+cek('perusahaan: identitas default tersedia', perusahaan0.status === 200 && String(perusahaan0.data?.nama || '').length >= 2, JSON.stringify(perusahaan0.data))
+cek('perusahaan: nama terlalu pendek → 400', (await req('/api/admin/perusahaan', { method: 'PUT', token: tA, body: { nama: 'P' } })).status === 400)
+const perusahaanPut = await req('/api/admin/perusahaan', { method: 'PUT', token: tA, body: { nama: 'PT Uji Sejahtera', alamat: 'Jl. Uji No. 1, Jakarta' } })
+cek('perusahaan: simpan identitas', perusahaanPut.status === 200 && perusahaanPut.data?.nama === 'PT Uji Sejahtera', JSON.stringify(perusahaanPut.data || {}))
+cek('profil memuat identitas perusahaan (kop surat)', ((await req('/api/profile', { token: tUji })).data?.perusahaan?.nama) === 'PT Uji Sejahtera')
+const spNomor = await req('/api/admin/peringatan', { method: 'POST', token: tA, body: { employeeId: idUji, jenis: 'SP2', tanggal: hariIniUji, alasan: 'Uji penomoran surat resmi' } })
+cek('nomor surat otomatis berformat resmi', spNomor.status === 201 && /^\d{3}\/SP-HRD\/[IVX]+\/\d{4}$/.test(spNomor.data?.nomor || ''), spNomor.data?.nomor)
+cek('notifikasi memuat nomor surat', (await req('/api/notifications', { token: tUji })).data.items.some((n) => (n.pesan || '').includes(spNomor.data?.nomor || '@')))
+await req(`/api/admin/peringatan/${spNomor.data?.id}`, { method: 'DELETE', token: tA })
+// Identitas demo dipulihkan agar data contoh tetap rapi.
+await req('/api/admin/perusahaan', { method: 'PUT', token: tA, body: { nama: perusahaan0.data?.nama || 'PT Nubsen Indonesia', alamat: perusahaan0.data?.alamat || 'Kelapa Gading, Jakarta Utara' } })
+const tren = await req('/api/admin/tren', { token: tA })
+cek('tren kehadiran 7 hari', tren.status === 200 && (tren.data?.baris || []).length === 7, `${(tren.data?.baris || []).length} hari • total=${tren.data?.totalKaryawan}`)
+cek('tren menentukan hari kerja & hari libur', (tren.data?.baris || []).every((b) => typeof b.masuk === 'number' && typeof b.alpha === 'number' && typeof b.hariKerja === 'boolean'))
+
 // ---- 6. Absensi: check-in karyawan + koreksi & hapus oleh admin ----
 const hariIni = hariIniUji
 // Bersihkan catatan absensi hari ini agar uji bisa diulang berkali-kali.

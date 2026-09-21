@@ -143,6 +143,17 @@ export function adminHapusPeringatan(id) {
   return request(`/api/admin/peringatan/${id}`, { method: 'DELETE' })
 }
 
+// ---------- Identitas perusahaan (KOP surat) & tren kehadiran ----------
+export function adminPerusahaan() {
+  return request('/api/admin/perusahaan')
+}
+export function adminUpdatePerusahaan(nama, alamat) {
+  return request('/api/admin/perusahaan', { method: 'PUT', body: { nama, alamat } })
+}
+export function adminTren() {
+  return request('/api/admin/tren')
+}
+
 export async function getToday() {
   return mapRecord(await request('/api/attendance/today'))
 }

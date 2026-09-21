@@ -4,6 +4,7 @@ import { USER_DEFAULT } from '../hooks/useAbsensi'
 import * as api from '../api'
 import Bantuan from './Bantuan'
 import SlipGaji from './SlipGaji'
+import SuratKertas from './SuratKertas'
 
 export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }) {
   const [bantuanOpen, setBantuanOpen] = useState(false)
@@ -156,33 +157,11 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
             <BadgeCheck size={14} /> Bersih — tidak ada surat peringatan. Pertahankan!
           </p>
         ) : (
-          <ul className="space-y-2">
-            {user.peringatan.map((s) => {
-              const surat = s.jenis === 'Pemecatan'
-              const kelas = surat
-                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                : s.jenis === 'SP3' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300'
-                : s.jenis === 'SP2' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
-              return (
-                <li key={s.id} className={`rounded-2xl p-3 ${surat ? 'bg-rose-50 dark:bg-rose-500/10' : 'bg-slate-50 dark:bg-slate-800'}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${kelas}`}>
-                      {s.label || s.jenis}
-                    </span>
-                    <span className="shrink-0 font-mono text-[11px] font-semibold text-slate-500 dark:text-slate-300">
-                      {s.tanggal}
-                    </span>
-                  </div>
-                  {s.alasan && (
-                    <p className={`mt-1.5 text-xs leading-relaxed ${surat ? 'font-semibold text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}>
-                      💬 {s.alasan}
-                    </p>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+          <div className="space-y-3">
+            {user.peringatan.map((s) => (
+              <SuratKertas key={s.id} surat={s} user={user} perusahaan={user.perusahaan} toast={toast} />
+            ))}
+          </div>
         )}
       </div>
 

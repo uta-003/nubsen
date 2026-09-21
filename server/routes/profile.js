@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getEmployee, ubahPin, listPeringatan } from '../models.js'
+import { getPerusahaan } from '../db.js'
 import { wrap } from '../utils/wrap.js'
 
 const router = Router()
@@ -10,6 +11,8 @@ router.get('/', wrap(async (req, res) => {
   if (!karyawan) return res.status(404).json({ error: 'Data karyawan tidak ditemukan.' })
   // Surat peringatan (SP1–SP3) & pemecatan — tampil pada kartu Profil.
   karyawan.peringatan = await listPeringatan(req.employeeId)
+  // Identitas perusahaan untuk KOP surat resmi (nama & alamat diatur admin).
+  karyawan.perusahaan = await getPerusahaan()
   res.json({ data: karyawan })
 }))
 
