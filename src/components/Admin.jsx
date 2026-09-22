@@ -5,7 +5,7 @@ import { buatWorkbookLaporan, buatWorkbookGaji, KOLOM_LAPORAN } from '../utils/l
 import { MIME } from '../utils/berkas'
 import { unduhBerkas, pesanHasilUnduh } from '../utils/unduh'
 import * as api from '../api'
-import { formatTanggalPendek, toISODate } from '../utils/date'
+import { formatTanggalPendek, formatWaktuLengkap, toISODate } from '../utils/date'
 import ModalTolak from './ModalTolak'
 import PratinjauLampiran from './PratinjauLampiran'
 import GrafikTren from './GrafikTren'
@@ -827,8 +827,14 @@ function KelolaPeringatan() {
                   </div>
                   <p className="mt-0.5 font-mono text-[10px] text-slate-400">{s.nomor || '—'}</p>
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    {formatTanggalPendek(s.tanggal)}
+                    Tanggal surat: {formatTanggalPendek(s.tanggal)}
                   </p>
+                  {/* Kapan surat benar-benar diterbitkan (konversi UTC → jam lokal). */}
+                  {s.dibuat && (
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-indigo-500 dark:text-indigo-300">
+                      <Clock size={11} /> Diterbitkan: {formatWaktuLengkap(s.dibuat)}
+                    </p>
+                  )}
                   {s.alasan && <p className="mt-1 text-xs leading-relaxed text-slate-400">💬 {s.alasan}</p>}
                 </div>
                 <button
@@ -2464,7 +2470,7 @@ function RiwayatPeringatan() {
                     )}
                     <p className="mt-1.5 text-[10px] font-semibold text-slate-400">
                       {terbit ? 'Diterbitkan' : 'Dicabut'} oleh {r.oleh}
-                      {r.dibuat ? ` • ${r.dibuat}` : ''}
+                      {r.dibuat ? ` • ${formatWaktuLengkap(r.dibuat)}` : ''}
                     </p>
                   </div>
                 </div>

@@ -19,6 +19,23 @@ export function formatTanggalPendek(iso) {
   return `${d.getDate()} ${bulanIndo[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`
 }
 
+// Waktu lengkap "22 Sep 2026 • 14.35" dari stempel waktu SQLite.
+// datetime('now') SQLite menyimpan UTC ("YYYY-MM-DD HH:MM:SS") TANPA zona —
+// kalau ditampilkan mentah, jamnya tertinggal 7 jam di WIB. Di sini
+// ditandai 'Z' (UTC) lalu dikonversi ke zona waktu perangkat.
+// Format tanggal polos (YYYY-MM-DD) juga diterima — tanpa komponen jam.
+export function formatWaktuLengkap(iso) {
+  if (!iso) return ''
+  // Tanggal polos (YYYY-MM-DD, tanpa jam) → tampilkan tanggalnya saja.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatTanggalPendek(iso)
+  const polaUTC = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/
+  const d = polaUTC.test(iso) ? new Date(iso.replace(' ', 'T') + 'Z') : new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const p = (n) => String(n).padStart(2, '0')
+  const jam = `${p(d.getHours())}.${p(d.getMinutes())}`
+  return `${d.getDate()} ${bulanIndo[d.getMonth()].slice(0, 3)} ${d.getFullYear()} • ${jam}`
+}
+
 // Tanggal ISO 'YYYY-MM-DD' berbasis WAKTU LOKAL perangkat.
 // Catatan: date.toISOString() memakai UTC, sehingga di WIB (UTC+7) pukul
 // 00:00–06:59 tanggalnya tergeser ke hari sebelumnya (mis. pegawai check-in
