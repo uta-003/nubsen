@@ -28,6 +28,7 @@ export default function SuratKertas({ surat, user, perusahaan, toast }) {
     setMengunduh(true)
     try {
       const { jsPDF } = await import('jspdf')
+      // Font serif resmi (Times-Roman bawaan jsPDF) — tampilan surat dinas formal.
       const doc = new jsPDF({ unit: 'mm', format: 'a4' })
       const K = 20 // margin (mm), lebar area teks 170
       let y = 18
@@ -87,7 +88,12 @@ export default function SuratKertas({ surat, user, perusahaan, toast }) {
   const suratPemecatan = jenis === 'Pemecatan'
   return (
     <div className={`overflow-hidden rounded-2xl border shadow-sm ${suratPemecatan ? 'border-rose-300 dark:border-rose-500/40' : 'border-slate-200 dark:border-slate-700'}`}>
-      <div className="relative bg-white px-5 py-4 font-serif text-[12.5px] leading-relaxed text-slate-800 dark:bg-slate-50">
+      {/* Kertas surat: serif klasik (Georgia/Times) — standar surat dinas resmi,
+          jauh lebih formal & tegas dibanding font UI aplikasi. */}
+      <div
+        className="relative bg-white px-5 py-4 text-[12.5px] leading-relaxed text-slate-800 dark:bg-slate-50"
+        style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
+      >
         {/* Stempel dekoratif */}
         <span
           aria-hidden
@@ -97,14 +103,14 @@ export default function SuratKertas({ surat, user, perusahaan, toast }) {
         </span>
         {/* KOP surat */}
         <div className="border-b-4 border-double border-slate-800 pb-2 text-center dark:border-slate-600">
-          <p className="text-[13px] font-bold uppercase tracking-wide">{nama.toUpperCase()}</p>
+          <p className="text-[14px] font-bold uppercase tracking-wide">{nama.toUpperCase()}</p>
           <p className="text-[10.5px] text-slate-500">{alamat}</p>
         </div>
         {/* Kota & tanggal */}
         <p className="mt-3 text-right">{kota}, {tanggalIndo}</p>
-        {/* Nomor / Lampiran / Perihal */}
+        {/* Nomor / Lampiran / Perihal — label rata agar rapi seperti surat dinas */}
         <div className="mt-2 space-y-0.5">
-          <p><span className="inline-block w-20">Nomor</span>: {surat.nomor || '-'}</p>
+          <p><span className="inline-block w-20">Nomor</span>: <span className="font-semibold">{surat.nomor || '-'}</span></p>
           <p><span className="inline-block w-20">Lampiran</span>: -</p>
           <p className="font-bold"><span className="inline-block w-20">Perihal</span>: {perihal}</p>
         </div>

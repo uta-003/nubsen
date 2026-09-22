@@ -393,10 +393,12 @@ async function namaAdmin(olehId) {
 }
 
 // ===== Penomoran otomatis surat =====
-// Format resmi: 001/SP-HRD/IX/2026 (SP) atau 001/PHK-HRD/IX/2026 (pemecatan).
+// Format resmi: 001/SP1-HRD/IX/2026 — kode mengikuti JENIS surat:
+//   SP1 → SP1-HRD, SP2 → SP2-HRD, SP3 → SP3-HRD, Pemecatan → PHK-HRD.
 // Urutan dihitung per jenis per tahun (terbanyak antara surat aktif dan riwayat,
 // agar nomor tak pernah terpakai ulang), bulan romawi & tahun dari tanggal surat.
 const ROMAWI_BULAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+const KODE_SURAT = { SP1: 'SP1-HRD', SP2: 'SP2-HRD', SP3: 'SP3-HRD', Pemecatan: 'PHK-HRD' }
 
 export async function buatNomorSurat(jenis, tanggal) {
   const tahun = String(tanggal).slice(0, 4)
@@ -410,8 +412,7 @@ export async function buatNomorSurat(jenis, tanggal) {
     [jenis, tahun],
   ))?.n ?? 0
   const urut = String(Math.max(Number(dariSurat) || 0, Number(dariRiwayat) || 0) + 1).padStart(3, '0')
-  const kode = jenis === 'Pemecatan' ? 'PHK-HRD' : 'SP-HRD'
-  return `${urut}/${kode}/${bulan}/${tahun}`
+  return `${urut}/${KODE_SURAT[jenis] || 'SP-HRD'}/${bulan}/${tahun}`
 }
 
 // Lengkapi nomor surat lama yang terbit sebelum fitur penomoran ada
@@ -446,8 +447,7 @@ export async function lengkapiNomorSuratLama() {
       )
       if (seq > 0) {
         const ROMAWI = ROMAWI_BULAN[Number(String(s.tanggal).slice(5, 7)) - 1] || 'I'
-        const kode = s.jenis === 'Pemecatan' ? 'PHK-HRD' : 'SP-HRD'
-        nomor = `${String(seq).padStart(3, '0')}/${kode}/${ROMAWI}/${String(s.tanggal).slice(0, 4)}`
+        nomor = `${String(seq).padStart(3, '0')}/${KODE_SURAT[s.jenis] || 'SP-HRD'}/${ROMAWI}/${String(s.tanggal).slice(0, 4)}`
       }
     }
     if (!nomor) nomor = await buatNomorSurat(s.jenis, s.tanggal)
