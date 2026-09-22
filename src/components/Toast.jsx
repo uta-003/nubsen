@@ -21,10 +21,13 @@ export default function Toast({ toast, onClose }) {
   const { bg, Icon } = GAYA[toast.type] || GAYA.success
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[max(env(safe-area-inset-top),1rem)] z-50 mx-auto max-w-md px-4">
-      <div className={`pointer-events-auto flex items-center gap-2.5 rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-xl animate-slide-up ${bg}`}>
-        <Icon size={18} />
+      {/* Toast kaca gelap: ikon berwarna dalam kapsul kaca — kontras di tema terang/gelap */}
+      <div className="pointer-events-auto flex items-center gap-3 rounded-[1.25rem] border border-white/15 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-xl animate-slide-up dark:bg-slate-800/90">
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${bg} shadow-lg`}>
+          <Icon size={16} />
+        </span>
         <span className="flex-1">{toast.pesan}</span>
-        <button onClick={onClose} aria-label="Tutup notifikasi">
+        <button onClick={onClose} aria-label="Tutup notifikasi" className="text-white/60 transition hover:text-white">
           <X size={16} />
         </button>
       </div>

@@ -7,6 +7,8 @@ import { ambilLokasi, statusGeofence, KANTOR, pesanErrorLokasi } from '../utils/
 import StatusBadge from './StatusBadge'
 import SelfieModal from './SelfieModal'
 import KartuStatistik from './Statistik'
+import TimerKerja from './TimerKerja'
+import InfoKantor from './InfoKantor'
 import usePengingat from '../hooks/usePengingat'
 import { JADWAL_DEFAULT } from '../hooks/useAbsensi'
 
@@ -149,8 +151,10 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
           tampak seperti "tertimpa"). Kini tanggal menyatu dengan kartu jam di
           bawah, jadi tanggal & jam selalu satu tempat. */}
       <div className="animate-rise flex items-center gap-3">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-extrabold text-white shadow-lg shadow-indigo-500/30">
-          {inisial}
+        <div className="shrink-0 rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 p-[2.5px] shadow-lg shadow-indigo-500/30">
+          <div className="grid h-11 w-11 place-items-center rounded-[0.85rem] bg-white text-sm font-extrabold tracking-wide text-transparent dark:bg-slate-900">
+            <span className="bg-gradient-to-br from-indigo-600 to-fuchsia-500 bg-clip-text">{inisial}</span>
+          </div>
         </div>
         <div className="min-w-0">
           <p className="truncate text-xs text-slate-400">
@@ -163,10 +167,13 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
         </div>
       </div>
 
-      {/* Jam live — kartu utama beranda: jam besar, detik berjalan, bar progres */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-5 text-white shadow-xl shadow-indigo-500/30">
+      {/* Jam live — kartu utama beranda: gradasi aurora beranimasi, glow, titik-titik halus */}
+      <div className="aurora relative overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-5 text-white shadow-xl shadow-indigo-500/30">
         <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/15 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-16 -left-8 h-32 w-32 rounded-full bg-fuchsia-300/25 blur-2xl" />
+        {/* Kilau radial + pola titik ala dasbor SaaS kekinian */}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_-5%,rgba(255,255,255,.28),transparent_46%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.14] [background-image:radial-gradient(rgba(255,255,255,.9)_1px,transparent_1px)] [background-size:18px_18px]" />
         <div className="relative flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-white/70">
@@ -189,7 +196,7 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
               <span className="truncate">{formatTanggalLengkap(now)}</span>
             </p>
           </div>
-          <div className="shrink-0 rounded-2xl bg-white/15 px-3 py-2.5 text-center backdrop-blur-sm">
+          <div className="shrink-0 rounded-2xl border border-white/25 bg-white/15 px-3 py-2.5 text-center shadow-inner backdrop-blur-md">
             {/* Ikon cuaca statis (tanpa animasi). Malam hari + cerah → bulan. */}
             <p className="text-[2.5rem] leading-none">
               {cuaca ? (cuaca.jenis === 'cerah' && !cuaca.siang ? '🌙' : cuaca.ikon) : now.getHours() >= 6 && now.getHours() < 18 ? '☀️' : '🌙'}
@@ -301,6 +308,9 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
         )}
       </div>
 
+      {/* Timer kerja live — stopwatch besar sejak check-in (hilang saat sudah checkout) */}
+      <TimerKerja today={today} jamPulang={jamPulang} />
+
       {/* Countdown batas absen — dengan bar progres yang mengecil mendekati batas */}
       {countdown && (
         <div className={`rounded-2xl px-4 py-3 ${countdown.bg}`}>
@@ -342,13 +352,16 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
           </div>
         ) : (
           <div className="relative">
-            {/* Cincin putus-putus berputar di sekeliling tombol — aksen kekinian */}
-            <span aria-hidden className="animate-spin-slower absolute -inset-3 rounded-full border-2 border-dashed border-indigo-300/70 dark:border-indigo-500/40" />
+            {/* Halo gradasi berdenyut + cincin putus-putus berputar — aksen kekinian */}
+            <span aria-hidden className="animate-halo absolute -inset-3 rounded-full bg-gradient-to-tr from-indigo-500/40 via-fuchsia-500/40 to-violet-500/40 blur-md" />
+            <span aria-hidden className="animate-spin-slower absolute -inset-3.5 rounded-full border-[3px] border-dashed border-indigo-300/70 dark:border-indigo-400/40" />
             <button
               onClick={() => prosesAbsen(sudahMasuk ? 'out' : 'in')}
-              className="animate-pulse-slow relative grid h-40 w-40 place-items-center rounded-full bg-gradient-to-br from-indigo-500 via-violet-600 to-fuchsia-600 text-white shadow-xl shadow-indigo-500/40 transition active:scale-95"
+              className="animate-pulse-slow relative grid h-40 w-40 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-indigo-500 via-violet-600 to-fuchsia-600 text-white shadow-xl shadow-indigo-500/40 transition active:scale-95"
             >
-              <div className="text-center">
+              {/* Kilau kaca di atas tombol */}
+              <span aria-hidden className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_28%_22%,rgba(255,255,255,.5),transparent_46%)]" />
+              <div className="relative text-center">
                 <span className="block text-3xl">{sudahMasuk ? '🏃' : '✋'}</span>
                 <span className="mt-1 block text-base font-extrabold">
                   {sudahMasuk ? 'Absen Pulang' : 'Absen Sekarang'}
@@ -362,6 +375,9 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
 
       {/* Statistik mingguan: streak + grafik 7 hari */}
       <KartuStatistik history={history} jadwal={jadwal} />
+
+      {/* Info kantor + peta + jarak live ke geofence */}
+      <InfoKantor lokasi={lokasi} />
 
       {/* Kartu lokasi GPS */}
       <div className="card">

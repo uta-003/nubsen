@@ -53,6 +53,18 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
 }
 
 // ---------- Autentikasi ----------
+export async function cekButuhSetup() {
+  const d = await request('/api/auth/needs-setup')
+  return !!d.butuhSetup
+}
+
+// Pengaturan awal: buat akun admin pertama saat instalasi masih kosong.
+export async function setupAwal(nama, email, pin) {
+  const data = await request('/api/auth/setup', { method: 'POST', body: { nama, email, pin } })
+  setToken(data.token)
+  return data.karyawan
+}
+
 export async function login(email, pin) {
   const data = await request('/api/auth/login', { method: 'POST', body: { email, pin } })
   setToken(data.token)
@@ -211,11 +223,18 @@ export function buatLembur({ tanggal, jam_mulai, jam_selesai, keterangan }) {
 // ---------- Notifikasi ----------
 export async function getNotifikasi() {
   const d = await request('/api/notifications')
-  return { items: d.items || [], belumDibaca: d.belumDibaca || 0 }
+  return {
+    items: d.items || [],
+    pengumuman: d.pengumuman || [],
+    notifikasi: d.notifikasi || d.items || [],
+    belumDibaca: d.belumDibaca || 0,
+    belumDibacaPengumuman: d.belumDibacaPengumuman || 0,
+  }
 }
 
-export function tandaiNotifikasiDibaca() {
-  return request('/api/notifications/read', { method: 'POST' })
+export function tandaiNotifikasiDibaca(pilihan = {}) {
+  // pilihan: { id } → satu item; { pengumuman: true } → semua pengumuman
+  return request('/api/notifications/read', { method: 'POST', body: pilihan })
 }
 
 // ---------- Panel Admin ----------

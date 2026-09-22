@@ -17,7 +17,10 @@ import {
 } from '../models.js'
 import { wrap } from '../utils/wrap.js'
 
-const JENIS_VALID = ['pengumuman', 'penting', 'info', 'lembur', 'izin', 'absensi', 'gaji']
+// 'pengumuman' | 'penting' | 'info' | 'jadwal' = kategori PENGUMUMAN (kabar
+// perusahaan, tampil di menu 📢 Pengumuman). Sisanya = NOTIFIKASI personal
+// (alert transaksional, tampil di menu 🔔 Notifikasi).
+const JENIS_VALID = ['pengumuman', 'penting', 'info', 'jadwal', 'lembur', 'izin', 'absensi', 'gaji']
 
 // Status kepegawaian dikirim admin pada form Karyawan: hanya dua nilai yang sah.
 // Nilai kosong dianggap tidak diubah; nilai asing ditolak 400 agar tidak senyap.

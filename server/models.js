@@ -193,7 +193,7 @@ export async function kirimNotifikasi({ employeeId = null, judul, pesan = '', je
 // Pengumuman/pemberitahuan dari admin → satu baris PER karyawan (fan-out) supaya
 // setiap orang punya status "dibaca" sendiri, dan admin bisa memantau siapa yang
 // belum membaca.
-export const JENIS_PENGUMUMAN = ['pengumuman', 'penting', 'info']
+export const JENIS_PENGUMUMAN = ['pengumuman', 'penting', 'info', 'jadwal']
 
 export async function kirimPengumuman({ judul, pesan = '', jenis = 'pengumuman', employeeIds = null }) {
   const target = Array.isArray(employeeIds) && employeeIds.length
@@ -209,6 +209,11 @@ export async function kirimPengumuman({ judul, pesan = '', jenis = 'pengumuman',
   return { grupId, jumlah: target.length }
 }
 
+// Kategori NOTIFIKASI (alert transaksional personal: hasil persetujuan,
+// absensi, gaji, peringatan) — sisanya (lihat JENIS_PENGUMUMAN di atas)
+// masuk kategori pengumuman. Taxonomi ini dipakai frontend untuk memilah
+// dua halaman yang berbeda: megafon = pengumuman, lonceng = notifikasi.
+
 export async function listNotifikasi(employeeId) {
   const items = (
     await db.all(
@@ -216,13 +221,44 @@ export async function listNotifikasi(employeeId) {
       [employeeId],
     )
   ).map(notifToClient)
-  return { items, belumDibaca: items.filter((n) => !n.dibaca).length }
+  const pengumuman = items.filter((n) => JENIS_PENGUMUMAN.includes(n.jenis))
+  const notifikasi = items.filter((n) => !JENIS_PENGUMUMAN.includes(n.jenis))
+  return {
+    items, // lengkap (kompatibilitas)
+    pengumuman,
+    notifikasi,
+    belumDibaca: notifikasi.filter((n) => !n.dibaca).length,
+    belumDibacaPengumuman: pengumuman.filter((n) => !n.dibaca).length,
+  }
 }
 
-export async function tandaiSemuaDibaca(employeeId) {
+// Tandai SATU notifikasi/pengumuman sudah dibaca — milik sendiri atau siaran.
+export async function tandaiSatuDibaca(id, employeeId) {
   await db.run(
-    'UPDATE notifications SET dibaca = 1 WHERE dibaca = 0 AND (employee_id = ? OR employee_id IS NULL)',
-    [employeeId],
+    'UPDATE notifications SET dibaca = 1 WHERE id = ? AND dibaca = 0 AND (employee_id = ? OR employee_id IS NULL)',
+    [Number(id) || 0, employeeId],
+  )
+}
+
+// hanya: 'semua' (default) | 'pengumuman' (kabar perusahaan) | 'notifikasi' (alert personal).
+// Dipisah supaya menandai habis di satu halaman TIDAK ikut mematikan badge halaman lain.
+export async function tandaiSemuaDibaca(employeeId, hanya = 'semua') {
+  const daftar = JENIS_PENGUMUMAN.map(() => '?').join(',')
+  const saring = hanya === 'pengumuman'
+    ? `jenis IN (${daftar})`
+    : hanya === 'notifikasi'
+      ? `jenis NOT IN (${daftar})`
+      : null
+  if (!saring) {
+    await db.run(
+      'UPDATE notifications SET dibaca = 1 WHERE dibaca = 0 AND (employee_id = ? OR employee_id IS NULL)',
+      [employeeId],
+    )
+    return
+  }
+  await db.run(
+    `UPDATE notifications SET dibaca = 1 WHERE dibaca = 0 AND ${saring} AND (employee_id = ? OR employee_id IS NULL)`,
+    [...JENIS_PENGUMUMAN, employeeId],
   )
 }
 

@@ -1,11 +1,13 @@
-import { db, hashPin, hariKerjaAktif } from './db.js'
-import { toISODate } from './utils/waktu.js'
+import { db } from './db.js'
 
-// Seed data demo — aman dijalankan berulang (INSERT hanya bila belum ada).
+// Seed data — TIDAK lagi memasukkan data contoh (karyawan demo, riwayat absensi
+// palsu, izin/lembur/notifikasi demo, periode gaji). Database baru mulai KOSONG:
+// akun admin pertama dibuat lewat "Pengaturan Awal" (POST /api/auth/setup) dan
+// seluruh data berikutnya adalah data REAL dari pengguna.
+//
+// Yang tetap di-seed hanya REFERENSI RESMI: hari libur nasional & cuti bersama
+// Indonesia 2026 — itu data kalender nyata (rilis resmi Kemenko PMK), bukan contoh.
 export async function seedIfEmpty() {
-  await seedKaryawan()
-  await seedRiwayat()
-  await seedPeriodeGaji()
   await seedHariLibur()
 }
 

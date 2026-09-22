@@ -18,9 +18,11 @@ export default {
         },
         fuchsia: { 500: '#46619A', 600: '#5B77AB', 700: '#46619A' },
       },
-      fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+      fontFamily: { sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'] },
       boxShadow: {
         soft: '0 8px 30px rgba(0,0,0,0.08)',
+        card: '0 1px 2px rgba(15,23,42,.05), 0 14px 34px -14px rgba(15,23,42,.18)',
+        nav: '0 12px 34px -12px rgba(15,23,42,.28), 0 2px 8px rgba(15,23,42,.06)',
         glow: '0 0 0 0 rgba(99,102,241,0.5)',
       },
       animation: {

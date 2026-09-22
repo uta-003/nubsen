@@ -2,11 +2,8 @@ import { CalendarPlus, Clock4 } from 'lucide-react'
 import Izin from './Izin'
 import Lembur from './Lembur'
 
-// Halaman "Pengajuan" — Izin/Cuti & Lembur digabung dalam SATU tab bottom-nav
-// supaya bar navigasi tetap 4 item (Beranda, Pengajuan, Riwayat, Profil) dan
-// lapang di ponsel sempit. Pemilih sub-halaman (pill) dipegang App (state
-// `jenisPengajuan`) agar pintasan izin di Beranda bisa membuka langsung formulir
-// Izin, dan hash lama #izin / #lembur tetap berfungsi.
+// Halaman "Pengajuan" — Izin/Cuti & Lembur digabung dalam SATU tab bottom-nav.
+// Pemilih sub-halaman bergaya segmen kaca dengan indikator gradasi mengglide.
 export default function Pengajuan({ jenis = 'izin', onJenis, onSubmit, sisaCuti = null, toast }) {
   const PILIHAN = [
     { id: 'izin', label: 'Izin / Cuti', Icon: CalendarPlus },
@@ -15,9 +12,9 @@ export default function Pengajuan({ jenis = 'izin', onJenis, onSubmit, sisaCuti 
 
   return (
     <div>
-      {/* Pemilih sub-halaman — gaya sama dengan navigasi pekan di kartu Statistik */}
+      {/* Segmen kaca: pil aktif bergradasi & berkilau, meluncur halus saat berganti */}
       <div
-        className="mb-4 flex gap-1 rounded-2xl bg-slate-100 p-1.5 dark:bg-slate-800"
+        className="mb-4 grid grid-cols-2 gap-1 rounded-[1.4rem] border border-white/50 bg-white/70 p-1.5 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70"
         role="tablist"
         aria-label="Jenis pengajuan"
       >
@@ -30,9 +27,9 @@ export default function Pengajuan({ jenis = 'izin', onJenis, onSubmit, sisaCuti 
               role="tab"
               aria-selected={aktif}
               onClick={() => !aktif && onJenis?.(id)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-bold transition active:scale-[0.97] ${
+              className={`relative flex items-center justify-center gap-1.5 overflow-hidden rounded-[1rem] py-2.5 text-sm font-bold transition-all duration-300 active:scale-[0.97] ${
                 aktif
-                  ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-900 dark:text-indigo-400'
+                  ? 'bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-lg shadow-indigo-500/30'
                   : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >

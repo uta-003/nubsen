@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Briefcase, Building2, Mail, Phone, MapPinned, BadgeCheck, Award, Plane, LogOut, HelpCircle, ChevronRight, KeyRound, Eye, EyeOff, Loader2, Wallet, FileWarning } from 'lucide-react'
+import {
+  Briefcase, Building2, Mail, Phone, MapPinned, BadgeCheck, Award, Plane, LogOut, HelpCircle,
+  ChevronRight, KeyRound, Eye, EyeOff, Loader2, Wallet, FileWarning, ShieldCheck, Sparkles,
+} from 'lucide-react'
 import { USER_DEFAULT } from '../hooks/useAbsensi'
 import * as api from '../api'
 import Bantuan from './Bantuan'
@@ -9,12 +12,20 @@ import SuratKertas from './SuratKertas'
 export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }) {
   const [bantuanOpen, setBantuanOpen] = useState(false)
   const [slipOpen, setSlipOpen] = useState(false)
+  // Kartu Keamanan dilipat agar halaman tetap ringkas & mudah dipindai.
+  const [bukaPin, setBukaPin] = useState(false)
   // Warna angka rekap per status — hierarki visual kekinian.
   const WARNA_STAT = {
     Hadir: 'text-emerald-600 dark:text-emerald-400',
     Terlambat: 'text-amber-600 dark:text-amber-400',
     Izin: 'text-sky-600 dark:text-sky-400',
     Alpha: 'text-rose-600 dark:text-rose-400',
+  }
+  const AKSEN_STAT = {
+    Hadir: 'bg-emerald-500',
+    Terlambat: 'bg-amber-500',
+    Izin: 'bg-sky-500',
+    Alpha: 'bg-rose-500',
   }
   const stats = useMemo(() => {
     const s = { Hadir: 0, Terlambat: 0, Izin: 0, Alpha: 0 }
@@ -30,10 +41,15 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
     .toUpperCase()
 
   const items = [
-    { Icon: Mail, label: 'Email', value: user.email },
-    { Icon: Phone, label: 'Telepon', value: user.telepon },
-    { Icon: MapPinned, label: 'Lokasi Kerja', value: user.lokasiKerja },
+    { Icon: Mail, label: 'Email', value: user.email, latar: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300' },
+    { Icon: Phone, label: 'Telepon', value: user.telepon, latar: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300' },
+    { Icon: MapPinned, label: 'Lokasi Kerja', value: user.lokasiKerja, latar: 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300' },
   ]
+
+  // Persentase sisa cuti untuk bar progres gradasi.
+  const kuotaCuti = user.cutiTahunan ?? 12
+  const sisaCuti = user.sisaCuti ?? 12
+  const persenCuti = Math.min(100, Math.max(0, (sisaCuti / (kuotaCuti || 1)) * 100))
 
   // ---- Ganti PIN (diverifikasi hash PIN lama di server) ----
   const [pinLama, setPinLama] = useState('')
@@ -65,96 +81,132 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
 
   return (
     <div className="animate-fade-in">
-      {/* Kartu identitas — banner gradien dengan dekorasi blur + avatar pop */}
-      <div className="card animate-rise mb-4 overflow-hidden !p-0">
-        <div className="relative h-24 overflow-hidden bg-gradient-to-r from-indigo-500 via-violet-600 to-fuchsia-600">
-          <span aria-hidden className="absolute -left-6 -top-10 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
-          <span aria-hidden className="absolute -right-8 top-2 h-24 w-24 rounded-full bg-white/15 blur-xl" />
+      {/* ===== HERO IDENTITAS — satu kartu gradasi: avatar + nama + status ===== */}
+      <div className="animate-rise relative mb-4 overflow-hidden rounded-[1.9rem] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-500 p-5 text-white shadow-xl shadow-indigo-500/25">
+        <span aria-hidden className="aurora absolute inset-0 opacity-70 [background-image:linear-gradient(115deg,rgba(255,255,255,.22),transparent_45%,rgba(255,255,255,.16))]" />
+        <span aria-hidden className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-white/20 blur-2xl" />
+        <span aria-hidden className="absolute -bottom-20 -left-12 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+        <span aria-hidden className="absolute inset-0 opacity-[0.13] [background-image:radial-gradient(rgba(255,255,255,.9)_1px,transparent_1px)] [background-size:16px_16px]" />
+
+        <div className="relative z-10 flex items-center gap-4">
+          {/* Avatar inisial: cincin kaca di luar, kotak putih di dalam. Tidak ada
+              posisi negatif / z-index rumit, jadi hurufnya mustahil tertimpa. */}
+          <div className="shrink-0 rounded-[1.5rem] border border-white/30 bg-white/15 p-1 backdrop-blur-md">
+            <div className="grid h-[4.5rem] w-[4.5rem] place-items-center rounded-[1.25rem] bg-white shadow-inner dark:bg-slate-900">
+              <span className="bg-gradient-to-br from-indigo-700 to-fuchsia-500 bg-clip-text text-2xl font-black text-transparent">
+                {inisial}
+              </span>
+            </div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <span className="chip-glass text-[10px] font-bold uppercase tracking-[0.16em]">
+              <Sparkles size={11} className="text-amber-300" /> Profil Saya
+            </span>
+            <h1 className="mt-1 truncate text-xl font-black leading-tight tracking-tight">{user.nama}</h1>
+            <p className="mt-0.5 flex items-center gap-1.5 text-[11px] font-semibold text-white/85">
+              <BadgeCheck size={13} className="text-emerald-300" /> NIP {user.nip} • Akun aktif
+            </p>
+          </div>
         </div>
-        <div className="-mt-12 px-5 pb-5">
-          {/* `relative z-10` WAJIB di sini. Banner gradien di atasnya memakai
-              `position: relative`, dan menurut urutan pengecatan CSS elemen
-              berposisi selalu dicat SESUDAH isi statis — tanpa z-index ini
-              banner menutupi huruf inisial avatar (huruf nama "tertimpa biru"). */}
-          <div className="relative z-10 grid h-24 w-24 place-items-center rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-600 text-2xl font-extrabold text-white shadow-lg shadow-indigo-500/40 ring-4 ring-white dark:ring-slate-900">
-            {inisial}
-          </div>
-          <h1 className="mt-3 text-lg font-extrabold tracking-tight">{user.nama}</h1>
-          <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-            <BadgeCheck size={14} className="text-emerald-500" /> NIP {user.nip} • Aktif
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {/* Status kepegawaian (diatur admin di form Tambah/Edit Karyawan) */}
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
-                (user.statusKaryawan || 'Karyawan Tetap') === 'Karyawan Kontrak'
-                  ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
-                  : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-              }`}
-            >
-              <BadgeCheck size={13} /> {user.statusKaryawan || 'Karyawan Tetap'}
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
-              <Briefcase size={13} /> {user.jabatan}
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-600 dark:bg-violet-500/15 dark:text-violet-300">
-              <Building2 size={13} /> Dept. {user.departemen}
-            </span>
-          </div>
+
+        {/* Chip status kepegawaian, jabatan & departemen */}
+        <div className="relative z-10 mt-4 flex flex-wrap gap-2">
+          <span className="chip-glass text-[11px]">
+            <BadgeCheck size={12} /> {user.statusKaryawan || 'Karyawan Tetap'}
+          </span>
+          <span className="chip-glass text-[11px]">
+            <Briefcase size={12} /> {user.jabatan}
+          </span>
+          <span className="chip-glass text-[11px]">
+            <Building2 size={12} /> {user.departemen}
+          </span>
         </div>
       </div>
 
-      {/* Statistik kehadiran — angka berwarna per status */}
-      <div className="card animate-rise mb-4" style={{ animationDelay: '60ms' }}>
-        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-          <Award size={16} className="text-amber-500" /> Rekap Kehadiran
+      {/* ===== REKAP KEHADIRAN — petak statistik beraksen warna ===== */}
+      <div className="card animate-rise mb-4" style={{ animationDelay: '50ms' }}>
+        <h2 className="judul-seksi mb-3">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-50 text-amber-500 dark:bg-amber-500/15">
+            <Award size={14} />
+          </span>
+          Rekap Kehadiran
+          <span className="ml-auto text-[10px] font-semibold text-slate-400">{history.length} catatan</span>
         </h2>
-        <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {Object.entries(stats).map(([k, v], i) => (
             <div
               key={k}
-              className="min-w-0 rounded-2xl bg-slate-50 p-2.5 dark:bg-slate-800 sm:p-3"
-              style={{ animationDelay: `${100 + i * 50}ms` }}
+              style={{ animationDelay: `${80 + i * 45}ms` }}
+              className={`stat-tile animate-rise !p-3 text-center ${WARNA_STAT[k] || 'text-slate-500'}`}
             >
-              <p className={`text-lg font-extrabold leading-none sm:text-xl ${WARNA_STAT[k] || ''}`}>{v}</p>
-              <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-slate-400">{k}</p>
+              <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${AKSEN_STAT[k] || 'bg-slate-300'}`} />
+              <p className="relative z-10 text-2xl font-black leading-none tabular-nums text-slate-800 dark:text-white">{v}</p>
+              <p className="relative z-10 mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{k}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Sisa cuti tahunan */}
-      <div className="card animate-rise mb-4" style={{ animationDelay: '120ms' }}>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-            <Plane size={16} className="text-sky-500" /> Sisa Cuti Tahunan
+      {/* ===== SISA CUTI — bar progres gradasi ===== */}
+      <div className="card animate-rise mb-4" style={{ animationDelay: '90ms' }}>
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="judul-seksi">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-sky-50 text-sky-500 dark:bg-sky-500/15">
+              <Plane size={14} />
+            </span>
+            Sisa Cuti Tahunan
           </h2>
-          <span className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400">
-            {user.sisaCuti ?? 12} hari
+          <span className="shrink-0 rounded-full bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-500 px-3 py-1 text-xs font-extrabold text-white shadow-md shadow-indigo-500/30">
+            {sisaCuti} hari
           </span>
         </div>
-        <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 transition-all"
-            style={{ width: `${Math.min(100, ((user.sisaCuti ?? 12) / (user.cutiTahunan ?? 12)) * 100)}%` }}
+            className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 transition-all duration-500"
+            style={{ width: `${persenCuti}%` }}
           />
         </div>
-        <p className="mt-2 text-[11px] text-slate-400">
-          Kuota {user.cutiTahunan ?? 12} hari/tahun • terpakai {user.cutiTerpakai ?? ((user.cutiTahunan ?? 12) - (user.sisaCuti ?? 12))} hari
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+          Kuota {kuotaCuti} hari/tahun • terpakai {user.cutiTerpakai ?? (kuotaCuti - sisaCuti)} hari
           {/* Angka ini dihitung server setiap kali data dimuat ulang — pengajuan cuti
               yang baru dikirim langsung memotong sisa cuti di atas. */}
           {!!user.cutiMenunggu && <> • menunggu persetujuan {user.cutiMenunggu} hari</>}
         </p>
       </div>
 
-      {/* Surat peringatan (SP1–SP3) & pemecatan — diterbitkan admin, muncul di sini */}
-      <div className="card animate-rise mb-4" style={{ animationDelay: '130ms' }}>
-        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-          <FileWarning size={16} className="text-rose-500" /> Surat Peringatan &amp; Pemecatan
+
+      {/* ===== SLIP GAJI — tombol aksi kaca dengan tepi gradasi ===== */}
+      <button
+        onClick={() => setSlipOpen(true)}
+        className="animate-rise mb-4 flex w-full items-center justify-between gap-3 overflow-hidden rounded-[1.5rem] bg-gradient-to-r from-emerald-500 to-teal-600 p-[1.5px] text-left shadow-lg shadow-emerald-500/25 transition active:scale-[0.98]"
+        style={{ animationDelay: '120ms' }}
+      >
+        <span className="flex w-full items-center gap-3 rounded-[1.4rem] bg-white px-4 py-3.5 dark:bg-slate-900">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md">
+            <Wallet size={18} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Slip Gaji</span>
+            <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">
+              Rincian gaji, uang makan &amp; lembur per periode
+            </span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-emerald-500" />
+        </span>
+      </button>
+      <SlipGaji open={slipOpen} onClose={() => setSlipOpen(false)} user={user} toast={toast} />
+
+      {/* ===== SURAT PERINGATAN (SP1–SP3) & pemecatan ===== */}
+      <div className="card animate-rise mb-4" style={{ animationDelay: '150ms' }}>
+        <h2 className="judul-seksi mb-3">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-rose-50 text-rose-500 dark:bg-rose-500/15">
+            <FileWarning size={14} />
+          </span>
+          Surat Peringatan &amp; Pemecatan
         </h2>
         {(user.peringatan || []).length === 0 ? (
-          <p className="flex items-center gap-2 rounded-2xl bg-emerald-50 px-3.5 py-3 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-            <BadgeCheck size={14} /> Bersih — tidak ada surat peringatan. Pertahankan!
+          <p className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 px-3.5 py-3 text-xs font-semibold text-emerald-700 dark:from-emerald-500/10 dark:to-teal-500/5 dark:text-emerald-300">
+            <BadgeCheck size={15} /> Bersih — tidak ada surat peringatan. Pertahankan!
           </p>
         ) : (
           <div className="space-y-3">
@@ -165,122 +217,135 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
         )}
       </div>
 
-      {/* Slip gaji per PERIODE PENGGAJIAN (periode ditetapkan admin di tab Gaji) */}
-      <button
-        onClick={() => setSlipOpen(true)}
-        className="mb-4 flex w-full items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left transition active:scale-[0.98] dark:border-emerald-500/30 dark:bg-emerald-500/10"
-      >
-        <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
-            <Wallet size={18} />
+      {/* ===== DATA KONTAK — satu kartu, baris dipisah garis halus ===== */}
+      <div className="card animate-rise mb-4 !p-0" style={{ animationDelay: '180ms' }}>
+        <h2 className="judul-seksi border-b border-slate-100 p-4 pb-3 dark:border-white/5">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+            <Mail size={14} />
           </span>
-          <div>
-            <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Slip Gaji</p>
-            <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80">
-              Rincian gaji, uang makan & lembur per periode penggajian
-            </p>
-          </div>
-        </div>
-        <ChevronRight size={18} className="text-emerald-400" />
-      </button>
-      <SlipGaji open={slipOpen} onClose={() => setSlipOpen(false)} user={user} toast={toast} />
-
-      {/* Detail kontak */}
-      <div className="card animate-rise space-y-3" style={{ animationDelay: '180ms' }}>
-        {items.map(({ Icon, label, value }) => (
-          <div key={label} className="flex items-center gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400">
+          Data Kontak
+        </h2>
+        {items.map(({ Icon, label, value, latar }, i) => (
+          <div
+            key={label}
+            className={`flex items-center gap-3 p-4 ${i > 0 ? 'border-t border-slate-100 dark:border-white/5' : ''}`}
+          >
+            <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${latar}`}>
               <Icon size={18} />
             </span>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
               <p className="truncate text-sm font-semibold">{value}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Keamanan — ganti PIN sendiri: verifikasi PIN lama → PIN baru 6 angka */}
-      <div className="card animate-rise mt-4" style={{ animationDelay: '140ms' }}>
-        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-          <KeyRound size={16} className="text-indigo-500" /> Keamanan — Ganti PIN
-        </h2>
-        <form onSubmit={kirimPin} className="space-y-3">
-          {[
-            { label: 'PIN Lama', nilai: pinLama, set: setPinLama, auto: 'current-pin' },
-            { label: 'PIN Baru (6 angka)', nilai: pinBaru, set: setPinBaru, auto: 'new-pin' },
-            { label: 'Ulangi PIN Baru', nilai: pinUlang, set: setPinUlang, auto: 'new-pin2' },
-          ].map(({ label, nilai, set, auto }) => (
-            <div key={label}>
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
-              <div className="relative">
-                <input
-                  className="input !py-2.5 pr-12 font-mono tracking-[0.35em]"
-                  type={lihatPin ? 'text' : 'password'}
-                  inputMode="numeric"
-                  maxLength={6}
-                  autoComplete={auto}
-                  placeholder="••••••"
-                  value={nilai}
-                  onChange={(e) => set(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                />
-                <button
-                  type="button"
-                  onClick={() => setLihatPin((v) => !v)}
-                  aria-label="Tampilkan / sembunyikan PIN"
-                  className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  {lihatPin ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
+
+      {/* ===== KEAMANAN — ganti PIN, dilipat agar halaman tetap ringkas ===== */}
+      <div className="card animate-rise mb-4 !p-0" style={{ animationDelay: '210ms' }}>
+        <button
+          type="button"
+          onClick={() => setBukaPin((v) => !v)}
+          aria-expanded={bukaPin}
+          className="flex w-full items-center gap-3 p-4 text-left"
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-white shadow-md shadow-indigo-500/25">
+            <ShieldCheck size={18} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold">Keamanan — Ganti PIN</span>
+            <span className="block text-[11px] text-slate-500 dark:text-slate-400">Perbarui PIN 6 angka akun Anda</span>
+          </span>
+          <ChevronRight
+            size={18}
+            className={`shrink-0 text-slate-400 transition-transform duration-300 ${bukaPin ? 'rotate-90' : ''}`}
+          />
+        </button>
+
+        {bukaPin && (
+          <form onSubmit={kirimPin} className="animate-fade-in space-y-3 border-t border-slate-100 p-4 dark:border-white/5">
+            {[
+              { label: 'PIN Lama', nilai: pinLama, set: setPinLama, auto: 'current-pin' },
+              { label: 'PIN Baru (6 angka)', nilai: pinBaru, set: setPinBaru, auto: 'new-pin' },
+              { label: 'Ulangi PIN Baru', nilai: pinUlang, set: setPinUlang, auto: 'new-pin2' },
+            ].map(({ label, nilai, set, auto }) => (
+              <div key={label}>
+                <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
+                <div className="relative">
+                  <input
+                    className="input !py-2.5 pr-12 font-mono tracking-[0.35em]"
+                    type={lihatPin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    maxLength={6}
+                    autoComplete={auto}
+                    placeholder="••••••"
+                    value={nilai}
+                    onChange={(e) => set(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setLihatPin((v) => !v)}
+                    aria-label="Tampilkan / sembunyikan PIN"
+                    className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    {lihatPin ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-          {pesanPin && (
-            <p
-              className={`rounded-xl px-3 py-2 text-[11px] font-semibold ${
-                pesanPin.tipe === 'ok'
-                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
-                  : 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400'
-              }`}
-            >
-              {pesanPin.tipe === 'ok' ? '✓ ' : '⚠️ '}
-              {pesanPin.teks}
-            </p>
-          )}
-          <button type="submit" disabled={prosesPin} className="btn-primary w-full !py-2.5 !text-xs">
-            {prosesPin ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
-            {prosesPin ? 'Menyimpan…' : 'Simpan PIN Baru'}
-          </button>
-        </form>
+            ))}
+            {pesanPin && (
+              <p
+                className={`rounded-xl px-3 py-2 text-[11px] font-semibold ${
+                  pesanPin.tipe === 'ok'
+                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+                    : 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400'
+                }`}
+              >
+                {pesanPin.tipe === 'ok' ? '✓ ' : '⚠️ '}
+                {pesanPin.teks}
+              </p>
+            )}
+            <button type="submit" disabled={prosesPin} className="btn-primary w-full !py-2.5 !text-xs">
+              {prosesPin ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+              {prosesPin ? 'Menyimpan…' : 'Simpan PIN Baru'}
+            </button>
+          </form>
+        )}
       </div>
 
-      {/* Pusat bantuan */}
+
+      {/* ===== PUSAT BANTUAN ===== */}
       <button
         onClick={() => setBantuanOpen(true)}
-        className="mt-4 flex w-full items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-left transition active:scale-[0.98] dark:border-indigo-500/30 dark:bg-indigo-500/10"
+        className="animate-rise mb-4 flex w-full items-center justify-between gap-3 overflow-hidden rounded-[1.5rem] bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-500 p-[1.5px] text-left shadow-lg shadow-indigo-500/25 transition active:scale-[0.98]"
+        style={{ animationDelay: '240ms' }}
       >
-        <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+        <span className="flex w-full items-center gap-3 rounded-[1.4rem] bg-white px-4 py-3.5 dark:bg-slate-900">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-500 text-white shadow-md">
             <HelpCircle size={18} />
           </span>
-          <div>
-            <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300">Pusat Bantuan</p>
-            <p className="text-[11px] text-indigo-500/80 dark:text-indigo-400/80">Cara absen, izin, lembur, dan FAQ lainnya</p>
-          </div>
-        </div>
-        <ChevronRight size={18} className="text-indigo-400" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Pusat Bantuan</span>
+            <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">
+              Cara absen, izin, lembur, dan FAQ lainnya
+            </span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-indigo-500" />
+        </span>
       </button>
       <Bantuan open={bantuanOpen} onClose={() => setBantuanOpen(false)} />
 
+      {/* ===== KELUAR ===== */}
       <button
         onClick={onLogout}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 py-3.5 text-sm font-bold text-rose-600 transition active:scale-[0.98] dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-400"
+        className="flex w-full items-center justify-center gap-2 rounded-[1.5rem] border border-rose-200/80 bg-rose-50/80 py-3.5 text-sm font-bold text-rose-600 shadow-sm backdrop-blur transition hover:bg-rose-100/80 active:scale-[0.98] dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-400"
       >
         <LogOut size={17} /> Keluar dari NUBSEN
       </button>
 
       <p className="mt-5 text-center text-[11px] text-slate-400">
-        NUBSEN v2.0
+        NUBSEN v2.0 • Cukup Satu Klik!
       </p>
     </div>
   )

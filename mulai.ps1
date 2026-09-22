@@ -62,8 +62,8 @@ Write-Host ' Aplikasi (frontend dev)  : http://localhost:9090'          -Foregro
 Write-Host ' Panel admin (web backend): http://localhost:9091/#admin'   -ForegroundColor White
 Write-Host ' API health               : http://localhost:9091/api/health' -ForegroundColor White
 Write-Host 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€' -ForegroundColor DarkGray
-Write-Host ' Login admin: afriani.putri@perusahaan.co.id / PIN 123456'  -ForegroundColor White
-Write-Host ' Login staf : budi.santoso@perusahaan.co.id  / PIN 654321'  -ForegroundColor White
+Write-Host ' Database mulai KOSONG (tanpa data contoh).' -ForegroundColor DarkGray
+Write-Host ' Buka aplikasi -> form "Pengaturan Awal" untuk membuat akun admin pertama.' -ForegroundColor White
 Write-Host ' Tutup jendela server untuk menghentikan. Ctrl+C juga bisa.' -ForegroundColor DarkGray
 
 if (-not $TanpaBrowser) {

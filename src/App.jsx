@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { LogIn, WifiOff, RefreshCw, ShieldCheck, ArrowUp, CloudUpload } from 'lucide-react'
+import { LogIn, WifiOff, RefreshCw, ShieldCheck, ArrowUp, CloudUpload, Megaphone } from 'lucide-react'
 import * as api from './api'
 import useDarkMode from './hooks/useDarkMode'
 import { useAbsensi, USER_DEFAULT } from './hooks/useAbsensi'
@@ -14,6 +14,7 @@ import InstallPrompt from './components/InstallPrompt'
 import LoginPage from './components/LoginPage'
 import Notifikasi from './components/Notifikasi'
 import NotifikasiBell from './components/NotifikasiBell'
+import Pengumuman from './components/Pengumuman'
 import Admin from './components/Admin'
 import Toast from './components/Toast'
 import LogoAnimasi from './components/LogoAnimasi'
@@ -44,7 +45,7 @@ export default function App() {
     try {
       const t = localStorage.getItem('absenku-tab')
       if (t === 'izin' || t === 'lembur') return 'pengajuan'
-      return ['dashboard', 'pengajuan', 'riwayat', 'notifikasi', 'profil', 'admin'].includes(t) ? t : 'dashboard'
+      return ['dashboard', 'pengajuan', 'riwayat', 'notifikasi', 'pengumuman', 'profil', 'admin'].includes(t) ? t : 'dashboard'
     } catch {
       return 'dashboard'
     }
@@ -59,6 +60,14 @@ export default function App() {
     }
   })
   const [toast, setToast] = useState(null)
+  // Badge megafon di header: hitung pengumuman (kabar perusahaan) yang belum
+  // dibaca — sinkron instan via event 'absenku:pengumuman' dari halaman Pengumuman.
+  const [pengumumanBaru, setPengumumanBaru] = useState(0)
+  useEffect(() => {
+    const onPengumuman = (e) => setPengumumanBaru(Number(e.detail?.belumDibaca ?? 0))
+    window.addEventListener('absenku:pengumuman', onPengumuman)
+    return () => window.removeEventListener('absenku:pengumuman', onPengumuman)
+  }, [])
 
   // Membuka menu Profil → segarkan profil & data absensi TANPA skeleton. Ini yang
   // membuat sisa cuti tahunan (dan rincian slip gaji) selalu angka terbaru —
@@ -115,7 +124,7 @@ export default function App() {
   // Deep-link berbasis hash (mis. http://localhost:9091/#admin atau :9090/#riwayat)
   // agar halaman bisa di-refresh / di-bookmark tanpa kembali ke beranda.
   useEffect(() => {
-    const VIEW_SAH = ['dashboard', 'pengajuan', 'riwayat', 'notifikasi', 'profil', 'admin']
+    const VIEW_SAH = ['dashboard', 'pengajuan', 'riwayat', 'notifikasi', 'pengumuman', 'profil', 'admin']
     const dariHash = () => {
       const v = window.location.hash.replace(/^#\/?/, '')
       // Hash era 5 tab (#izin / #lembur) tetap berfungsi → dibuka sebagai tab
@@ -292,8 +301,10 @@ export default function App() {
         <div className="flex min-w-0 items-center gap-2.5">
           <LogoAnimasi ukuran="sm" />
           <div className="min-w-0">
-            <p className="truncate text-base font-extrabold leading-none tracking-tight">NUBSEN</p>
-            <p className="truncate text-[10px] font-medium text-slate-400">Cukup Satu Klik!</p>
+            <p className="truncate text-base font-extrabold leading-none tracking-tight">
+              NUB<span className="text-gradient">SEN</span>
+            </p>
+            <p className="truncate text-[10px] font-semibold text-slate-400">Cukup Satu Klik!</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -306,7 +317,7 @@ export default function App() {
                   ? `${antrean} data menunggu — ketuk untuk sinkron sekarang`
                   : `Perangkat luring — ${antrean > 0 ? `${antrean} data menunggu, ` : ''}dikirim otomatis saat online`
               }
-              className={`flex h-11 items-center gap-1.5 rounded-2xl border px-3 text-xs font-bold shadow-sm transition active:scale-90 ${
+              className={`flex h-11 items-center gap-1.5 rounded-2xl border px-3 text-xs font-bold shadow-sm backdrop-blur transition active:scale-90 ${
                 online
                   ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-300'
                   : 'border-slate-200 bg-white/80 text-slate-500 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300'
@@ -329,11 +340,23 @@ export default function App() {
               onClick={() => setView('admin')}
               aria-label="Buka Panel Admin"
               title="Panel Admin"
-              className="grid h-11 w-11 place-items-center rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-600 shadow-sm transition active:scale-90 dark:border-indigo-500/40 dark:bg-indigo-500/15 dark:text-indigo-300"
+              className="grid h-11 w-11 place-items-center rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-fuchsia-50 text-indigo-600 shadow-sm transition active:scale-90 dark:border-indigo-500/40 dark:from-indigo-500/15 dark:to-fuchsia-500/10 dark:text-indigo-300"
             >
               <ShieldCheck size={20} />
             </button>
           )}
+          {/* Menu Pengumuman — megafon + badge titik saat ada kabar belum dibaca */}
+          <button
+            onClick={() => { setPengumumanBaru(0); setView('pengumuman') }}
+            aria-label="Buka Pengumuman"
+            title="Pengumuman"
+            className="relative grid h-11 w-11 place-items-center rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 text-amber-600 shadow-sm transition active:scale-90 dark:border-amber-500/40 dark:from-amber-500/15 dark:to-orange-500/10 dark:text-amber-300"
+          >
+            <Megaphone size={19} />
+            {pengumumanBaru > 0 && view !== 'pengumuman' && (
+              <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-slate-100 bg-rose-500 dark:border-slate-950" />
+            )}
+          </button>
           <NotifikasiBell onClick={() => setView('notifikasi')} />
           <DarkModeToggle dark={dark} toggle={toggle} />
         </div>
@@ -417,7 +440,8 @@ export default function App() {
               />
             )}
             {view === 'riwayat' && <Riwayat history={history} />}
-            {view === 'notifikasi' && <Notifikasi />}
+            {view === 'notifikasi' && <Notifikasi onBukaPengumuman={() => setView('pengumuman')} />}
+            {view === 'pengumuman' && <Pengumuman onBukaNotifikasi={() => setView('notifikasi')} />}
             {view === 'profil' && <Profil user={user || USER_DEFAULT} history={history} onLogout={handleLogout} toast={tampilkanToast} />}
           </>
         )}

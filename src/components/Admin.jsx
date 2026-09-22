@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search, Wallet, CalendarRange, Paperclip, Camera, FileWarning, BarChart3, Building2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search, Wallet, CalendarRange, Paperclip, Camera, FileWarning, BarChart3, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Plane } from 'lucide-react'
 import { muatPustakaEkspor } from '../utils/ekspor'
 import { buatWorkbookLaporan, buatWorkbookGaji, KOLOM_LAPORAN } from '../utils/laporan-excel'
 import { MIME } from '../utils/berkas'
@@ -10,7 +10,7 @@ import ModalTolak from './ModalTolak'
 import PratinjauLampiran from './PratinjauLampiran'
 import GrafikTren from './GrafikTren'
 
-// Tab admin: [id, label, ikon] — tampil sebagai grid ikon rapi 4 kolom.
+// Tab admin: [id, label, ikon] — pil menggeser di ponsel, kisi rapi di layar lebar.
 const TABS = [
   ['ringkasan', 'Ringkasan', LayoutDashboard],
   ['laporan', 'Laporan', FileSpreadsheet],
@@ -33,7 +33,20 @@ const JENIS_NOTIF = {
   izin: { label: '📄 Izin/Cuti', kelas: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300' },
   absensi: { label: '✅ Absensi', kelas: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
   peringatan: { label: '⚠️ Peringatan', kelas: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' },
+  jadwal: { label: '📅 Jadwal', kelas: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300' },
+  gaji: { label: '💰 Gaji', kelas: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
 }
+
+// Pilihan jenis di form pengiriman. Jenis menentukan HALAMAN tujuan di aplikasi
+// karyawan: kategori pengumuman → menu 📢 Pengumuman (kabar perusahaan, punya
+// tombol tandai dibaca), kategori personal → menu 🔔 Notifikasi (pesan pribadi).
+// Karena itu pilihannya dibatasi oleh Penerima yang dipilih.
+const OPSI_PENGUMUMAN = [
+  ['pengumuman', '📢 Pengumuman'], ['penting', '⚠️ Penting'], ['jadwal', '📅 Jadwal'], ['info', 'ℹ️ Info'],
+]
+const OPSI_PERSONAL = [
+  ['info', 'ℹ️ Info'], ['absensi', '✅ Absensi'], ['izin', '📄 Izin/Cuti'], ['lembur', '⏱️ Lembur'], ['gaji', '💰 Gaji'],
+]
 
 const CHIP = {
   Menunggu: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400',
@@ -46,19 +59,42 @@ const CHIP = {
 }
 
 function Chip({ status }) {
+  const warna = CHIP[status] || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${CHIP[status] || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${warna}`}>
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
       {status}
     </span>
   )
 }
 
+// Inisial maksimal 2 huruf dari nama karyawan — dipakai avatar di daftar Karyawan.
+const inisialDari = (nama) =>
+  (nama || '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+
+// Bilah pesan hasil aksi admin — kaca tipis + ikon status, tidak lagi sekadar teks.
 function BannerPesan({ pesan }) {
   if (!pesan) return null
   return (
-    <p className={`mb-3 rounded-2xl px-3.5 py-2.5 text-xs font-semibold ${pesan.ok ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400'}`}>
-      {pesan.ok ? '✅ ' : '⚠️ '}{pesan.teks}
-    </p>
+    <div
+      role="status"
+      className={`animate-rise mb-3 flex items-start gap-2.5 rounded-2xl border p-3 text-xs font-semibold shadow-sm backdrop-blur ${
+        pesan.ok
+          ? 'border-emerald-200/70 bg-emerald-50/90 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300'
+          : 'border-rose-200/70 bg-rose-50/90 text-rose-700 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-300'
+      }`}
+    >
+      <span className={`mt-px shrink-0 ${pesan.ok ? 'text-emerald-500' : 'text-rose-500'}`}>
+        {pesan.ok ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+      </span>
+      <span className="leading-relaxed">{pesan.teks}</span>
+    </div>
   )
 }
 
@@ -72,24 +108,36 @@ export default function Admin({ user, onBack }) {
   }
   return (
     <div className="animate-fade-in">
-      <div className="mb-4 flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition active:scale-90 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-          aria-label="Kembali ke aplikasi"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="min-w-0">
-          <h1 className="truncate text-lg font-extrabold tracking-tight sm:text-xl">Panel Admin</h1>
-          <p className="truncate text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">{user?.nama} • akses penuh semua data</p>
+      {/* Kepala panel — bilah gradasi brand dengan pola titik & lencana "Mode Admin" */}
+      <div className="aurora relative mb-4 overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-500 p-4 text-white shadow-xl shadow-indigo-500/25 sm:p-5">
+        <span aria-hidden className="absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/20 blur-2xl" />
+        <span aria-hidden className="absolute -bottom-16 -left-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+        <span aria-hidden className="absolute inset-0 opacity-[0.14] [background-image:radial-gradient(rgba(255,255,255,.9)_1px,transparent_1px)] [background-size:16px_16px]" />
+        <div className="relative z-10 flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/25 bg-white/15 text-white backdrop-blur transition active:scale-90 hover:bg-white/25"
+            aria-label="Kembali ke aplikasi"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white/75">
+              <ShieldCheck size={12} /> Mode Admin
+            </p>
+            <h1 className="truncate text-lg font-black tracking-tight sm:text-xl">Panel Admin</h1>
+            <p className="truncate text-[11px] font-medium text-white/85">{user?.nama} • akses penuh semua data</p>
+          </div>
+          <span className="hidden shrink-0 rounded-2xl border border-white/25 bg-white/15 px-3 py-2 text-center backdrop-blur sm:block">
+            <span className="block text-[9px] font-bold uppercase tracking-wider text-white/70">Ganti menu</span>
+            <span className="block text-[11px] font-bold">10 tab</span>
+          </span>
         </div>
       </div>
 
-      {/* Tab animasi: grid ikon rapi 4 kolom — semua tab selalu tampil, tidak ada yang tersembunyi.
-          Chip masuk bertahap (stagger), tile aktif ber-pop dengan gradasi brand. Label panjang
-          dipotong (truncate) supaya 8 tab tetap rapi di layar ponsel sempit. */}
-      <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-2">
+      {/* Menu tab: pil menggeser + snap di ponsel, berubah jadi kisi ikon di layar lebar.
+          Semua tab selalu tersedia (tidak ada yang tersembunyi di balik menu). */}
+      <div className="no-scrollbar mb-4 flex snap-x gap-2 overflow-x-auto px-0.5 pb-1 sm:grid sm:grid-cols-4 sm:gap-2 sm:overflow-visible lg:grid-cols-5">
         {TABS.map(([id, label, Icon], i) => {
           const aktif = tab === id
           return (
@@ -97,28 +145,30 @@ export default function Admin({ user, onBack }) {
               key={id}
               onClick={() => pilihTab(id)}
               aria-current={aktif ? 'page' : undefined}
-              style={{ animationDelay: `${i * 40}ms` }}
-              className={`animate-fade-in flex min-w-0 flex-col items-center gap-1 rounded-2xl border px-1 py-2.5 transition active:scale-95 sm:gap-1.5 sm:py-3 ${
+              style={{ animationDelay: `${i * 35}ms` }}
+              className={`tile-tab animate-fade-in ${
                 aktif
-                  ? 'animate-pop border-transparent bg-gradient-to-br from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/30'
-                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                  ? 'animate-pop border-transparent bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-500 text-white shadow-lg shadow-indigo-500/30'
+                  : 'border-white/60 bg-white/85 text-slate-500 shadow-sm backdrop-blur hover:bg-white dark:border-white/[.06] dark:bg-slate-900/70 dark:text-slate-400 dark:hover:bg-slate-900'
               }`}
             >
               <span
                 className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${
-                  aktif ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600 dark:bg-slate-800 dark:text-indigo-300'
+                  aktif ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600 dark:bg-white/5 dark:text-indigo-300'
                 }`}
               >
                 <Icon size={16} />
               </span>
-              <span className="w-full truncate text-center text-[9px] font-bold leading-none sm:text-[10px]">{label}</span>
+              <span className="truncate text-[11px] font-bold sm:w-full sm:text-center sm:text-[10px]">{label}</span>
+              {aktif && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-white sm:hidden" />}
             </button>
           )
         })}
       </div>
 
-      {/* Konten bertransisi (slide-up) setiap kali tab diganti */}
-      <div key={tab} className="animate-slide-up">
+      {/* Konten bertransisi (slide-up) setiap kali tab diganti.
+          Kelas `panel-admin` menghidupkan seluruh kartu di dalamnya (gaya di index.css). */}
+      <div key={tab} className="panel-admin animate-slide-up">
         {tab === 'ringkasan' && <Ringkasan />}
         {tab === 'laporan' && <Laporan />}
         {tab === 'gaji' && <Gaji />}
@@ -185,14 +235,20 @@ function KelolaJadwal() {
     <div className="animate-fade-in space-y-4">
       <BannerPesan pesan={pesan} />
       <div className="card space-y-4">
+        <h2 className="judul-seksi">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+            <Clock size={14} />
+          </span>
+          Jadwal Kerja
+        </h2>
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-400">Jam Masuk (Batas)</span>
-            <input type="time" value={form.jamMasukBatas} onChange={ubah('jamMasukBatas')} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800" />
+            <span className="label">Jam Masuk (Batas)</span>
+            <input type="time" value={form.jamMasukBatas} onChange={ubah('jamMasukBatas')} className="input !px-3" />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-400">Jam Pulang</span>
-            <input type="time" value={form.jamPulang} onChange={ubah('jamPulang')} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800" />
+            <span className="label">Jam Pulang</span>
+            <input type="time" value={form.jamPulang} onChange={ubah('jamPulang')} className="input !px-3" />
           </label>
         </div>
         <div>
@@ -268,9 +324,12 @@ function IdentitasPerusahaan() {
     <form onSubmit={simpan} className="card space-y-3">
       <BannerPesan pesan={pesan} />
       <div>
-        <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-          <Building2 size={15} className="text-indigo-500" /> Identitas Perusahaan
-        </h3>
+        <h2 className="judul-seksi">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+            <Building2 size={14} />
+          </span>
+          Identitas Perusahaan
+        </h2>
         <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">
           Tercetak pada KOP surat peringatan/pemecatan yang diterbitkan & diunduh karyawan.
         </p>
@@ -351,7 +410,12 @@ function KartuHariLibur() {
     <div className="card space-y-3">
       <BannerPesan pesan={pesan} />
       <div>
-        <h3 className="flex items-center gap-1.5 text-sm font-extrabold">🌴 Hari Libur</h3>
+        <h2 className="judul-seksi">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+            <CalendarRange size={14} />
+          </span>
+          Hari Libur
+        </h2>
         <p className="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
           Hari terdaftar tidak menjadikan karyawan Alpha dan tidak dihitung pada Laporan/Gaji. Daftar {tahun}–{tahun + 1}.
         </p>
@@ -473,8 +537,11 @@ function KelolaPeringatan() {
       {/* Form terbitkan surat */}
       <form onSubmit={terbitkan} className="card space-y-3">
         <div>
-          <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-            <FileWarning size={16} className="text-rose-500" /> Terbitkan Surat
+          <h2 className="judul-seksi">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-rose-50 text-rose-500 dark:bg-rose-500/15">
+              <FileWarning size={14} />
+            </span>
+            Terbitkan Surat
           </h2>
           <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">
             SP1 → SP2 → SP3 bertahap; <b>Pemecatan</b> untuk pelanggaran berat. Surat otomatis masuk ke Profil karyawan.
@@ -592,23 +659,30 @@ function Ringkasan() {
     api.adminRingkasan().then(setD).catch(() => {})
     api.adminTren().then(setTren).catch(() => {})
   }, [])
+  // Petak statistik: ikon Lucide + warna aksen (bukan emoji) agar tampil seragam.
   const kartu = [
-    ['👥', d?.totalKaryawan, 'Total Karyawan'],
-    ['✅', d?.hadirHariIni, 'Hadir Hari Ini'],
-    ['📄', d?.izinMenunggu, 'Izin Menunggu'],
-    ['⏱️', d?.lemburMenunggu, 'Lembur Menunggu'],
+    { Icon: Users, angka: d?.totalKaryawan, label: 'Total Karyawan', teks: 'text-indigo-600 dark:text-indigo-300', latar: 'bg-indigo-50 dark:bg-indigo-500/15' },
+    { Icon: CalendarCheck2, angka: d?.hadirHariIni, label: 'Hadir Hari Ini', teks: 'text-emerald-600 dark:text-emerald-300', latar: 'bg-emerald-50 dark:bg-emerald-500/15' },
+    { Icon: FileText, angka: d?.izinMenunggu, label: 'Izin Menunggu', teks: 'text-amber-600 dark:text-amber-300', latar: 'bg-amber-50 dark:bg-amber-500/15' },
+    { Icon: Timer, angka: d?.lemburMenunggu, label: 'Lembur Menunggu', teks: 'text-violet-600 dark:text-violet-300', latar: 'bg-violet-50 dark:bg-violet-500/15' },
   ]
   // Grafik tren 7 hari ditangani komponen GrafikTren (skala jumlah karyawan).
   return (
     <div className="animate-fade-in">
-      <div className="grid grid-cols-2 gap-3">
-        {kartu.map(([emoji, angka, label]) => (
-          <div key={label} className="card flex items-center gap-3 !p-3.5">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-slate-100 text-xl dark:bg-slate-800">{emoji}</span>
-            <div className="min-w-0">
-              <p className="text-2xl font-extrabold leading-none tabular-nums">{angka ?? '—'}</p>
-              <p className="mt-1 truncate text-xs font-bold leading-tight text-slate-600 dark:text-slate-300">{label}</p>
-            </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {kartu.map(({ Icon, angka, label, teks, latar }, i) => (
+          <div
+            key={label}
+            style={{ animationDelay: `${i * 60}ms` }}
+            className={`stat-tile animate-rise ${teks}`}
+          >
+            <span className={`relative z-10 grid h-10 w-10 place-items-center rounded-2xl ${latar}`}>
+              <Icon size={19} />
+            </span>
+            <p className="relative z-10 mt-2.5 text-2xl font-black leading-none tabular-nums text-slate-800 dark:text-white sm:text-3xl">
+              {angka ?? '—'}
+            </p>
+            <p className="relative z-10 mt-1 text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">{label}</p>
           </div>
         ))}
       </div>
@@ -616,10 +690,16 @@ function Ringkasan() {
       {/* Tren kehadiran 7 hari — grafik berskala jumlah karyawan (komponen GrafikTren) */}
       <GrafikTren tren={tren} />
 
-      <p className="mt-4 rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
-        💡 Tab <b>Karyawan</b> untuk tambah/edit/hapus akun (termasuk reset PIN), <b>Absensi</b> untuk koreksi manual,
-        <b> Izin & Lembur</b> untuk persetujuan, <b>Peringatan</b> untuk surat SP/pemecatan, dan <b>Notifikasi</b> untuk mengirim pengumuman ke semua karyawan.
-      </p>
+      <div className="mt-4 flex items-start gap-2.5 rounded-[1.5rem] border border-indigo-100 bg-white/85 p-4 text-xs leading-relaxed text-slate-600 shadow-card backdrop-blur-xl dark:border-indigo-500/20 dark:bg-slate-900/70 dark:text-slate-300">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-white shadow-md">
+          <ShieldCheck size={15} />
+        </span>
+        <span>
+          <b className="text-slate-800 dark:text-white">Panduan cepat:</b> tab <b>Karyawan</b> untuk tambah/edit/hapus akun
+          (termasuk reset PIN), <b>Absensi</b> untuk koreksi manual, <b>Izin</b> &amp; <b>Lembur</b> untuk persetujuan,
+          <b> Peringatan</b> untuk surat SP/pemecatan, dan <b>Notifikasi</b> untuk mengirim pengumuman ke semua karyawan.
+        </span>
+      </div>
     </div>
   )
 }
@@ -705,6 +785,12 @@ function KelolaKaryawan() {
 
       {tampilForm && (
         <form onSubmit={simpan} className="card mb-4 space-y-3">
+          <h2 className="judul-seksi">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+              {editId ? <Pencil size={14} /> : <Plus size={14} />}
+            </span>
+            {editId ? 'Ubah Data Karyawan' : 'Tambah Karyawan Baru'}
+          </h2>
           {/* Satu kolom di ponsel sempit, dua kolom mulai sm — label panjang tidak
               lagi memaksa input menjadi sempit/berdesakan. */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -758,8 +844,12 @@ function KelolaKaryawan() {
             {data
               .filter((k) => [k.nama, k.email, k.jabatan, k.departemen, k.nip, k.lokasiKerja].some((v) => (v || '').toLowerCase().includes(cari.trim().toLowerCase())))
               .map((k) => (
-            <div key={k.id} className="card p-4">
-              <div className="flex items-start justify-between gap-3">
+            <div key={k.id} className="card flex items-start gap-3 p-4">
+              {/* Avatar inisial — identitas cepat sebelum membaca detail */}
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-sm font-black text-white shadow-md shadow-indigo-500/25">
+                {inisialDari(k.nama)}
+              </span>
+              <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="flex min-w-0 items-center gap-1.5 text-sm font-bold">
                     <span className="truncate">{k.nama}</span>
@@ -1229,21 +1319,31 @@ function KelolaNotifikasi() {
       <div className="mb-3 flex items-start gap-2 rounded-3xl bg-amber-50 p-4 text-xs leading-relaxed text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
         <Megaphone size={16} className="mt-0.5 shrink-0" />
         <span>
-          Buat <b>pemberitahuan</b> di sini. Pilih <b>Semua Karyawan</b> agar pengumuman muncul di
-          menu <b>🔔 Notifikasi</b> setiap karyawan, lengkap dengan status baca per orang.
+          Buat <b>pengumuman</b> di sini. Pilih <b>Semua Karyawan</b> agar kabar perusahaan muncul di
+          menu <b>📢 Pengumuman</b> setiap karyawan, lengkap dengan status baca per orang (mereka
+          bisa menandai sendiri sudah dibaca). Memilih <b>satu karyawan</b> = pesan pribadi yang
+          tampil di menu <b>🔔 Notifikasi</b>-nya.
         </span>
       </div>
 
       {edit && (
         <form onSubmit={simpanEdit} className="card mb-4 space-y-3 ring-2 ring-indigo-300 dark:ring-indigo-500/40">
-          <p className="text-sm font-bold">✏️ Edit pengumuman • {edit.total} penerima</p>
+          <h2 className="judul-seksi">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+              <Pencil size={14} />
+            </span>
+            Edit Pengumuman
+            <span className="ml-auto rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-bold text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+              {edit.total} penerima
+            </span>
+          </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="label">Jenis</label>
               <select className="input" value={edit.jenis} onChange={(e) => setEdit((s) => ({ ...s, jenis: e.target.value }))}>
-                <option value="pengumuman">📢 Pengumuman</option>
-                <option value="penting">⚠️ Penting</option>
-                <option value="info">ℹ️ Info</option>
+                {OPSI_PENGUMUMAN.map(([j, label]) => (
+                  <option key={j} value={j}>{label}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -1266,9 +1366,28 @@ function KelolaNotifikasi() {
 
       {!edit && (
         <form onSubmit={kirim} className="card mb-4 space-y-3">
+          <h2 className="judul-seksi">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300">
+              <Megaphone size={14} />
+            </span>
+            Buat Pengumuman
+          </h2>
           <div>
             <label className="label">Penerima</label>
-            <select className="input" value={form.employeeId} onChange={(e) => set('employeeId', e.target.value)}>
+            <select
+              className="input"
+              value={form.employeeId}
+              onChange={(e) => {
+                const v = e.target.value
+                // Ganti penerima bisa membuat jenis lama tak sah (mis. 'gaji'
+                // untuk Semua Karyawan) → balikkan ke default kategori itu.
+                setForm((f) => {
+                  const opsi = v ? [...OPSI_PENGUMUMAN, ...OPSI_PERSONAL] : OPSI_PENGUMUMAN
+                  const tetap = opsi.some(([j]) => j === f.jenis)
+                  return { ...f, employeeId: v, jenis: tetap ? f.jenis : (v ? 'info' : 'pengumuman') }
+                })
+              }}
+            >
               <option value="">📢 SEMUA KARYAWAN (pemberitahuan)</option>
               {karyawan.map((k) => <option key={k.id} value={k.id}>👤 {k.nama}</option>)}
             </select>
@@ -1276,10 +1395,15 @@ function KelolaNotifikasi() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div><label className="label">Jenis</label>
               <select className="input" value={form.jenis} onChange={(e) => set('jenis', e.target.value)}>
-                <option value="pengumuman">📢 Pengumuman</option>
-                <option value="penting">⚠️ Penting</option>
-                <option value="info">ℹ️ Info</option>
+                {(form.employeeId ? [...OPSI_PENGUMUMAN, ...OPSI_PERSONAL] : OPSI_PENGUMUMAN).map(([j, label]) => (
+                  <option key={j} value={j}>{label}</option>
+                ))}
               </select>
+              <p className="mt-1 text-[11px] leading-snug text-slate-400">
+                {form.employeeId
+                  ? 'Pesan pribadi → muncul di menu 🔔 Notifikasi karyawan itu.'
+                  : 'Kabar perusahaan → muncul di menu 📢 Pengumuman semua karyawan.'}
+              </p>
             </div>
             <div><label className="label">Judul *</label><input className="input" value={form.judul} onChange={(e) => set('judul', e.target.value)} required placeholder="Contoh: Rapat pagi besok" /></div>
           </div>
@@ -1527,9 +1651,12 @@ function Gaji() {
       {/* Periode penggajian — admin menetapkan periode; slip gaji karyawan (menu
           Profil) menampilkan periode yang AKTIF beserta rinciannya. */}
       <div className="card mb-4">
-        <h3 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-          <CalendarRange size={16} className="text-indigo-500" /> Periode Penggajian
-        </h3>
+        <h2 className="judul-seksi mb-2">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+            <CalendarRange size={14} />
+          </span>
+          Periode Penggajian
+        </h2>
         <p className="mb-3 rounded-2xl bg-emerald-50 px-3.5 py-2.5 text-[11px] leading-relaxed text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
           {periodeAktif ? (
             <>
@@ -1612,8 +1739,8 @@ function Gaji() {
         </p>
       ) : (
         <>
-          <div className="card tabel-geser p-0">
-            <table className="w-full min-w-[960px] whitespace-nowrap text-left text-xs">
+          <div className="card tabel-geser !p-0">
+            <table className="tabel-modern min-w-[960px]">
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:border-slate-800">
                   <th className="px-3 py-2.5">Karyawan</th>
@@ -1822,18 +1949,19 @@ function Laporan() {
   }
 
   const clsInput = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800'
+  // Ringkasan angka: ikon + warna aksen, konsisten dengan petak statistik Ringkasan.
   const kartu = [
-    ['👥', data?.ringkasan?.totalKaryawan, 'Karyawan'],
-    ['📅', data?.hariKerja, 'Hari Kerja'],
-    ['📈', data?.ringkasan?.persen != null ? `${data.ringkasan.persen}%` : null, 'Rata-rata Hadir'],
-    ['✅', data?.ringkasan?.hadir, 'Hadir'],
-    ['⏰', data?.ringkasan?.terlambat, 'Terlambat'],
-    ['🌴', data?.ringkasan?.hadirLibur, 'Hadir Libur'],
-    ['❌', data?.ringkasan?.alpha, 'Alpha'],
-    ['📄', data?.ringkasan?.izin, 'Izin'],
-    ['🏖️', data?.ringkasan?.cuti, 'Cuti'],
-    ['🤒', data?.ringkasan?.sakit, 'Sakit'],
-    ['⏱️', data?.ringkasan?.lembur, 'Jam Lembur'],
+    { Icon: Users, angka: data?.ringkasan?.totalKaryawan, label: 'Karyawan', teks: 'text-indigo-600 dark:text-indigo-300' },
+    { Icon: CalendarRange, angka: data?.hariKerja, label: 'Hari Kerja', teks: 'text-slate-600 dark:text-slate-300' },
+    { Icon: BarChart3, angka: data?.ringkasan?.persen != null ? `${data.ringkasan.persen}%` : null, label: 'Rata-rata Hadir', teks: 'text-violet-600 dark:text-violet-300' },
+    { Icon: CheckCircle2, angka: data?.ringkasan?.hadir, label: 'Hadir', teks: 'text-emerald-600 dark:text-emerald-300' },
+    { Icon: Clock, angka: data?.ringkasan?.terlambat, label: 'Terlambat', teks: 'text-amber-600 dark:text-amber-300' },
+    { Icon: CalendarCheck2, angka: data?.ringkasan?.hadirLibur, label: 'Hadir Libur', teks: 'text-teal-600 dark:text-teal-300' },
+    { Icon: AlertTriangle, angka: data?.ringkasan?.alpha, label: 'Alpha', teks: 'text-rose-600 dark:text-rose-300' },
+    { Icon: FileText, angka: data?.ringkasan?.izin, label: 'Izin', teks: 'text-sky-600 dark:text-sky-300' },
+    { Icon: Plane, angka: data?.ringkasan?.cuti, label: 'Cuti', teks: 'text-cyan-600 dark:text-cyan-300' },
+    { Icon: FileWarning, angka: data?.ringkasan?.sakit, label: 'Sakit', teks: 'text-orange-600 dark:text-orange-300' },
+    { Icon: Timer, angka: data?.ringkasan?.lembur, label: 'Jam Lembur', teks: 'text-fuchsia-600 dark:text-fuchsia-300' },
   ]
 
   return (
@@ -1842,6 +1970,12 @@ function Laporan() {
 
       {/* Filter periode & departemen */}
       <div className="card space-y-3">
+        <h2 className="judul-seksi">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+            <Filter size={14} />
+          </span>
+          Saring Laporan
+        </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-400">Dari Tanggal</span>
@@ -1866,12 +2000,14 @@ function Laporan() {
 
       {/* Ringkasan angka */}
       {adaData && (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-          {kartu.map(([emoji, angka, label]) => (
-            <div key={label} className="card p-2.5 text-center">
-              <p className="text-base leading-none">{emoji}</p>
-              <p className="mt-1 text-sm font-extrabold leading-none">{angka ?? '—'}</p>
-              <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+          {kartu.map(({ Icon, angka, label, teks }, i) => (
+            <div key={label} style={{ animationDelay: `${i * 35}ms` }} className={`stat-tile animate-rise !p-2.5 text-center ${teks}`}>
+              <span className="relative z-10 mx-auto grid h-8 w-8 place-items-center rounded-xl bg-white/70 shadow-sm dark:bg-white/10">
+                <Icon size={15} />
+              </span>
+              <p className="relative z-10 mt-1.5 text-sm font-extrabold leading-none tabular-nums text-slate-800 dark:text-white">{angka ?? '—'}</p>
+              <p className="relative z-10 mt-0.5 truncate text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
             </div>
           ))}
         </div>
@@ -1880,10 +2016,10 @@ function Laporan() {
       {/* Tombol export */}
       {adaData && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button onClick={eksporExcel} disabled={!!ekspor} className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 transition active:scale-95 disabled:opacity-40">
+          <button onClick={eksporExcel} disabled={!!ekspor} className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 transition active:scale-95 hover:brightness-110 disabled:opacity-40">
             {ekspor === 'xlsx' ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />} Excel (XLSX)
           </button>
-          <button onClick={eksporPdf} disabled={!!ekspor} className="flex items-center justify-center gap-2 rounded-2xl bg-rose-600 py-3 text-sm font-bold text-white shadow-lg shadow-rose-500/25 transition active:scale-95 disabled:opacity-40">
+          <button onClick={eksporPdf} disabled={!!ekspor} className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose-500 to-pink-600 py-3 text-sm font-bold text-white shadow-lg shadow-rose-500/25 transition active:scale-95 hover:brightness-110 disabled:opacity-40">
             {ekspor === 'pdf' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} PDF
           </button>
         </div>
@@ -1897,8 +2033,8 @@ function Laporan() {
           Belum ada data pada filter ini — ubah periode/departemen lalu tekan Tampilkan Laporan.
         </p>
       ) : (
-        <div className="card tabel-geser p-0">
-          <table className="w-full min-w-[720px] whitespace-nowrap text-left text-xs">
+        <div className="card tabel-geser !p-0">
+          <table className="tabel-modern min-w-[720px]">
             <thead>
               <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:border-slate-800">
                 <th className="px-3 py-2.5">Karyawan</th>

@@ -131,37 +131,43 @@ export default function Riwayat({ history, toast }) {
     <div className="animate-fade-in">
       <div className="mb-4 flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-extrabold tracking-tight">Riwayat Absensi</h1>
+          <h1 className="flex items-center gap-1.5 text-xl font-extrabold tracking-tight">
+            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-gradient-to-br from-sky-400 to-indigo-500 text-white shadow-lg shadow-indigo-500/30">
+              <HistoryIcon size={17} />
+            </span>
+            Riwayat
+          </h1>
           <p className="truncate text-sm text-slate-500 dark:text-slate-400">{data.length} catatan ditemukan</p>
         </div>
         <button
           onClick={exportCSV}
           disabled={!data.length || mengunduh}
           title={data.length ? 'Unduh CSV sesuai filter' : 'Tidak ada data untuk diunduh'}
-          className="flex items-center gap-1.5 rounded-2xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/30 transition hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
+          className="flex shrink-0 items-center gap-1.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/30 transition hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
         >
           {mengunduh ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} CSV
         </button>
       </div>
 
-      {/* Rekap cepat sesuai filter aktif — angka berwarna + entri beranimasi */}
+      {/* Rekap cepat sesuai filter aktif — kartu kaca dengan aksen bar warna status */}
       <div className="mb-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
         {['Hadir', 'Terlambat', 'Izin', 'Alpha'].map((s, i) => (
           <div
             key={s}
-            className="animate-rise min-w-0 rounded-2xl bg-white p-2.5 shadow-soft dark:bg-slate-900"
+            className="animate-rise relative min-w-0 overflow-hidden rounded-2xl border border-white/60 bg-white/85 p-2.5 pt-3 shadow-card backdrop-blur-xl dark:border-white/[.06] dark:bg-slate-900/70"
             style={{ animationDelay: `${i * 50}ms` }}
           >
-            <p className={`text-lg font-extrabold leading-none ${WARNA_REKAP[s]}`}>{data.filter((h) => h.status === s).length}</p>
+            <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${AKSEN_REKAP[s]}`} />
+            <p className={`text-xl font-extrabold leading-none tabular-nums ${WARNA_REKAP[s]}`}>{data.filter((h) => h.status === s).length}</p>
             <p className="mt-1 flex items-center justify-center gap-1 truncate text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              <i className={`h-1.5 w-1.5 rounded-full ${AKSEN_REKAP[s]}`} /> {s}
+              {s}
             </p>
           </div>
         ))}
       </div>
 
-      {/* Tab: Daftar / Kalender */}
-      <div className="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">
+      {/* Tab: Daftar / Kalender — segmen kaca */}
+      <div className="mb-4 grid grid-cols-2 gap-1 rounded-[1.4rem] border border-white/50 bg-white/70 p-1.5 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70">
         {[
           ['daftar', '📋 Daftar'],
           ['kalender', '🗓️ Kalender'],
@@ -169,9 +175,9 @@ export default function Riwayat({ history, toast }) {
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`rounded-xl py-2 text-xs font-bold transition ${
+            className={`rounded-[1rem] py-2.5 text-xs font-bold transition-all duration-300 ${
               tab === id
-                ? 'bg-white text-indigo-600 shadow dark:bg-slate-900 dark:text-indigo-400'
+                ? 'bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-lg shadow-indigo-500/30'
                 : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
             }`}
           >
@@ -187,23 +193,23 @@ export default function Riwayat({ history, toast }) {
         <div className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
           <Filter size={15} className="text-indigo-500" /> Filter
         </div>
-        {/* Filter status: dibiarkan membungkus (wrap) agar semua pilihan tetap
-            terlihat di layar ponsel sempit — tidak ada chip yang terpotong. */}
-        <div className="flex flex-wrap gap-2">
-          {STATUS_LIST.map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatus(s)}
-              className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition active:scale-95 ${
-                status === s
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
-                  : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+      {/* Filter status: dibiarkan membungkus (wrap) agar semua pilihan tetap
+          terlihat di layar ponsel sempit — tidak ada chip yang terpotong. */}
+      <div className="flex flex-wrap gap-2">
+        {STATUS_LIST.map((s) => (
+          <button
+            key={s}
+            onClick={() => setStatus(s)}
+            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition active:scale-95 ${
+              status === s
+                ? 'bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-500/30'
+                : 'border border-slate-200 bg-white/80 text-slate-500 backdrop-blur dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-400'
+            }`}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label">Dari</label>

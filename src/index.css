@@ -8,22 +8,30 @@
     /* Cegah iOS memperbesar teks otomatis saat ponsel diputar (landscape). */
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    scroll-behavior: smooth;
     /* Latar html = latar body: area overscroll/rubber-band tidak pernah putih. */
-    background-color: rgb(241 245 249); /* slate-100 */
+    background-color: #eef2f8; /* biru-abu langit lembut */
   }
   .dark html, html.dark {
     background-color: rgb(2 6 23); /* slate-950 */
   }
   body {
     @apply overflow-x-hidden bg-slate-100 text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-100;
+    /* Plus Jakarta Sans: angka rapi & huruf lebih hangat dari Inter */
+    font-feature-settings: 'ss01' on, 'cv11' on;
     /* Cegah pantulan overscroll menampilkan area di luar dokumen. */
     overscroll-behavior-y: none;
   }
+  ::selection { background: rgba(129, 140, 248, .3); }
+  /* Scrollbar halus ala web modern */
+  * { scrollbar-width: thin; scrollbar-color: rgb(148 163 184 / .45) transparent; }
 }
 
 @layer components {
+  /* Kartu glassmorphism: kaca buram + tepi putih tipis + bayangan bertumpuk */
   .card {
-    @apply rounded-3xl bg-white p-4 shadow-soft dark:bg-slate-900 dark:shadow-black/30 sm:p-5;
+    @apply rounded-[1.75rem] border border-white/60 bg-white/85 p-4 shadow-card backdrop-blur-xl
+      dark:border-white/[.06] dark:bg-slate-900/70 dark:shadow-black/40 sm:p-5;
   }
   /* Wadah tabel lebar: bisa digeser mendatar dengan jari, tanpa memicu
      scroll halaman. Dipakai mis. tabel Laporan Kehadiran di panel admin. */
@@ -35,22 +43,101 @@
   }
   .input {
     @apply w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition
-      placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200
+      placeholder:text-slate-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-200/60
       dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-indigo-500/30 sm:px-4;
   }
   .label {
-    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400;
+    @apply mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600
-      px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition
-      active:scale-95 hover:brightness-110 disabled:opacity-50 disabled:active:scale-100;
+    @apply relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-2xl
+      bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500
+      px-5 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition
+      active:scale-95 hover:shadow-xl hover:shadow-indigo-500/40 hover:brightness-110
+      disabled:opacity-50 disabled:active:scale-100;
   }
+  /* Kilau menyapu tombol saat disentuh/hover — aksen premium */
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, .35) 50%, transparent 60%);
+    transform: translateX(-120%);
+    transition: transform .7s ease;
+  }
+  .btn-primary:hover::after { transform: translateX(120%); }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3
-      text-sm font-semibold text-slate-600 transition active:scale-95 hover:bg-slate-50
-      dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/80 px-5 py-3
+      text-sm font-semibold text-slate-600 shadow-sm backdrop-blur transition active:scale-95 hover:bg-slate-50
+      dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-800;
   }
+  /* Teks gradasi — dipakai judul & angka penting */
+  .text-gradient {
+    @apply bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent;
+  }
+  /* Pil kaca kecil untuk badge/chip di atas foto atau gradasi */
+  .chip-glass {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/15 px-3 py-1
+      font-semibold text-white backdrop-blur-md;
+  }
+
+  /* ============ PANEL ADMIN — gaya modern ============ */
+  /* Petak statistik gradasi (Ringkasan admin) */
+  .stat-tile {
+    @apply relative overflow-hidden rounded-[1.6rem] border border-white/60 bg-white/85 p-3.5 shadow-card
+      backdrop-blur-xl transition active:scale-[0.98] dark:border-white/[.06] dark:bg-slate-900/70 sm:p-4;
+  }
+  /* Busur cahaya di sudut petak */
+  .stat-tile::after {
+    content: '';
+    position: absolute;
+    right: -1.75rem;
+    top: -1.75rem;
+    height: 6rem;
+    width: 6rem;
+    border-radius: 9999px;
+    background: currentColor;
+    opacity: .10;
+    filter: blur(6px);
+  }
+  /* Petak menu tab admin */
+  .tile-tab {
+    @apply relative flex shrink-0 snap-start items-center gap-2 rounded-2xl border px-3 py-2.5 text-left
+      transition active:scale-95 sm:flex-col sm:justify-center sm:gap-1.5 sm:px-1 sm:py-3;
+  }
+  /* Tabel modern: kepala lengket, baris bergaris halus, sorot saat disinggahi */
+  .tabel-modern {
+    @apply w-full whitespace-nowrap text-left text-xs;
+  }
+  .tabel-modern thead tr {
+    @apply border-b border-slate-200/80 bg-slate-50/90 dark:border-slate-700 dark:bg-slate-800/80;
+  }
+  .tabel-modern thead th {
+    @apply sticky top-0 z-10 bg-inherit px-3 py-3 text-[10px] font-bold uppercase tracking-[0.12em]
+      text-slate-500 backdrop-blur-md dark:text-slate-400;
+  }
+  .tabel-modern tbody tr {
+    @apply border-b border-slate-100 transition-colors dark:border-slate-800/70;
+  }
+  .tabel-modern tbody tr:hover {
+    @apply bg-indigo-50/70 dark:bg-indigo-500/[.08];
+  }
+  .tabel-modern tbody td { @apply px-2 py-3; }
+  .tabel-modern tfoot tr {
+    @apply border-t-2 border-indigo-100 bg-indigo-50/60 dark:border-indigo-500/20 dark:bg-indigo-500/[.08];
+  }
+  .tabel-modern tfoot td { @apply px-2 py-3.5 text-xs; }
+  /* Kepala seksi di dalam kartu admin */
+  .judul-seksi {
+    @apply flex items-center gap-2 text-sm font-extrabold tracking-tight text-slate-800 dark:text-slate-100;
+  }
+  /* Seluruh isi panel admin: kartu naik halus saat disinggahi + judul seksi seragam.
+     Satu aturan ini menyentuh SEMUA tab admin tanpa mengubah tiap komponen. */
+  .panel-admin .card {
+    @apply transition duration-200 hover:border-indigo-200/70 hover:shadow-lg hover:shadow-indigo-900/[.07]
+      dark:hover:border-indigo-500/25;
+  }
+  .panel-admin h2 { @apply text-slate-800 dark:text-slate-100; }
 }
 
 /* Sembunyikan scrollbar menu bottom-nav overflow */
@@ -59,13 +146,19 @@
 
 /* Garis pemindai wajah (mock face-scan pada SelfieModal) */
 @keyframes scan-y {
-  0%, 100% { top: 15%; }
-  50% { top: 82%; }
+  0%, 100% { top: 18%; }
+  50% { top: 80%; }
 }
 .scanline {
   position: absolute;
-  animation: scan-y 1.8s ease-in-out infinite;
+  animation: scan-y 2s ease-in-out infinite;
 }
+
+/* Bingkai kamera berbentuk WAJAH (SelfieModal) — outline siluet berjalan */
+@keyframes wajah-dash { to { stroke-dashoffset: -44; } }
+.wajah-dash { animation: wajah-dash 1.8s linear infinite; }
+@keyframes wajah-berdenyut { 0%, 100% { opacity: .3; } 50% { opacity: .85; } }
+.wajah-berdenyut { animation: wajah-berdenyut 2.4s ease-in-out infinite; }
 
 /* Blob gradasi mengambang (halaman login) */
 @keyframes blob-float {
@@ -111,6 +204,23 @@
 @keyframes spin-slow { to { transform: rotate(360deg); } }
 .animate-spin-slower { animation: spin-slow 9s linear infinite; }
 
+/* Aurora: gradasi besar bergeser pelan (kartu hero beranda & latar login) */
+@keyframes aurora-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.aurora {
+  background-size: 220% 220%;
+  animation: aurora-shift 9s ease-in-out infinite;
+}
+
+/* Denyut halo lembut (lingkaran di belakang tombol absen) */
+@keyframes halo-pulse {
+  0%, 100% { opacity: .5; transform: scale(1); }
+  50% { opacity: .9; transform: scale(1.06); }
+}
+.animate-halo { animation: halo-pulse 2.8s ease-in-out infinite; }
+
 /* ============ Animasi logo: bersih TANPA border/cincin/stroke ============ */
 /* Hanya glow cahaya lembut di belakang + logo mengambang. Cincin halo (dengan
    segmen navy gelap yang tampak seperti border hitam), ring sonar, titik orbit,
@@ -146,6 +256,7 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-rise, .animate-fade-in, .animate-slide-up, .bar-anim,
   .animate-floaty, .animate-spin-slower, .animate-pulse-slow,
-  .logo-wrap, .logo-cahaya, .logo-melayang { animation: none; }
+  .logo-wrap, .logo-cahaya, .logo-melayang,
+  .aurora, .animate-halo, .wajah-dash, .wajah-berdenyut { animation: none; }
   .logo-cahaya { opacity: .45; }
 }

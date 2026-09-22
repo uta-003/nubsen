@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Bell, Info, CalendarPlus, Clock4, CalendarCheck2, CheckCheck, Loader2, Megaphone, AlertTriangle, CalendarClock, Wallet,
+  Bell, Info, CalendarPlus, Clock4, CalendarCheck2, CheckCheck, Loader2, Megaphone, AlertTriangle, CalendarClock, Wallet, ChevronRight,
 } from 'lucide-react'
 import { getNotifikasi, tandaiNotifikasiDibaca } from '../api'
 
@@ -26,8 +26,11 @@ const formatWaktu = (s) => {
   }
 }
 
-// Kotak masuk notifikasi — bersumber dari backend (admin & sistem).
-export default function Notifikasi() {
+// Kotak masuk notifikasi PRIBADI — alert transaksional milik user (hasil
+// persetujuan izin/lembur, absensi, gaji). Kabar perusahaan (pengumuman,
+// penting, jadwal, info) TIDAK lagi di sini: semuanya di menu 📢 Pengumuman
+// supaya tidak dobel dan bisa ditandai dibaca satu per satu.
+export default function Notifikasi({ onBukaPengumuman }) {
   const [items, setItems] = useState([])
   const [belum, setBelum] = useState(0)
   const [memuat, setMemuat] = useState(true)
@@ -36,7 +39,8 @@ export default function Notifikasi() {
   const muat = () =>
     getNotifikasi()
       .then((d) => {
-        setItems(d.items)
+        // Hanya kategori PRIBADI (pengumuman perusahaan ada di halaman 📢).
+        setItems(d.notifikasi)
         setBelum(d.belumDibaca)
         // Beri tahu lonceng di header agar badge langsung sinkron (tanpa menunggu polling 30 dtk)
         window.dispatchEvent(new CustomEvent('absenku:notif', { detail: { belumDibaca: d.belumDibaca } }))
@@ -58,7 +62,9 @@ export default function Notifikasi() {
     setItems((arr) => arr.map((n) => ({ ...n, dibaca: true })))
     window.dispatchEvent(new CustomEvent('absenku:notif', { detail: { belumDibaca: 0 } }))
     try {
-      await tandaiNotifikasiDibaca()
+      // 'notifikasi: true' = tandai kategori PRIBADI saja; badge megafon
+      // (pengumuman) tidak ikut terhapus dari sini.
+      await tandaiNotifikasiDibaca({ notifikasi: true })
       await muat()
     } finally {
       setMemproses(false)
@@ -87,6 +93,26 @@ export default function Notifikasi() {
         )}
       </div>
 
+      {/* Pengarah lintas menu: kabar perusahaan kini satu tempat saja di 📢. */}
+      {onBukaPengumuman && (
+        <button
+          type="button"
+          onClick={onBukaPengumuman}
+          className="mb-3 flex w-full items-center gap-2.5 rounded-2xl border border-amber-200/70 bg-gradient-to-r from-amber-50 to-orange-50 p-3 text-left transition active:scale-[0.99] dark:border-amber-500/30 dark:from-amber-500/10 dark:to-orange-500/5"
+        >
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-orange-500/30">
+            <Megaphone size={15} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-bold text-amber-800 dark:text-amber-200">Butuh pengumuman perusahaan?</span>
+            <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/70">
+              Kabar, jadwal, dan info penting ada di menu Pengumuman
+            </span>
+          </span>
+          <ChevronRight size={16} className="shrink-0 text-amber-500" />
+        </button>
+      )}
+
       {memuat ? (
         <p className="text-xs text-slate-400">Memuat…</p>
       ) : items.length === 0 ? (
@@ -96,7 +122,8 @@ export default function Notifikasi() {
           </span>
           <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Belum ada notifikasi</p>
           <p className="max-w-[16rem] text-xs leading-relaxed text-slate-400">
-            Pengumuman dari admin serta update izin &amp; lembur Anda akan muncul di sini.
+            Hasil pengajuan izin/lembur, absensi, dan slip gaji Anda muncul di sini.
+            Kabar perusahaan ada di menu Pengumuman.
           </p>
         </div>
       ) : (

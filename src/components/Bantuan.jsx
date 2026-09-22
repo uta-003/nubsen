@@ -24,8 +24,8 @@ const FAQ = [
     a: 'Tab Riwayat menyediakan daftar + tampilan kalender bulanan, filter status, filter rentang tanggal, dan tombol CSV untuk unduh data ke Excel. Ketuk kartu untuk melihat detail: selfie, peta lokasi, dan durasi kerja.',
   },
   {
-    q: 'Notifikasi lonceng itu untuk apa?',
-    a: 'Semua pemberitahuan dari perusahaan (pengumuman, hasil persetujuan izin/lembur) muncul di sana. Badge merah menandakan ada yang belum dibaca — membuka halamannya otomatis menandai terbaca.',
+    q: 'Apa bedanya menu Pengumuman (megafon) dan Notifikasi (lonceng)?',
+    a: 'Megafon = kabar perusahaan untuk semua orang (pengumuman, penting, jadwal, info). Tiap kartu bisa Anda tandai sendiri "sudah dibaca" lewat tombol centang, atau tekan "Tandai Semua". Lonceng = pesan pribadi Anda saja: hasil persetujuan izin/lembur, absensi, dan slip gaji. Badge merah di masing-masing menandakan masih ada yang belum dibaca — membuka halamannya otomatis menandai terbaca.',
   },
   {
     q: 'Lupa PIN atau lupa logout di HP lain?',

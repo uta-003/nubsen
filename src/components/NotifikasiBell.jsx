@@ -62,6 +62,8 @@ export default function NotifikasiBell({ onClick }) {
         .getNotifikasi()
         .then((d) => {
           if (!hidup) return
+          // Badge lonceng HANYA dari kategori notifikasi (alert personal) —
+          // pengumuman perusahaan punya megafon & badge-nya sendiri.
           setBelum(d.belumDibaca)
           // ---- Pemberitahuan peramban untuk item baru (sejak cek terakhir) ----
           const items = d.items || []

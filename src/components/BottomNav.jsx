@@ -25,7 +25,7 @@ export default function BottomNav({ active, onChange }) {
         <div className="h-[5.75rem] bg-slate-100 dark:bg-slate-950" />
       </div>
       <div className="relative mx-auto max-w-md px-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] sm:px-4">
-        <div className="flex items-stretch rounded-3xl border border-slate-200/80 bg-white p-1 shadow-soft dark:border-slate-700/70 dark:bg-slate-900 sm:p-1.5">
+        <div className="flex items-stretch rounded-[1.75rem] border border-white/50 bg-white/80 p-1.5 shadow-nav backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/70">
         {items.map(({ id, label, Icon }) => {
           const isActive = active === id
           return (
@@ -42,13 +42,18 @@ export default function BottomNav({ active, onChange }) {
               <span
                 className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl transition sm:h-9 sm:w-9 ${
                   isActive
-                    ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/40'
+                    ? 'bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-lg shadow-indigo-500/40'
                     : 'bg-transparent'
                 }`}
               >
                 <Icon size={17} />
               </span>
               <span className="w-full truncate text-center">{label}</span>
+              {/* Titik indikator tab aktif */}
+              <span
+                aria-hidden
+                className={`h-1 w-1 rounded-full transition ${isActive ? 'bg-gradient-to-r from-indigo-500 to-fuchsia-500' : 'bg-transparent'}`}
+              />
             </button>
           )
         })}

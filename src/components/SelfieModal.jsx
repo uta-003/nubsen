@@ -116,12 +116,12 @@ export default function SelfieModal({ open, mode = 'in', onClose, onCapture, lok
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 animate-fade-in sm:items-center">
-      <div className="max-h-[92vh] w-full max-w-md animate-slide-up overflow-y-auto rounded-t-[2rem] bg-white p-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] shadow-2xl dark:bg-slate-900 sm:rounded-[2rem] sm:pb-5">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur-sm animate-fade-in sm:items-center">
+      <div className="max-h-[92vh] w-full max-w-md animate-slide-up overflow-y-auto rounded-t-[2.25rem] border border-white/60 bg-white/95 p-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95 sm:rounded-[2.25rem] sm:pb-5">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
-              <ScanFace size={22} />
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-lg shadow-indigo-500/30">
+              <ScanFace size={20} />
             </span>
             <div>
               <h3 className="font-bold">Verifikasi Selfie</h3>
@@ -142,21 +142,68 @@ export default function SelfieModal({ open, mode = 'in', onClose, onCapture, lok
           </button>
         </div>
 
-        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-3xl bg-slate-900">
+        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[1.75rem] bg-slate-950 shadow-inner">
           {photo ? (
             <img src={photo} alt="Selfie" className="h-full w-full object-cover" />
           ) : (
             <>
               <video ref={videoRef} autoPlay playsInline muted className="h-full w-full scale-x-[-1] object-cover" />
-              {/* Bingkai oval verifikasi */}
-              <div className="pointer-events-none absolute inset-0 grid place-items-center">
-                <div className="h-3/5 w-3/5 rounded-[50%] border-[3px] border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
-              </div>
-              {/* Garis pemindai wajah (mock face-scan) */}
-              <div className="scanline pointer-events-none inset-x-10 h-1 rounded-full bg-gradient-to-r from-transparent via-indigo-400 to-transparent" />
+              {/* ===== Bingkai berbentuk WAJAH (bukan oval) =====
+                  Siluet kepala: dahi & pelipis lebar, pipi penuh, dagu meruncing.
+                  Path genap-ganjil (evenodd): persegi penuh + siluet = lubang gelap
+                  di luar wajah ala Face ID, wajah user tetap terlihat jelas. */}
+              <svg
+                viewBox="0 0 300 400"
+                preserveAspectRatio="xMidYMid slice"
+                className="pointer-events-none absolute inset-0 h-full w-full"
+                aria-hidden
+              >
+                <defs>
+                  <linearGradient id="wajahGaris" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#818cf8" />
+                    <stop offset="50%" stopColor="#e0e7ff" />
+                    <stop offset="100%" stopColor="#e879f9" />
+                  </linearGradient>
+                </defs>
+                {/* Selubung gelap di luar siluet wajah */}
+                <path
+                  fillRule="evenodd"
+                  fill="rgba(2, 6, 23, 0.58)"
+                  d="M0,0 H300 V400 H0 Z
+                     M150,68 C100,68 64,102 62,158 C60,204 72,240 94,268 C112,291 131,312 150,312
+                     C169,312 188,291 206,268 C228,240 240,204 238,158 C236,102 200,68 150,68 Z"
+                />
+                {/* Halo tipis mengelilingi garis wajah */}
+                <path
+                  className="wajah-berdenyut"
+                  fill="none"
+                  stroke="rgba(255,255,255,.35)"
+                  strokeWidth="8"
+                  d="M150,68 C100,68 64,102 62,158 C60,204 72,240 94,268 C112,291 131,312 150,312
+                     C169,312 188,291 206,268 C228,240 240,204 238,158 C236,102 200,68 150,68 Z"
+                />
+                {/* Garis siluet wajah — putus-putus & terus berjalan */}
+                <path
+                  className="wajah-dash"
+                  fill="none"
+                  stroke="url(#wajahGaris)"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeDasharray="12 10"
+                  d="M150,68 C100,68 64,102 62,158 C60,204 72,240 94,268 C112,291 131,312 150,312
+                     C169,312 188,291 206,268 C228,240 240,204 238,158 C236,102 200,68 150,68 Z"
+                />
+              </svg>
+              {/* Braket sudut ala Face ID */}
+              <span aria-hidden className="pointer-events-none absolute left-4 top-4 h-7 w-7 rounded-tl-2xl border-l-[3px] border-t-[3px] border-white/80" />
+              <span aria-hidden className="pointer-events-none absolute right-4 top-4 h-7 w-7 rounded-tr-2xl border-r-[3px] border-t-[3px] border-white/80" />
+              <span aria-hidden className="pointer-events-none absolute bottom-4 left-4 h-7 w-7 rounded-bl-2xl border-b-[3px] border-l-[3px] border-white/80" />
+              <span aria-hidden className="pointer-events-none absolute bottom-4 right-4 h-7 w-7 rounded-br-2xl border-b-[3px] border-r-[3px] border-white/80" />
+              {/* Garis pemindai wajah (mock face-scan) — glow neon di area wajah */}
+              <div className="scanline pointer-events-none left-[16%] right-[16%] h-[3px] rounded-full bg-gradient-to-r from-transparent via-indigo-300/90 to-transparent blur-[1px]" />
               {wajahTerdeteksi && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500/90 px-3 py-1 text-xs font-bold text-white shadow-lg">
-                  ✓ Wajah terdeteksi
+                <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-emerald-300/40 bg-emerald-500/90 px-3.5 py-1.5 text-xs font-bold text-white shadow-lg shadow-emerald-500/40 backdrop-blur">
+                  <Check size={13} /> Wajah terdeteksi
                 </div>
               )}
             </>
@@ -179,14 +226,20 @@ export default function SelfieModal({ open, mode = 'in', onClose, onCapture, lok
               </button>
             </>
           ) : (
-            <button
-              onClick={jepret}
-              disabled={!!error}
-              className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/40 transition active:scale-90 disabled:opacity-40"
-              aria-label="Ambil selfie"
-            >
-              <Camera size={26} />
-            </button>
+            <div className="relative">
+              {/* Cincin putus-putus berputar mengelilingi tombol jepret */}
+              <span aria-hidden className="animate-spin-slower absolute -inset-2.5 rounded-full border-2 border-dashed border-indigo-400/70 dark:border-indigo-400/50" />
+              <button
+                onClick={jepret}
+                disabled={!!error}
+                className="relative grid h-[4.25rem] w-[4.25rem] place-items-center rounded-full bg-white shadow-2xl shadow-indigo-500/40 ring-4 ring-white/50 transition active:scale-90 disabled:opacity-40"
+                aria-label="Ambil selfie"
+              >
+                <span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white">
+                  <Camera size={24} />
+                </span>
+              </button>
+            </div>
           )}
         </div>
       </div>
