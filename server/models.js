@@ -392,6 +392,77 @@ async function namaAdmin(olehId) {
   return a?.nama || 'Admin'
 }
 
+// ===== Penomoran otomatis surat =====
+// Format resmi: 001/SP-HRD/IX/2026 (SP) atau 001/PHK-HRD/IX/2026 (pemecatan).
+// Urutan dihitung per jenis per tahun (terbanyak antara surat aktif dan riwayat,
+// agar nomor tak pernah terpakai ulang), bulan romawi & tahun dari tanggal surat.
+const ROMAWI_BULAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+
+export async function buatNomorSurat(jenis, tanggal) {
+  const tahun = String(tanggal).slice(0, 4)
+  const bulan = ROMAWI_BULAN[Number(String(tanggal).slice(5, 7)) - 1] || 'I'
+  const dariSurat = (await db.get(
+    'SELECT COUNT(*) AS n FROM warnings WHERE jenis = ? AND substr(tanggal, 1, 4) = ?',
+    [jenis, tahun],
+  ))?.n ?? 0
+  const dariRiwayat = (await db.get(
+    "SELECT COUNT(*) AS n FROM warning_log WHERE jenis = ? AND aksi = 'Diterbitkan' AND substr(tanggal, 1, 4) = ?",
+    [jenis, tahun],
+  ))?.n ?? 0
+  const urut = String(Math.max(Number(dariSurat) || 0, Number(dariRiwayat) || 0) + 1).padStart(3, '0')
+  const kode = jenis === 'Pemecatan' ? 'PHK-HRD' : 'SP-HRD'
+  return `${urut}/${kode}/${bulan}/${tahun}`
+}
+
+// Lengkapi nomor surat lama yang terbit sebelum fitur penomoran ada
+// (kolom nomor kosong/null). Nomor DIPULIHKAN sesuai urutan kejadian
+// 'Diterbitkan' di riwayat (bukan nomor baru), sehingga surat lama mendapat
+// nomor aslinya kembali. Surat tanpa jejak riwayat memakai buatNomorSurat.
+// Tidak menimpa surat yang sudah punya nomor. Aman diulang.
+export async function lengkapiNomorSuratLama() {
+  const kosong = await db.all(
+    "SELECT id, jenis, tanggal FROM warnings WHERE nomor IS NULL OR nomor = '' ORDER BY tanggal ASC, id ASC",
+  )
+  let terisi = 0
+  for (const s of kosong) {
+    let nomor = null
+    // Cari kejadian 'Diterbitkan' surat ini di riwayat → urutan kejadian itu
+    // di antara surat sejenis setahun yang sama = nomor aslinya.
+    const log = await db.get(
+      "SELECT id FROM warning_log WHERE warning_id = ? AND aksi = 'Diterbitkan' LIMIT 1",
+      [s.id],
+    )
+    if (log) {
+      const seq = Number(
+        (
+          await db.get(
+            // Tanpa JOIN surat: surat yang sudah dicabut/dihapus tetap dihitung
+            // agar urutan nomor tidak bergeser.
+            `SELECT COUNT(*) AS n FROM warning_log
+             WHERE aksi = 'Diterbitkan' AND jenis = ? AND substr(tanggal, 1, 4) = ? AND id <= ?`,
+            [s.jenis, String(s.tanggal).slice(0, 4), log.id],
+          )
+        )?.n ?? 0,
+      )
+      if (seq > 0) {
+        const ROMAWI = ROMAWI_BULAN[Number(String(s.tanggal).slice(5, 7)) - 1] || 'I'
+        const kode = s.jenis === 'Pemecatan' ? 'PHK-HRD' : 'SP-HRD'
+        nomor = `${String(seq).padStart(3, '0')}/${kode}/${ROMAWI}/${String(s.tanggal).slice(0, 4)}`
+      }
+    }
+    if (!nomor) nomor = await buatNomorSurat(s.jenis, s.tanggal)
+    await db.run('UPDATE warnings SET nomor = ? WHERE id = ?', [nomor, s.id])
+    // Riwayat kejadian 'Diterbitkan' milik surat ini ikut diperbarui agar konsisten.
+    await db.run(
+      "UPDATE warning_log SET nomor = ? WHERE warning_id = ? AND aksi = 'Diterbitkan' AND (nomor IS NULL OR nomor = '')",
+      [nomor, s.id],
+    )
+    terisi++
+  }
+  if (terisi) console.log(`🔢 Nomor surat lama dilengkapi: ${terisi} surat.`)
+  return terisi
+}
+
 // Catat satu kejadian ke riwayat (tabel warning_log). Nama karyawan, nomor surat,
 // dan alasan DISALIN (snapshot) supaya riwayat tetap utuh setelah surat dicabut,
 // bahkan setelah karyawannya dihapus.
@@ -473,6 +544,7 @@ export async function listRiwayatPeringatan({ employeeId, jenis, aksi, dari, sam
 
 // Semua surat milik satu karyawan (terbaru dulu) — disematkan ke Profil.
 export async function listPeringatan(employeeId) {
+  await lengkapiNomorSuratLama()
   const rows = await db.all(
     'SELECT * FROM warnings WHERE employee_id = ? ORDER BY id DESC',
     [employeeId],
@@ -503,24 +575,10 @@ export async function buatPeringatan({ employeeId, jenis, tanggal, alasan = '', 
   }
   const karyawan = await db.get('SELECT id, nama FROM employees WHERE id = ?', [Number(employeeId)])
   if (!karyawan) return { error: 'Karyawan tidak ditemukan.' }
-  // Nomor surat resmi otomatis: urut per jenis per tahun, format
-  // 001/SP-HRD/IX/2026 (SP) atau 001/PHK-HRD/IX/2026 (pemecatan).
-  // Urutan dihitung dari jumlah TERBANYAK antara surat yang masih ada dan yang
-  // PERNAH diterbitkan (riwayat) — jadi nomor tidak pernah terpakai ulang walau
-  // surat lama sudah dicabut/dihapus.
-  const tahun = String(tanggal).slice(0, 4)
-  const dariSurat = (await db.get(
-    'SELECT COUNT(*) AS n FROM warnings WHERE jenis = ? AND substr(tanggal, 1, 4) = ?',
-    [jenis, tahun],
-  ))?.n ?? 0
-  const dariRiwayat = (await db.get(
-    "SELECT COUNT(*) AS n FROM warning_log WHERE jenis = ? AND aksi = 'Diterbitkan' AND substr(tanggal, 1, 4) = ?",
-    [jenis, tahun],
-  ))?.n ?? 0
-  const jumlah = Math.max(Number(dariSurat) || 0, Number(dariRiwayat) || 0)
-  const ROMAWI = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
-  const kode = jenis === 'Pemecatan' ? 'PHK-HRD' : 'SP-HRD'
-  const nomor = `${String(jumlah + 1).padStart(3, '0')}/${kode}/${ROMAWI[Number(String(tanggal).slice(5, 7)) - 1] || 'I'}/${tahun}`
+  // Nomor surat resmi otomatis: urut per jenis per tahun, bulan romawi & tahun
+  // diambil otomatis dari tanggal surat (contoh 001/SP-HRD/IX/2026). Urutan
+  // memakai terbanyak antara surat aktif dan riwayat — nomor tak pernah terpakai ulang.
+  const nomor = await buatNomorSurat(jenis, tanggal)
   const info = await db.run(
     'INSERT INTO warnings (employee_id, jenis, nomor, tanggal, alasan) VALUES (?, ?, ?, ?, ?)',
     [karyawan.id, jenis, nomor, tanggal, teks],

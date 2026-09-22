@@ -16,7 +16,7 @@ import {
   kirimPengumuman, ubahPengumuman, hapusPengumuman,
 } from '../models.js'
 import { wrap } from '../utils/wrap.js'
-import { sinkronkanRiwayatPeringatan } from '../models.js'
+import { sinkronkanRiwayatPeringatan, lengkapiNomorSuratLama } from '../models.js'
 
 // 'pengumuman' | 'penting' | 'info' | 'jadwal' = kategori PENGUMUMAN (kabar
 // perusahaan, tampil di menu 📢 Pengumuman). Sisanya = NOTIFIKASI personal
@@ -217,6 +217,9 @@ router.delete('/libur/:tanggal', wrap(async (req, res) => {
 // ---------- Surat peringatan (SP1–SP3) & pemecatan ----------
 // GET /api/admin/peringatan?employeeId=3 — daftar surat (nama ikut).
 router.get('/peringatan', wrap(async (req, res) => {
+  // Pastikan surat lama tanpa nomor ikut terisi sebelum daftar dikirim
+  // (dipakai kartu "Surat Peringatan & Pemecatan" di aplikasi karyawan).
+  await lengkapiNomorSuratLama()
   res.json({ data: await listSemuaPeringatan({ employeeId: req.query.employeeId }) })
 }))
 
@@ -227,6 +230,7 @@ router.get('/peringatan', wrap(async (req, res) => {
 // Filter opsional: employeeId, jenis, aksi, dari, sampai (tanggal surat).
 router.get('/peringatan/riwayat', wrap(async (req, res) => {
   await sinkronkanRiwayatPeringatan()
+  await lengkapiNomorSuratLama()
   res.json({
     data: await listRiwayatPeringatan({
       employeeId: req.query.employeeId,

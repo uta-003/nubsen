@@ -4,7 +4,7 @@ import path from 'node:path'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { seedIfEmpty } from './seed.js'
-import { sinkronkanRiwayatPeringatan } from './models.js'
+import { sinkronkanRiwayatPeringatan, lengkapiNomorSuratLama } from './models.js'
 import { db, dbSiap, modeDatabase } from './db.js'
 import authRoutes from './routes/auth.js'
 import overtimeRoutes from './routes/overtime.js'
@@ -47,6 +47,8 @@ function persiapan() {
       await seedIfEmpty()   // data demo (hanya bila database masih kosong)
       // Riwayat SP selalu sinkron dengan surat aktif saat server menyala.
       await sinkronkanRiwayatPeringatan()
+      // Surat lama tanpa nomor otomatis diberi nomor resmi (urut, bulan & tahun otomatis).
+      await lengkapiNomorSuratLama()
     })().catch((err) => {
       console.error('⚠️  Persiapan data dilewati:', err.message)
       janjiPersiapan = null // coba lagi pada permintaan berikutnya
