@@ -37,3 +37,7 @@ capacitor.config.local.json
 .server-pid.txt
 
 .uji-*.mjs
+
+# Skrip peluncur latar belakang (berisi path absolut mesin ini — tidak untuk repo)
+jalankan-backend.ps1
+jalankan-frontend.ps1

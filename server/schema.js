@@ -128,6 +128,26 @@ CREATE TABLE IF NOT EXISTS warnings (
 );
 CREATE INDEX IF NOT EXISTS idx_warnings_employee ON warnings (employee_id);
 
+-- RIWAYAT surat peringatan: jejak audit setiap penerbitan & pencabutan surat.
+-- Baris di sini TIDAK pernah dihapus walaupun suratnya dicabut atau karyawannya
+-- dihapus, karena nama karyawan & nomor surat disimpan sebagai salinan (snapshot).
+-- Dipakai tab "Riwayat SP" di panel admin.
+CREATE TABLE IF NOT EXISTS warning_log (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  warning_id    INTEGER,                  -- id surat asli (null bila sudah dihapus)
+  employee_id   INTEGER,                  -- id karyawan (boleh null bila karyawan dihapus)
+  nama_karyawan TEXT DEFAULT '',          -- salinan nama saat kejadian
+  jenis         TEXT NOT NULL,            -- 'SP1' | 'SP2' | 'SP3' | 'Pemecatan'
+  nomor         TEXT DEFAULT '',          -- nomor surat resmi
+  tanggal       TEXT NOT NULL,            -- tanggal surat (YYYY-MM-DD)
+  alasan        TEXT DEFAULT '',
+  aksi          TEXT NOT NULL,            -- 'Diterbitkan' | 'Dicabut'
+  oleh          TEXT DEFAULT '',          -- nama admin yang melakukan aksi
+  created_at    TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_warning_log_created  ON warning_log (created_at);
+CREATE INDEX IF NOT EXISTS idx_warning_log_employee ON warning_log (employee_id);
+
 -- Jurnal idempotensi sinkronisasi luring: setiap pengajuan dari antrean
 -- perangkat membawa requestId unik; server menolak memproses dua kali
 -- (koneksi drop setelah terkirim tidak akan menciptakan data ganda).

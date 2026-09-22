@@ -143,6 +143,9 @@ const KOLOM_TAMBAHAN = [
   ['employees', "status_karyawan TEXT DEFAULT 'Karyawan Tetap'"],
   // Nomor surat resmi pada surat peringatan & pemecatan.
   ['warnings', 'nomor TEXT'],
+  // Shift kerja karyawan (1 atau 2) — hanya dipakai saat jadwal mode 'shift'.
+  // NULL = belum ditentukan; server memakai Shift 1 sebagai bawaan.
+  ['employees', 'shift INTEGER'],
 ]
 
 let janjiInit = null
@@ -260,13 +263,89 @@ export async function hariKerjaAktif() {
   return [...new Set(hari)].sort((a, b) => a - b)
 }
 
-// Jadwal kerja aktif (jam masuk batas + jam pulang + hari kerja) — dipakai status
-// Terlambat, hitungan mundur pada UI, laporan kehadiran, dan data demo.
-export async function getJadwal() {
+// ============================================================================
+//  JADWAL KERJA — DUA MODE
+//    'biasa' : satu jadwal untuk semua (jamMasukBatas + jamPulang)
+//    'shift' : DUA shift; tiap karyawan mengikuti shift (1 atau 2) yang
+//              ditetapkan admin pada form Karyawan di panel admin.
+// ============================================================================
+export const MODE_JADWAL = ['biasa', 'shift']
+
+// Bawaan tiap shift: nama, jam masuk, batas Terlambat, jam pulang.
+export const SHIFT_DEFAULT = {
+  1: { nama: 'Shift 1 — Pagi', masuk: '07:00', batas: '07:15', pulang: '15:00' },
+  2: { nama: 'Shift 2 — Sore', masuk: '15:00', batas: '15:15', pulang: '23:00' },
+}
+
+const POLA_JAM = /^([01]\d|2[0-3]):[0-5]\d$/
+
+// Baca konfigurasi satu shift dari tabel settings (`shift1` / `shift2`, JSON).
+// Nilai kosong/rusak → kembali ke SHIFT_DEFAULT supaya jadwal tak pernah ngawur.
+async function getShift(nomor) {
+  const def = SHIFT_DEFAULT[nomor]
+  const mentah = await getSetting(`shift${nomor}`, '')
+  let data = {}
+  try { data = mentah ? JSON.parse(mentah) : {} } catch { data = {} }
+  const jam = (v, d) => (POLA_JAM.test(String(v || '')) ? String(v) : d)
   return {
+    nomor,
+    nama: String(data.nama || '').trim() || def.nama,
+    masuk: jam(data.masuk, def.masuk),
+    batas: jam(data.batas, def.batas),
+    pulang: jam(data.pulang, def.pulang),
+  }
+}
+
+export async function getShifts() {
+  const [shift1, shift2] = await Promise.all([getShift(1), getShift(2)])
+  return { 1: shift1, 2: shift2 }
+}
+
+export async function getModeJadwal() {
+  const m = String(await getSetting('jadwalMode', 'biasa')).trim().toLowerCase()
+  return MODE_JADWAL.includes(m) ? m : 'biasa'
+}
+
+// Nomor shift karyawan: 1 | 2. Kosong / nilai asing → 1 (paling pagi).
+export function shiftSah(nilai) {
+  return Number(nilai) === 2 ? 2 : 1
+}
+
+// Jadwal INDUK (pengaturan umum): mode + jam mode biasa + hari kerja + kedua
+// shift. Dipakai panel admin untuk mengisi formulir tab Jadwal.
+export async function getJadwalGlobal() {
+  const shifts = await getShifts()
+  return {
+    mode: await getModeJadwal(),
     jamMasukBatas: await getSetting('jamMasukBatas', JAM_MASUK_BATAS),
     jamPulang: await getSetting('jamPulang', JAM_PULANG_DEFAULT),
     hariKerja: await hariKerjaAktif(),
+    shift1: shifts[1],
+    shift2: shifts[2],
+  }
+}
+
+// Jadwal EFEKTIF — sumber kebenaran status Terlambat, hitung mundur UI, laporan,
+// dan deteksi alpha. Saat mode 'shift' jam masuk/pulang mengikuti shift karyawan
+// (tanpa employeeId dipakai Shift 1 sebagai acuan). Bentuk keluaran tetap punya
+// jamMasukBatas & jamPulang sehingga seluruh pemakai lama tidak perlu diubah.
+export async function getJadwal(employeeId = null) {
+  const induk = await getJadwalGlobal()
+  if (induk.mode !== 'shift') return { ...induk, shift: null }
+
+  let nomor = 1
+  if (employeeId != null) {
+    const baris = await db.get('SELECT shift FROM employees WHERE id = ?', [Number(employeeId)])
+    nomor = shiftSah(baris?.shift)
+  }
+  const s = nomor === 2 ? induk.shift2 : induk.shift1
+  return {
+    ...induk,
+    shift: nomor,
+    shiftNama: s.nama,
+    jamMasuk: s.masuk,
+    jamMasukBatas: s.batas,
+    jamPulang: s.pulang,
   }
 }
 

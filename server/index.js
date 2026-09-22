@@ -4,6 +4,7 @@ import path from 'node:path'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { seedIfEmpty } from './seed.js'
+import { sinkronkanRiwayatPeringatan } from './models.js'
 import { db, dbSiap, modeDatabase } from './db.js'
 import authRoutes from './routes/auth.js'
 import overtimeRoutes from './routes/overtime.js'
@@ -44,6 +45,8 @@ function persiapan() {
     janjiPersiapan = (async () => {
       await dbSiap()        // buat tabel bila belum ada + migrasi ringan
       await seedIfEmpty()   // data demo (hanya bila database masih kosong)
+      // Riwayat SP selalu sinkron dengan surat aktif saat server menyala.
+      await sinkronkanRiwayatPeringatan()
     })().catch((err) => {
       console.error('⚠️  Persiapan data dilewati:', err.message)
       janjiPersiapan = null // coba lagi pada permintaan berikutnya

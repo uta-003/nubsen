@@ -122,15 +122,18 @@ export function ubahPin(pinLama, pinBaru) {
   return request('/api/profile/pin', { method: 'PUT', body: { pinLama, pinBaru } })
 }
 
-// ---------- Jadwal kerja (jam masuk batas & jam pulang) ----------
+// ---------- Jadwal kerja (DUA MODE: 'biasa' & 'shift' 2 giliran) ----------
 export function getJadwal() {
   return request('/api/jadwal')
 }
 export function adminGetJadwal() {
   return request('/api/admin/jadwal')
 }
-export function adminUpdateJadwal(jamMasukBatas, jamPulang, hariKerja) {
-  return request('/api/admin/jadwal', { method: 'PUT', body: { jamMasukBatas, jamPulang, hariKerja } })
+// Simpan pengaturan jadwal.
+// `data` = { mode, jamMasukBatas, jamPulang, hariKerja, shift1, shift2 }
+// (shift1/shift2 = { nama, masuk, batas, pulang }; boleh dikirim sebagian).
+export function adminUpdateJadwal(data) {
+  return request('/api/admin/jadwal', { method: 'PUT', body: data })
 }
 
 // ---------- Hari libur (nasional/cuti bersama + khusus dari admin) ----------
@@ -153,6 +156,17 @@ export function adminBuatPeringatan(body) {
 }
 export function adminHapusPeringatan(id) {
   return request(`/api/admin/peringatan/${id}`, { method: 'DELETE' })
+}
+// Riwayat (jejak audit) penerbitan & pencabutan surat — termasuk surat yang sudah
+// dicabut/dihapus dan karyawan yang sudah dihapus. Filter: employeeId, jenis, aksi,
+// dari, sampai. Hasil: { items, ringkas: { total, diterbitkan, dicabut } }.
+export function adminRiwayatPeringatan({ employeeId, jenis, aksi, dari, sampai } = {}) {
+  const q = new URLSearchParams()
+  for (const [k, v] of Object.entries({ employeeId, jenis, aksi, dari, sampai })) {
+    if (v !== undefined && v !== null && String(v).trim() !== '') q.set(k, v)
+  }
+  const saring = q.toString()
+  return request(`/api/admin/peringatan/riwayat${saring ? `?${saring}` : ''}`)
 }
 
 // ---------- Identitas perusahaan (KOP surat) & tren kehadiran ----------

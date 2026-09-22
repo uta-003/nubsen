@@ -19,7 +19,9 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
   const [cariLokasi, setCariLokasi] = useState(false)
   const [lokasiError, setLokasiError] = useState(null)
   const [tersalin, setTersalin] = useState(false)
-  const { jamMasukBatas, jamPulang } = jadwal // jadwal kerja aktif dari server
+  // Jadwal kerja EFEKTIF dari server: pada mode 'shift' jam masuk/pulang sudah
+  // menyesuaikan shift karyawan, plus nama shift untuk ditampilkan.
+  const { jamMasukBatas, jamPulang } = jadwal
   const { aktif: pengingatAktif, toggle: togglePengingat } = usePengingat(today, jamPulang, jamMasukBatas)
   // Cuaca terkini (Open-Meteo): ikon + suhu + UV di kartu jam. Dimuat sekali
   // saat halaman dibuka; gagal/tanpa internet → badge tetap tampil (fallback
@@ -242,7 +244,10 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
             </span>
             <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700/70 dark:text-emerald-400/80">Jam Masuk</p>
             <p className="font-mono text-xl font-bold sm:text-2xl">{today.checkIn || '—:—'}</p>
-            <p className="text-[11px] text-slate-400">Batas: {jamMasukBatas}</p>
+            <p className="truncate text-[11px] text-slate-400">
+              Batas: {jamMasukBatas}
+              {jadwal.shift ? ` • ${jadwal.shiftNama || `Shift ${jadwal.shift}`}` : ''}
+            </p>
           </div>
           <div className="rounded-2xl bg-rose-50 p-3.5 transition hover:-translate-y-0.5 dark:bg-rose-500/10 sm:p-4">
             <span className="mb-2 inline-grid h-8 w-8 place-items-center rounded-xl bg-white/80 text-rose-500 shadow-sm dark:bg-rose-500/20 dark:text-rose-400">

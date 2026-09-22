@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { db, KANTOR, hashPin, getJadwal, hariKerjaAktif, HARI_KERJA_DEFAULT } from './db.js'
+import { db, KANTOR, hashPin, getJadwal, hariKerjaAktif, HARI_KERJA_DEFAULT, shiftSah } from './db.js'
 import { toISODate, jamSekarang } from './utils/waktu.js'
 
 // Jarak antar dua koordinat (meter) — formula Haversine.
@@ -271,6 +271,8 @@ export async function listKaryawan() {
     cutiTahunan: e.cuti_tahunan ?? 12, isAdmin: !!e.is_admin,
     // Status kepegawaian (Karyawan Tetap / Karyawan Kontrak).
     statusKaryawan: e.status_karyawan || 'Karyawan Tetap',
+    // Shift kerja (1 atau 2) — dipakai saat jadwal mode 'shift'. Null = belum diatur.
+    shift: e.shift == null ? null : shiftSah(e.shift),
     // Tarif gaji (Rp) untuk penghitung gaji — diubah admin di tab Karyawan/Gaji.
     gajiHarian: Number(e.gaji_harian ?? 0),
     uangMakan: Number(e.uang_makan ?? 0),
@@ -286,14 +288,15 @@ export function statusKaryawanSah(nilai) {
 
 export async function buatKaryawan(d) {
   const info = await db.run(
-    `INSERT INTO employees (nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash, gaji_harian, uang_makan, tarif_lembur, status_karyawan)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO employees (nama, nip, jabatan, departemen, email, telepon, lokasi_kerja, cuti_tahunan, is_admin, pin_hash, gaji_harian, uang_makan, tarif_lembur, status_karyawan, shift)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       d.nama, d.nip || null, d.jabatan || null, d.departemen || null, d.email,
       d.telepon || null, d.lokasiKerja || null, d.cutiTahunan ?? 12, d.isAdmin ? 1 : 0,
       hashPin(d.pin || '123456'),
       Number(d.gajiHarian ?? 0) || 0, Number(d.uangMakan ?? 0) || 0, Number(d.tarifLembur ?? 0) || 0,
       statusKaryawanSah(d.statusKaryawan),
+      d.shift === undefined || d.shift === null || String(d.shift).trim() === '' ? null : shiftSah(d.shift),
     ],
   )
   const daftar = await listKaryawan()
@@ -313,6 +316,12 @@ export async function ubahKaryawan(id, d) {
   if (d.cutiTahunan !== undefined) { sets.push('cuti_tahunan = ?'); params.push(d.cutiTahunan) }
   // Status kepegawaian (Karyawan Tetap / Karyawan Kontrak).
   if (d.statusKaryawan !== undefined) { sets.push('status_karyawan = ?'); params.push(statusKaryawanSah(d.statusKaryawan)) }
+  // Shift kerja (1 atau 2). String kosong = lepaskan penetapan (ikut Shift 1).
+  if (d.shift !== undefined) {
+    const kosong = d.shift === null || String(d.shift).trim() === ''
+    sets.push('shift = ?')
+    params.push(kosong ? null : shiftSah(d.shift))
+  }
   // Tarif gaji (Rp) — nilai dari input selalu dikonversi ke angka non-negatif.
   for (const [k, kol] of [['gajiHarian', 'gaji_harian'], ['uangMakan', 'uang_makan'], ['tarifLembur', 'tarif_lembur']]) {
     if (d[k] !== undefined) { sets.push(`${kol} = ?`); params.push(Math.max(0, Number(d[k]) || 0)) }
@@ -327,6 +336,19 @@ export async function ubahKaryawan(id, d) {
 }
 
 export async function hapusKaryawan(id) {
+  // Surat peringatan aktif dicatat ke RIWAYAT lebih dahulu, supaya jejak audit
+  // (nomor surat + nama karyawan) tetap ada walau surat & karyawannya dihapus.
+  const surat = await db.all(
+    'SELECT s.*, e.nama AS nama_karyawan FROM warnings s LEFT JOIN employees e ON e.id = s.employee_id WHERE s.employee_id = ?',
+    [id],
+  )
+  for (const s of surat) {
+    await catatRiwayatPeringatan({
+      warningId: s.id, employeeId: id, namaKaryawan: s.nama_karyawan || '',
+      jenis: s.jenis, nomor: s.nomor || '', tanggal: s.tanggal, alasan: s.alasan || '',
+      aksi: 'Dicabut',
+    })
+  }
   for (const sql of [
     'DELETE FROM attendance WHERE employee_id = ?',
     'DELETE FROM leaves WHERE employee_id = ?',
@@ -360,6 +382,95 @@ function peringatanToClient(s, nama = null) {
   }
 }
 
+// Aksi yang dicatat pada riwayat surat peringatan.
+export const AKSI_PERINGATAN = ['Diterbitkan', 'Dicabut']
+
+// Nama admin pelaku aksi (kolom "Oleh" pada riwayat). Selalu ada isinya.
+async function namaAdmin(olehId) {
+  if (olehId == null) return 'Admin'
+  const a = await db.get('SELECT nama FROM employees WHERE id = ?', [Number(olehId)])
+  return a?.nama || 'Admin'
+}
+
+// Catat satu kejadian ke riwayat (tabel warning_log). Nama karyawan, nomor surat,
+// dan alasan DISALIN (snapshot) supaya riwayat tetap utuh setelah surat dicabut,
+// bahkan setelah karyawannya dihapus.
+async function catatRiwayatPeringatan({
+  warningId = null, employeeId = null, namaKaryawan = '', jenis,
+  nomor = '', tanggal, alasan = '', aksi, olehId = null,
+}) {
+  if (!AKSI_PERINGATAN.includes(aksi)) return
+  const oleh = await namaAdmin(olehId)
+  await db.run(
+    `INSERT INTO warning_log (warning_id, employee_id, nama_karyawan, jenis, nomor, tanggal, alasan, aksi, oleh)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      warningId, employeeId, String(namaKaryawan || ''), jenis,
+      String(nomor || ''), tanggal, String(alasan || ''), aksi, oleh,
+    ],
+  )
+}
+
+// Sinkronisasi satu arah warnings → warning_log. Surat yang pernah
+// diterbitkan/dicabut SEBELUM fitur riwayat ada (atau saat server memakai
+// kode lama) belum tercatat di warning_log; di sini kekurangan itu diisi
+// otomatis. Aman diulang: hanya baris yang benar-benar belum ada yang ditulis.
+// Dipanggil saat server boot dan tiap tab Riwayat SP dibuka.
+export async function sinkronkanRiwayatPeringatan() {
+  const kurang = await db.all(
+    `SELECT s.id, s.employee_id, s.jenis, s.nomor, s.tanggal, s.alasan, e.nama AS nama_karyawan
+     FROM warnings s LEFT JOIN employees e ON e.id = s.employee_id
+     WHERE NOT EXISTS (SELECT 1 FROM warning_log w WHERE w.warning_id = s.id AND w.aksi = 'Diterbitkan')`,
+  )
+  for (const s of kurang) {
+    await catatRiwayatPeringatan({
+      warningId: s.id, employeeId: s.employee_id, namaKaryawan: s.nama_karyawan || '',
+      jenis: s.jenis, nomor: s.nomor || '', tanggal: s.tanggal, alasan: s.alasan || '',
+      aksi: 'Diterbitkan', olehId: null,
+    })
+  }
+  if (kurang.length) {
+    console.log(`📜 Sinkron riwayat SP: ${kurang.length} surat lama ditambahkan ke riwayat.`)
+  }
+  return kurang.length
+}
+
+// Riwayat surat peringatan untuk tab "Riwayat SP" di panel admin.
+// Mengembalikan { items, ringkas } — ringkas dihitung dengan query COUNT
+// terpisah agar tetap akurat walau daftarnya dibatasi LIMIT.
+export async function listRiwayatPeringatan({ employeeId, jenis, aksi, dari, sampai } = {}) {
+  const saring = []
+  const params = []
+  if (employeeId) { saring.push('employee_id = ?'); params.push(Number(employeeId)) }
+  if (jenis && JENIS_PERINGATAN.includes(jenis)) { saring.push('jenis = ?'); params.push(jenis) }
+  if (aksi && AKSI_PERINGATAN.includes(aksi)) { saring.push('aksi = ?'); params.push(aksi) }
+  if (dari) { saring.push('tanggal >= ?'); params.push(dari) }
+  if (sampai) { saring.push('tanggal <= ?'); params.push(sampai) }
+  const where = saring.length ? ` WHERE ${saring.join(' AND ')}` : ''
+
+  const rows = await db.all('SELECT * FROM warning_log' + where + ' ORDER BY id DESC LIMIT 500', params)
+  const items = rows.map((r) => ({
+    id: r.id, warningId: r.warning_id, employeeId: r.employee_id,
+    nama: r.nama_karyawan || '', jenis: r.jenis,
+    label: LABEL_PERINGATAN[r.jenis] || r.jenis,
+    nomor: r.nomor || '', tanggal: r.tanggal, alasan: r.alasan || '',
+    aksi: r.aksi, oleh: r.oleh || 'Admin', dibuat: r.created_at || null,
+  }))
+
+  const perAksi = await db.all(
+    'SELECT aksi, COUNT(*) AS n FROM warning_log' + where + ' GROUP BY aksi', params,
+  )
+  const jumlah = (nama) => Number(perAksi.find((a) => a.aksi === nama)?.n ?? 0)
+  return {
+    items,
+    ringkas: {
+      total: perAksi.reduce((t, a) => t + Number(a.n || 0), 0),
+      diterbitkan: jumlah('Diterbitkan'),
+      dicabut: jumlah('Dicabut'),
+    },
+  }
+}
+
 // Semua surat milik satu karyawan (terbaru dulu) — disematkan ke Profil.
 export async function listPeringatan(employeeId) {
   const rows = await db.all(
@@ -379,7 +490,7 @@ export async function listSemuaPeringatan({ employeeId } = {}) {
   return rows.map((s) => peringatanToClient(s, s.nama_karyawan))
 }
 
-export async function buatPeringatan({ employeeId, jenis, tanggal, alasan = '' }) {
+export async function buatPeringatan({ employeeId, jenis, tanggal, alasan = '', olehId = null }) {
   if (!JENIS_PERINGATAN.includes(jenis)) {
     return { error: `Jenis surat harus salah satu dari: ${JENIS_PERINGATAN.join(', ')}.` }
   }
@@ -394,11 +505,19 @@ export async function buatPeringatan({ employeeId, jenis, tanggal, alasan = '' }
   if (!karyawan) return { error: 'Karyawan tidak ditemukan.' }
   // Nomor surat resmi otomatis: urut per jenis per tahun, format
   // 001/SP-HRD/IX/2026 (SP) atau 001/PHK-HRD/IX/2026 (pemecatan).
+  // Urutan dihitung dari jumlah TERBANYAK antara surat yang masih ada dan yang
+  // PERNAH diterbitkan (riwayat) — jadi nomor tidak pernah terpakai ulang walau
+  // surat lama sudah dicabut/dihapus.
   const tahun = String(tanggal).slice(0, 4)
-  const jumlah = (await db.get(
+  const dariSurat = (await db.get(
     'SELECT COUNT(*) AS n FROM warnings WHERE jenis = ? AND substr(tanggal, 1, 4) = ?',
     [jenis, tahun],
   ))?.n ?? 0
+  const dariRiwayat = (await db.get(
+    "SELECT COUNT(*) AS n FROM warning_log WHERE jenis = ? AND aksi = 'Diterbitkan' AND substr(tanggal, 1, 4) = ?",
+    [jenis, tahun],
+  ))?.n ?? 0
+  const jumlah = Math.max(Number(dariSurat) || 0, Number(dariRiwayat) || 0)
   const ROMAWI = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
   const kode = jenis === 'Pemecatan' ? 'PHK-HRD' : 'SP-HRD'
   const nomor = `${String(jumlah + 1).padStart(3, '0')}/${kode}/${ROMAWI[Number(String(tanggal).slice(5, 7)) - 1] || 'I'}/${tahun}`
@@ -406,6 +525,11 @@ export async function buatPeringatan({ employeeId, jenis, tanggal, alasan = '' }
     'INSERT INTO warnings (employee_id, jenis, nomor, tanggal, alasan) VALUES (?, ?, ?, ?, ?)',
     [karyawan.id, jenis, nomor, tanggal, teks],
   )
+  // Jejak audit: setiap penerbitan masuk ke riwayat (tab Riwayat SP).
+  await catatRiwayatPeringatan({
+    warningId: info.lastInsertRowid, employeeId: karyawan.id, namaKaryawan: karyawan.nama,
+    jenis, nomor, tanggal, alasan: teks, aksi: 'Diterbitkan', olehId,
+  })
   const label = LABEL_PERINGATAN[jenis]
   await kirimNotifikasi({
     employeeId: karyawan.id,
@@ -420,9 +544,19 @@ export async function buatPeringatan({ employeeId, jenis, tanggal, alasan = '' }
   return { data: peringatanToClient(await db.get('SELECT * FROM warnings WHERE id = ?', [info.lastInsertRowid]), karyawan.nama) }
 }
 
-export async function hapusPeringatan(id) {
-  const s = await db.get('SELECT * FROM warnings WHERE id = ?', [id])
+export async function hapusPeringatan(id, olehId = null) {
+  const s = await db.get(
+    'SELECT s.*, e.nama AS nama_karyawan FROM warnings s LEFT JOIN employees e ON e.id = s.employee_id WHERE s.id = ?',
+    [id],
+  )
   if (!s) return null
+  // Catat DULU ke riwayat: setelah baris surat dihapus, data nama/nomor sumbernya
+  // sudah tidak ada, sehingga snapshot harus dibuat sebelum DELETE.
+  await catatRiwayatPeringatan({
+    warningId: s.id, employeeId: s.employee_id, namaKaryawan: s.nama_karyawan || '',
+    jenis: s.jenis, nomor: s.nomor || '', tanggal: s.tanggal, alasan: s.alasan || '',
+    aksi: 'Dicabut', olehId,
+  })
   await db.run('DELETE FROM warnings WHERE id = ?', [id])
   await kirimNotifikasi({
     employeeId: s.employee_id,
@@ -430,7 +564,7 @@ export async function hapusPeringatan(id) {
     pesan: `${LABEL_PERINGATAN[s.jenis] || s.jenis} per ${s.tanggal} telah dicabut/dihapus oleh admin.`,
     jenis: 'peringatan',
   })
-  return peringatanToClient(s)
+  return peringatanToClient(s, s.nama_karyawan)
 }
 
 // ---------- Panel Admin: kelola absensi ----------
@@ -1006,7 +1140,9 @@ export function getToday(employeeId = 1) {
 export async function catatCheckIn({ employeeId = 1, lokasi = {}, selfieUrl = null } = {}) {
   const tanggal = toISODate()
   const jam = jamSekarang()
-  const { jamMasukBatas } = await getJadwal() // jadwal aktif dari settings (admin bisa ubah)
+  // Jadwal EFEKTIF milik karyawan ini: mode 'biasa' memakai jadwal induk, mode
+  // 'shift' mengikuti shift (1/2) yang ditetapkan admin → batas Terlambat ikut shift.
+  const { jamMasukBatas, shiftNama } = await getJadwal(employeeId)
   const status = jam > jamMasukBatas ? 'Terlambat' : 'Hadir'
   // Absensi di luar hari kerja atau pada HARI LIBUR yang terdaftar ditandai agar
   // laporan tidak menghitungnya sebagai hari kerja biasa (Hadir Libur).
@@ -1018,7 +1154,9 @@ export async function catatCheckIn({ employeeId = 1, lokasi = {}, selfieUrl = nu
     ? `Libur: ${libur.nama}`
     : diLuarJadwal
       ? 'Absensi di luar hari kerja'
-      : status === 'Terlambat' ? `Check-in melewati batas ${jamMasukBatas}` : ''
+      : status === 'Terlambat'
+        ? `Check-in melewati batas ${jamMasukBatas}${shiftNama ? ` (${shiftNama})` : ''}`
+        : ''
 
   // Geofence: hitung jarak ke kantor pusat (authoritative di server).
   let diLuar = null
@@ -1076,7 +1214,8 @@ export async function catatCheckOut({ employeeId = 1, lokasi = {}, selfieUrl = n
 // (lazy), sehingga tidak butuh proses terjadwal — aman untuk serverless.
 export async function tanggalAlpha(employeeId, dari, sampai) {
   const hariIni = toISODate()
-  const { jamPulang } = await getJadwal()
+  // Jam pulang mengikuti shift karyawan agar "hari belum berakhir" tepat.
+  const { jamPulang } = await getJadwal(employeeId)
   const mundur = new Date(`${hariIni}T00:00:00Z`)
   mundur.setUTCDate(mundur.getUTCDate() - 31)
   const mulai = dari || toISODate(mundur)

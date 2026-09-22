@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search, Wallet, CalendarRange, Paperclip, Camera, FileWarning, BarChart3, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Plane } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Pencil, Trash2, Check, X, Send, Megaphone, Users, CheckCheck, LayoutDashboard, Clock, CalendarCheck2, FileText, Timer, Bell, FileSpreadsheet, Download, Filter, RefreshCw, Search, Wallet, CalendarRange, Paperclip, Camera, FileWarning, BarChart3, Building2, ShieldCheck, CheckCircle2, AlertTriangle, Plane, History, FilePlus2, Undo2 } from 'lucide-react'
 import { muatPustakaEkspor } from '../utils/ekspor'
 import { buatWorkbookLaporan, buatWorkbookGaji, KOLOM_LAPORAN } from '../utils/laporan-excel'
 import { MIME } from '../utils/berkas'
@@ -21,6 +21,7 @@ const TABS = [
   ['izin', 'Izin', FileText],
   ['lembur', 'Lembur', Timer],
   ['peringatan', 'Peringatan', FileWarning],
+  ['riwayatsp', 'Riwayat SP', History],
   ['notifikasi', 'Notifikasi', Bell],
 ]
 
@@ -130,7 +131,7 @@ export default function Admin({ user, onBack }) {
           </div>
           <span className="hidden shrink-0 rounded-2xl border border-white/25 bg-white/15 px-3 py-2 text-center backdrop-blur sm:block">
             <span className="block text-[9px] font-bold uppercase tracking-wider text-white/70">Ganti menu</span>
-            <span className="block text-[11px] font-bold">10 tab</span>
+            <span className="block text-[11px] font-bold">{TABS.length} tab</span>
           </span>
         </div>
       </div>
@@ -178,6 +179,7 @@ export default function Admin({ user, onBack }) {
         {tab === 'izin' && <KelolaIzin />}
         {tab === 'lembur' && <KelolaLembur />}
         {tab === 'peringatan' && <KelolaPeringatan />}
+        {tab === 'riwayatsp' && <RiwayatPeringatan />}
         {tab === 'notifikasi' && <KelolaNotifikasi />}
       </div>
     </div>
@@ -187,38 +189,93 @@ export default function Admin({ user, onBack }) {
 // Nama hari untuk pemilih hari kerja (indeks = getDay(): 0 = Minggu).
 const NAMA_HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 
-// Kelola jadwal kerja: jam masuk (batas Terlambat), jam pulang, dan hari kerja —
-// tersimpan di server dan langsung dipakai seluruh karyawan (status, countdown,
-// pengingat) serta perhitungan hari kerja pada laporan kehadiran.
+// Kelola jadwal kerja dengan DUA MODE:
+//   • 'biasa' — satu jadwal untuk semua (jam masuk batas + jam pulang + hari kerja)
+//   • 'shift' — DUA giliran (Shift 1 & Shift 2); tiap karyawan mengikuti shift yang
+//     ditetapkan pada tab Karyawan, dan jam kerjanya otomatis dari shift itu.
+// Semua nilai tersimpan di server: status Terlambat, hitung mundur Beranda,
+// pengingat, serta perhitungan hari kerja pada laporan/gaji langsung mengikuti.
 function KelolaJadwal() {
+  const [mode, setMode] = useState('biasa')
   const [form, setForm] = useState({ jamMasukBatas: '', jamPulang: '' })
+  const [shift, setShift] = useState({
+    1: { nama: '', masuk: '', batas: '', pulang: '' },
+    2: { nama: '', masuk: '', batas: '', pulang: '' },
+  })
   const [hariKerja, setHariKerja] = useState([])
   const [pesan, setPesan] = useState(null)
   const [simpan, setSimpan] = useState(false)
+  // Penugasan shift per karyawan: id → 1 | 2 | null (null = belum ditetapkan,
+  // efektifnya ikut Shift 1). `asal` menyimpan nilai dari server agar tombol
+  // Simpan hanya mengirim karyawan yang penugasannya benar-benar berubah.
+  const [karyawan, setKaryawan] = useState([])
+  const [tugasan, setTugasan] = useState({})
+  const [asal, setAsal] = useState({})
 
   useEffect(() => {
     api.adminGetJadwal()
       .then((d) => {
+        setMode(d.mode === 'shift' ? 'shift' : 'biasa')
         setForm({ jamMasukBatas: d.jamMasukBatas, jamPulang: d.jamPulang })
+        setShift({
+          1: { nama: d.shift1?.nama || '', masuk: d.shift1?.masuk || '', batas: d.shift1?.batas || '', pulang: d.shift1?.pulang || '' },
+          2: { nama: d.shift2?.nama || '', masuk: d.shift2?.masuk || '', batas: d.shift2?.batas || '', pulang: d.shift2?.pulang || '' },
+        })
         setHariKerja(Array.isArray(d.hariKerja) ? d.hariKerja : [1, 2, 3, 4, 5])
       })
       .catch(() => {})
+    // Daftar karyawan + penugasan shift saat ini (untuk pemilih multi-karyawan).
+    api.adminKaryawan()
+      .then((daftar) => {
+        setKaryawan(daftar)
+        const t = {}
+        for (const k of daftar) t[k.id] = k.shift ?? null
+        setTugasan(t)
+        setAsal({ ...t })
+      })
+      .catch(() => {})
   }, [])
+
+  const alihTugas = (id, n) =>
+    setTugasan((t) => ({ ...t, [id]: t[id] === n ? null : n }))
 
   const simpanJadwal = async () => {
     setSimpan(true)
     setPesan(null)
     try {
-      const d = await api.adminUpdateJadwal(form.jamMasukBatas, form.jamPulang, hariKerja)
-      setForm({ jamMasukBatas: d.jamMasukBatas, jamPulang: d.jamPulang })
-      setHariKerja(Array.isArray(d.hariKerja) ? d.hariKerja : hariKerja)
+      const d = await api.adminUpdateJadwal({
+        mode,
+        jamMasukBatas: form.jamMasukBatas,
+        jamPulang: form.jamPulang,
+        hariKerja,
+        shift1: shift[1],
+        shift2: shift[2],
+      })
+      // Terapkan penugasan shift hanya untuk karyawan yang berubah (bulk).
+      const berubah = karyawan.filter((k) => (tugasan[k.id] ?? null) !== (asal[k.id] ?? null))
+      let gagal = 0
+      for (const k of berubah) {
+        try {
+          await api.adminUbahKaryawan(k.id, { shift: tugasan[k.id] ?? '' })
+          setAsal((a) => ({ ...a, [k.id]: tugasan[k.id] ?? null }))
+        } catch {
+          gagal++
+        }
+      }
+      const soalShift = berubah.length
+        ? ` Penugasan shift ${berubah.length - gagal} karyawan diperbarui${gagal ? `, ${gagal} gagal` : ''}.`
+        : ''
+      setMode(d.mode === 'shift' ? 'shift' : 'biasa')
       const labelHari = (d.hariKerja || hariKerja).map((n) => NAMA_HARI[n]).join(', ')
       // Konfirmasi eksplisit soal broadcast: admin tahu apakah karyawan benar-benar
       // dapat notifikasi perubahan jadwal (tidak dikirim bila tak ada yang berubah).
       const soalNotif = d.notifikasiDikirim
         ? 'Notifikasi perubahan sudah dikirim ke seluruh karyawan.'
         : 'Tidak ada nilai yang berubah, jadi notifikasi tidak dikirim.'
-      setPesan({ ok: true, teks: `Jadwal tersimpan — masuk batas ${d.jamMasukBatas}, pulang ${d.jamPulang}, hari kerja ${labelHari}. Semua karyawan langsung memakai jadwal baru. ${soalNotif}` })
+      const ringkas = d.mode === 'shift'
+        ? `Mode SHIFT aktif — ${d.shift1.nama} (batas ${d.shift1.batas}, pulang ${d.shift1.pulang}) & ${d.shift2.nama} (batas ${d.shift2.batas}, pulang ${d.shift2.pulang})`
+        : `Mode BIASA aktif — masuk batas ${d.jamMasukBatas}, pulang ${d.jamPulang}`
+      setPesan({ ok: true, teks: `Jadwal tersimpan — ${ringkas}, hari kerja ${labelHari}.${soalShift} ${soalNotif}` })
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
     } finally {
@@ -227,30 +284,167 @@ function KelolaJadwal() {
   }
 
   const ubah = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const ubahShift = (nomor, k) => (e) =>
+    setShift((s) => ({ ...s, [nomor]: { ...s[nomor], [k]: e.target.value } }))
   const alihHari = (n) =>
     setHariKerja((h) => (h.includes(n) ? h.filter((x) => x !== n) : [...h, n].sort((a, b) => a - b)))
-  const siapSimpan = /^([01]\d|2[0-3]):[0-5]\d$/.test(form.jamMasukBatas) && /^([01]\d|2[0-3]):[0-5]\d$/.test(form.jamPulang) && hariKerja.length > 0
+  const jamSah = (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v || '')
+  // Mode biasa: jam kantor wajib sah. Mode shift: KEDUA shift wajib lengkap sah.
+  const siapSimpan = hariKerja.length > 0 && (mode === 'shift'
+    ? [1, 2].every((n) => jamSah(shift[n].masuk) && jamSah(shift[n].batas) && jamSah(shift[n].pulang))
+    : jamSah(form.jamMasukBatas) && jamSah(form.jamPulang))
 
   return (
     <div className="animate-fade-in space-y-4">
       <BannerPesan pesan={pesan} />
+
+      {/* Pemilih MODE jadwal — dua kartu besar yang bisa diketuk */}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {[
+          { id: 'biasa', judul: 'Jadwal Kerja Biasa', ket: 'Satu jam kerja yang sama untuk semua karyawan', Icon: Clock },
+          { id: 'shift', judul: 'Jadwal Kerja Shift', ket: 'Dua giliran — karyawan mengikuti shift miliknya', Icon: Timer },
+        ].map(({ id, judul, ket, Icon }) => {
+          const aktif = mode === id
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setMode(id)}
+              aria-pressed={aktif}
+              className={`flex items-start gap-3 rounded-[1.4rem] border p-3.5 text-left transition active:scale-[0.98] ${
+                aktif
+                  ? 'border-transparent bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-500 text-white shadow-lg shadow-indigo-500/30'
+                  : 'border-white/60 bg-white/85 text-slate-500 backdrop-blur hover:bg-white dark:border-white/[.06] dark:bg-slate-900/70 dark:text-slate-400'
+              }`}
+            >
+              <span
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
+                  aktif ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600 dark:bg-white/5 dark:text-indigo-300'
+                }`}
+              >
+                <Icon size={17} />
+              </span>
+              <span className="min-w-0">
+                <span className={`block text-sm font-bold ${aktif ? 'text-white' : 'text-slate-700 dark:text-slate-200'}`}>{judul}</span>
+                <span className={`block text-[11px] leading-snug ${aktif ? 'text-white/85' : 'text-slate-400'}`}>{ket}</span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       <div className="card space-y-4">
         <h2 className="judul-seksi">
           <span className="grid h-7 w-7 place-items-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
-            <Clock size={14} />
+            {mode === 'shift' ? <Timer size={14} /> : <Clock size={14} />}
           </span>
-          Jadwal Kerja
+          {mode === 'shift' ? 'Pengaturan Dua Shift' : 'Pengaturan Jam Kerja'}
         </h2>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className="label">Jam Masuk (Batas)</span>
-            <input type="time" value={form.jamMasukBatas} onChange={ubah('jamMasukBatas')} className="input !px-3" />
-          </label>
-          <label className="block">
-            <span className="label">Jam Pulang</span>
-            <input type="time" value={form.jamPulang} onChange={ubah('jamPulang')} className="input !px-3" />
-          </label>
-        </div>
+
+        {mode === 'biasa' ? (
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="label">Jam Masuk (Batas)</span>
+              <input type="time" value={form.jamMasukBatas} onChange={ubah('jamMasukBatas')} className="input !px-3" />
+            </label>
+            <label className="block">
+              <span className="label">Jam Pulang</span>
+              <input type="time" value={form.jamPulang} onChange={ubah('jamPulang')} className="input !px-3" />
+            </label>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {[1, 2].map((n) => (
+              <div
+                key={n}
+                className="rounded-[1.4rem] border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-500/20 dark:bg-indigo-500/[.06]"
+              >
+                <p className="mb-2.5 flex items-center gap-2 text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-[10px] font-black text-white">
+                    {n}
+                  </span>
+                  Shift {n}
+                </p>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <label className="col-span-2 block">
+                    <span className="label">Nama Shift</span>
+                    <input
+                      className="input !px-3"
+                      value={shift[n].nama}
+                      onChange={ubahShift(n, 'nama')}
+                      placeholder={n === 1 ? 'cth. Shift 1 — Pagi' : 'cth. Shift 2 — Sore'}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="label">Jam Masuk</span>
+                    <input type="time" className="input !px-3" value={shift[n].masuk} onChange={ubahShift(n, 'masuk')} />
+                  </label>
+                  <label className="block">
+                    <span className="label">Batas Terlambat</span>
+                    <input type="time" className="input !px-3" value={shift[n].batas} onChange={ubahShift(n, 'batas')} />
+                  </label>
+                  <label className="col-span-2 block sm:col-span-1">
+                    <span className="label">Jam Pulang</span>
+                    <input type="time" className="input !px-3" value={shift[n].pulang} onChange={ubahShift(n, 'pulang')} />
+                  </label>
+                </div>
+              </div>
+            ))}
+            {/* Pilih SIAPA SAJA yang masuk tiap shift — centang banyak karyawan
+                sekaligus di sini (tidak perlu ke tab Karyawan satu per satu). */}
+            <div className="rounded-2xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                Karyawan per Shift — centang yang masuk
+              </p>
+              {karyawan.length === 0 ? (
+                <p className="text-xs text-slate-400">Memuat daftar karyawan…</p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[1, 2].map((n) => (
+                    <div key={n} className="rounded-xl bg-slate-50 p-2.5 dark:bg-slate-800/60">
+                      <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold">
+                        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-[9px] font-black text-white">
+                          {n}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">{shift[n].nama || `Shift ${n}`}</span>
+                        <span className="shrink-0 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
+                          {karyawan.filter((k) => tugasan[k.id] === n).length} org
+                        </span>
+                      </p>
+                      <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
+                        {karyawan.map((k) => {
+                          const aktif = tugasan[k.id] === n
+                          return (
+                            <label
+                              key={k.id}
+                              className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition ${aktif ? 'bg-indigo-100 font-bold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700/60'}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={aktif}
+                                onChange={() => alihTugas(k.id, n)}
+                                className="h-3.5 w-3.5 shrink-0 accent-indigo-600"
+                              />
+                              <span className="min-w-0 flex-1 truncate">{k.nama}</span>
+                              {tugasan[k.id] == null && (
+                                <span className="shrink-0 text-[9px] font-semibold text-slate-400">belum</span>
+                              )}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+                Tak tercentang di keduanya = <b>belum ditetapkan</b> (otomatis ikut Shift 1). Centang di satu shift
+                otomatis mengeluarkan dari shift lainnya. Perubahan tersimpan saat menekan <b>Simpan Jadwal</b>.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div>
           <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-400">Hari Kerja</span>
           {/* Tujuh hari dibuat merata satu baris (flex-1 + min-w-0) supaya tetap
@@ -278,10 +472,12 @@ function KelolaJadwal() {
         </button>
       </div>
       <p className="rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
-        ⏰ <b>Cara kerja:</b> check-in setelah <b>Jam Masuk (Batas)</b> otomatis berstatus <b>Terlambat</b> (dihitung di server,
-        tahan manipulasi jam HP). Countdown di Beranda, pengingat notifikasi, dan tulisan &quot;Batas:&quot; langsung mengikuti jadwal ini
-        untuk semua karyawan. Format 24 jam HH:MM. Pilihan <b>Hari Kerja</b> dipakai untuk menghitung hari kerja pada laporan
-        kehadiran (Laporan) — pilih <b>Sen–Sab</b> bila perusahaan bekerja enam hari.
+        ⏰ <b>Cara kerja:</b> check-in setelah <b>Batas Terlambat</b> otomatis berstatus <b>Terlambat</b> (dihitung di server,
+        tahan manipulasi jam HP). Countdown di Beranda, pengingat notifikasi, dan tulisan &quot;Batas:&quot; mengikuti jadwal ini.
+        Format 24 jam HH:MM. <b>Jadwal Biasa</b> memakai satu jam kerja untuk semua; <b>Jadwal Shift</b> memakai dua giliran
+        sehingga batas terlambat &amp; jam pulang otomatis mengikuti shift masing-masing karyawan (atur shift-nya di tab
+        <b> Karyawan</b>). Pilihan <b>Hari Kerja</b> dipakai untuk menghitung hari kerja pada laporan &amp; gaji — pilih
+        <b> Sen–Sab</b> bila perusahaan bekerja enam hari.
       </p>
 
       {/* Identitas perusahaan — dipakai KOP surat peringatan/pemecatan */}
@@ -709,6 +905,8 @@ function KelolaKaryawan() {
     gajiHarian: 0, uangMakan: 0, tarifLembur: 0, pin: '', isAdmin: false,
     // Status kepegawaian — dipilih admin (Karyawan Tetap / Karyawan Kontrak).
     statusKaryawan: 'Karyawan Tetap',
+    // Shift kerja ('' | '1' | '2') — dipakai saat jadwal mode 'shift'.
+    shift: '',
   }
   const [data, setData] = useState([])
   const [cari, setCari] = useState('')
@@ -756,6 +954,7 @@ function KelolaKaryawan() {
       email: k.email, telepon: k.telepon || '', lokasiKerja: k.lokasiKerja || '', cutiTahunan: k.cutiTahunan,
       gajiHarian: k.gajiHarian ?? 0, uangMakan: k.uangMakan ?? 0, tarifLembur: k.tarifLembur ?? 0, pin: '', isAdmin: k.isAdmin,
       statusKaryawan: k.statusKaryawan || 'Karyawan Tetap',
+      shift: k.shift ? String(k.shift) : '',
     })
     setPesan(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -807,6 +1006,17 @@ function KelolaKaryawan() {
                 <option value="Karyawan Tetap">Karyawan Tetap</option>
                 <option value="Karyawan Kontrak">Karyawan Kontrak</option>
               </select>
+            </div>
+            <div>
+              <label className="label">Shift Kerja</label>
+              <select className="input !px-3" value={form.shift} onChange={(e) => set('shift', e.target.value)}>
+                <option value="">Tidak ditetapkan (Shift 1)</option>
+                <option value="1">Shift 1</option>
+                <option value="2">Shift 2</option>
+              </select>
+              <p className="mt-1 text-[11px] leading-snug text-slate-400">
+                Dipakai saat tab Jadwal memakai mode <b>Shift</b>.
+              </p>
             </div>
             <div><label className="label">Cuti/Tahun</label><input type="number" min="0" className="input" value={form.cutiTahunan} onChange={(e) => set('cutiTahunan', Number(e.target.value))} /></div>
             <div><label className="label">Gaji Harian (Rp)</label><input type="number" min="0" className="input" value={form.gajiHarian} onChange={(e) => set('gajiHarian', Number(e.target.value))} placeholder="cth. 150000" /></div>
@@ -864,6 +1074,11 @@ function KelolaKaryawan() {
                     >
                       {k.statusKaryawan === 'Karyawan Kontrak' ? 'KONTRAK' : 'TETAP'}
                     </span>
+                    {k.shift && (
+                      <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+                        SHIFT {k.shift}
+                      </span>
+                    )}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">{k.jabatan || '—'} • {k.departemen || '—'}</p>
                   <p className="mt-0.5 truncate text-[11px] text-slate-400">{k.email}</p>
@@ -2090,4 +2305,175 @@ function Laporan() {
   )
 }
 
+
+
+// ============================================================================
+//  RIWAYAT SURAT PERINGATAN (tab "Riwayat SP")
+//  Berbeda dari tab Peringatan yang hanya menampilkan surat AKTIF: di sini
+//  seluruh kejadian tercatat — kapan surat diterbitkan, oleh admin siapa, dan
+//  kapan dicabut. Surat yang sudah dicabut (atau karyawan yang sudah dihapus)
+//  tetap tampil lengkap karena data penting disalin saat kejadian berlangsung.
+// ============================================================================
+function RiwayatPeringatan() {
+  const [data, setData] = useState(null)
+  const [karyawan, setKaryawan] = useState([])
+  const [filter, setFilter] = useState({ employeeId: '', jenis: '', aksi: '', dari: '', sampai: '' })
+  const [memuat, setMemuat] = useState(true)
+
+  const muat = (f) => {
+    const pakai = f || filter
+    setMemuat(true)
+    api.adminRiwayatPeringatan(pakai)
+      .then(setData)
+      .catch(() => setData({ items: [], ringkas: { total: 0, diterbitkan: 0, dicabut: 0 } }))
+      .finally(() => setMemuat(false))
+  }
+
+  useEffect(() => {
+    muat({ employeeId: '', jenis: '', aksi: '', dari: '', sampai: '' })
+    api.adminKaryawan().then(setKaryawan).catch(() => {})
+    // Muat sekali saat tab dibuka; penyaringan berikutnya lewat tombol Terapkan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const set = (k, v) => setFilter((f) => ({ ...f, [k]: v }))
+  const bersihkan = () => {
+    const kosong = { employeeId: '', jenis: '', aksi: '', dari: '', sampai: '' }
+    setFilter(kosong)
+    muat(kosong)
+  }
+
+  const items = data?.items || []
+  const ringkas = data?.ringkas || { total: 0, diterbitkan: 0, dicabut: 0 }
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-3 flex items-start gap-2.5 rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+        <History size={16} className="mt-0.5 shrink-0" />
+        <span>
+          <b>Jejak audit</b> semua surat peringatan &amp; pemecatan: kapan diterbitkan, oleh admin siapa,
+          dan kapan dicabut. Surat yang sudah dicabut atau karyawan yang sudah dihapus <b>tetap tercatat</b>
+          di sini — bukti riwayat tidak hilang.
+        </span>
+      </div>
+
+      {/* Ringkasan kejadian (dihitung server dengan COUNT, bukan dari daftar terbatas) */}
+      <div className="mb-4 grid grid-cols-3 gap-2">
+        {[
+          ['Total Kejadian', ringkas.total, 'text-indigo-600 dark:text-indigo-300', History],
+          ['Diterbitkan', ringkas.diterbitkan, 'text-rose-600 dark:text-rose-300', FilePlus2],
+          ['Dicabut', ringkas.dicabut, 'text-emerald-600 dark:text-emerald-300', Undo2],
+        ].map(([label, angka, teks, Icon]) => (
+          <div key={label} className={`stat-tile !p-3 text-center ${teks}`}>
+            <span className="relative z-10 mx-auto grid h-8 w-8 place-items-center rounded-xl bg-white/70 shadow-sm dark:bg-white/10">
+              <Icon size={15} />
+            </span>
+            <p className="relative z-10 mt-1.5 text-xl font-black leading-none tabular-nums text-slate-800 dark:text-white">{angka}</p>
+            <p className="relative z-10 mt-0.5 truncate text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Penyaring riwayat */}
+      <div className="card mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="col-span-2 sm:col-span-1">
+          <label className="label">Karyawan</label>
+          <select className="input !px-3" value={filter.employeeId} onChange={(e) => set('employeeId', e.target.value)}>
+            <option value="">Semua</option>
+            {karyawan.map((k) => <option key={k.id} value={k.id}>{k.nama}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Jenis Surat</label>
+          <select className="input !px-3" value={filter.jenis} onChange={(e) => set('jenis', e.target.value)}>
+            <option value="">Semua</option>
+            {JENIS_SURAT.map(([j, label]) => <option key={j} value={j}>{label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Jenis Kejadian</label>
+          <select className="input !px-3" value={filter.aksi} onChange={(e) => set('aksi', e.target.value)}>
+            <option value="">Semua</option>
+            <option value="Diterbitkan">Diterbitkan</option>
+            <option value="Dicabut">Dicabut</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">Dari Tanggal</label>
+          <input type="date" className="input !px-3" value={filter.dari} onChange={(e) => set('dari', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Sampai Tanggal</label>
+          <input type="date" className="input !px-3" value={filter.sampai} onChange={(e) => set('sampai', e.target.value)} />
+        </div>
+        <div className="col-span-2 flex items-end gap-2 sm:col-span-1">
+          <button onClick={() => muat()} disabled={memuat} className="btn-primary flex-1 !py-2.5 !text-xs disabled:opacity-40">
+            {memuat ? <Loader2 size={14} className="animate-spin" /> : <Filter size={14} />} Terapkan
+          </button>
+          <button onClick={bersihkan} className="btn-ghost !py-2.5 !text-xs" aria-label="Bersihkan filter" title="Bersihkan filter">
+            <RefreshCw size={14} />
+          </button>
+        </div>
+      </div>
+
+
+      {/* Daftar riwayat — terbaru di atas */}
+      {memuat && items.length === 0 ? (
+        <p className="card flex items-center justify-center gap-2 py-8 text-sm text-slate-400">
+          <Loader2 size={16} className="animate-spin" /> Memuat riwayat…
+        </p>
+      ) : items.length === 0 ? (
+        <p className="card py-8 text-center text-xs text-slate-400">
+          Belum ada riwayat surat peringatan pada saringan ini.
+        </p>
+      ) : (
+        <div className="space-y-3 pb-2">
+          {items.map((r) => {
+            const terbit = r.aksi === 'Diterbitkan'
+            return (
+              <div key={r.id} className="card p-4">
+                <div className="flex items-start gap-3">
+                  <span
+                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${
+                      terbit
+                        ? 'bg-rose-50 text-rose-500 dark:bg-rose-500/15 dark:text-rose-400'
+                        : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400'
+                    }`}
+                  >
+                    {terbit ? <FilePlus2 size={17} /> : <Undo2 size={17} />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${kelasSurat(r.jenis)}`}>{r.label}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          terbit
+                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300'
+                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                        }`}
+                      >
+                        {r.aksi}
+                      </span>
+                    </div>
+                    <p className="truncate text-sm font-bold">{r.nama || 'Karyawan dihapus'}</p>
+                    <p className="mt-0.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                      {r.nomor || 'nomor tidak tercatat'} • surat {formatTanggalPendek(r.tanggal)}
+                    </p>
+                    {r.alasan && (
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{r.alasan}</p>
+                    )}
+                    <p className="mt-1.5 text-[10px] font-semibold text-slate-400">
+                      {terbit ? 'Diterbitkan' : 'Dicabut'} oleh {r.oleh}
+                      {r.dibuat ? ` • ${r.dibuat}` : ''}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 

@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { getJadwal, setSetting, getPerusahaan } from '../db.js'
+import { getJadwalGlobal, setSetting, getPerusahaan, MODE_JADWAL, SHIFT_DEFAULT } from '../db.js'
 import {
   ringkasanAdmin,
   trenKehadiran,
@@ -7,7 +7,7 @@ import {
   listSemuaAbsensi, ubahAbsensi, hapusAbsensi, fotoAbsensi,
   listSemuaIzin, setStatusIzin, hapusIzin, lampiranIzin,
   listSemuaLembur, setStatusLembur, hapusLembur,
-  listSemuaPeringatan, buatPeringatan, hapusPeringatan,
+  listSemuaPeringatan, buatPeringatan, hapusPeringatan, listRiwayatPeringatan,
   laporanKehadiran, laporanGaji,
   listHariLibur, tambahHariLibur, hapusHariLibur,
   listPeriodeGaji, tetapkanPeriodeGaji, aktifkanPeriodeGaji, hapusPeriodeGaji,
@@ -16,6 +16,7 @@ import {
   kirimPengumuman, ubahPengumuman, hapusPengumuman,
 } from '../models.js'
 import { wrap } from '../utils/wrap.js'
+import { sinkronkanRiwayatPeringatan } from '../models.js'
 
 // 'pengumuman' | 'penting' | 'info' | 'jadwal' = kategori PENGUMUMAN (kabar
 // perusahaan, tampil di menu 📢 Pengumuman). Sisanya = NOTIFIKASI personal
@@ -65,22 +66,57 @@ router.get('/tren', wrap(async (_req, res) => {
   res.json({ data: await trenKehadiran(7) })
 }))
 
-// ---------- Jadwal kerja ----------
+// ---------- Jadwal kerja (DUA MODE: biasa & shift 2 giliran) ----------
 router.get('/jadwal', wrap(async (_req, res) => {
-  res.json({ data: await getJadwal() })
+  res.json({ data: await getJadwalGlobal() })
 }))
 
-// PUT /api/admin/jadwal — ubah jam masuk (batas Terlambat), jam pulang, dan hari kerja.
-// Bila jadwal benar-benar berubah, SEMUA karyawan otomatis menerima notifikasi
-// (broadcast: baris employee_id NULL, jenis 'jadwal') agar tidak kaget oleh
-// perubahan batas absen / jam pulang.
+// Pola jam HH:MM dipakai bersama semua validasi jadwal.
+const POLA_JAM = /^([01]\d|2[0-3]):[0-5]\d$/
+
+// Validasi konfigurasi satu shift kiriman admin. Field yang dikosongkan memakai
+// bawaan SHIFT_DEFAULT; format jam wajib HH:MM (ditolak 400 bila salah).
+function validasiShift(nomor, data) {
+  const def = SHIFT_DEFAULT[nomor]
+  const src = data && typeof data === 'object' ? data : {}
+  const ambil = (v, d) => (v == null || String(v).trim() === '' ? d : String(v).trim())
+  const masuk = ambil(src.masuk, def.masuk)
+  const batas = ambil(src.batas, def.batas)
+  const pulang = ambil(src.pulang, def.pulang)
+  for (const [label, nilai] of [['jam masuk', masuk], ['batas terlambat', batas], ['jam pulang', pulang]]) {
+    if (!POLA_JAM.test(nilai)) {
+      return { ok: false, pesan: `Shift ${nomor}: ${label} harus format HH:MM (contoh 07:00).` }
+    }
+  }
+  return { ok: true, nilai: { nama: ambil(src.nama, def.nama), masuk, batas, pulang } }
+}
+
+// PUT /api/admin/jadwal — simpan pengaturan jadwal kerja.
+//   mode    : 'biasa' (satu jadwal) | 'shift' (dua giliran, shift per karyawan)
+//   biasa   : jamMasukBatas, jamPulang, hariKerja
+//   shift   : shift1 & shift2 → { nama, masuk, batas, pulang }
+// Bila ada yang benar-benar berubah, SEMUA karyawan menerima notifikasi broadcast
+// (employee_id NULL, jenis 'jadwal') agar tidak kaget oleh perubahan jam kerja.
 router.put('/jadwal', wrap(async (req, res) => {
-  const { jamMasukBatas, jamPulang, hariKerja } = req.body || {}
-  const pola = /^([01]\d|2[0-3]):[0-5]\d$/
-  if (!pola.test(jamMasukBatas || '') || !pola.test(jamPulang || '')) {
+  const { mode, jamMasukBatas, jamPulang, hariKerja, shift1, shift2 } = req.body || {}
+  const lama = await getJadwalGlobal()
+  let modeBaru = null
+  if (mode !== undefined && mode !== null && String(mode).trim() !== '') {
+    modeBaru = String(mode).trim().toLowerCase()
+    if (!MODE_JADWAL.includes(modeBaru)) {
+      return res.status(400).json({ error: "Mode jadwal harus 'biasa' atau 'shift'." })
+    }
+  }
+  const modeAkhir = modeBaru ?? lama.mode
+  // Jam kantor (mode biasa) BOLEH kosong saat mode shift — admin tidak
+  // mengisinya; nilai lama dipertahankan. Namun bila diisi, format wajib sah.
+  const isiMasuk = String(jamMasukBatas ?? '').trim()
+  const isiPulang = String(jamPulang ?? '').trim()
+  if (modeAkhir === 'biasa' && (!POLA_JAM.test(isiMasuk) || !POLA_JAM.test(isiPulang))) {
     return res.status(400).json({ error: 'Format jam harus HH:MM (contoh 08:15).' })
   }
-  const lama = await getJadwal()
+  if (isiMasuk && !POLA_JAM.test(isiMasuk)) return res.status(400).json({ error: 'Format jam harus HH:MM (contoh 08:15).' })
+  if (isiPulang && !POLA_JAM.test(isiPulang)) return res.status(400).json({ error: 'Format jam harus HH:MM (contoh 08:15).' })
   // `hariKerja` opsional: array angka 0 (Minggu) … 6 (Sabtu), minimal satu hari.
   let hariBaru = null
   if (hariKerja !== undefined) {
@@ -93,27 +129,50 @@ router.put('/jadwal', wrap(async (req, res) => {
     }
     await setSetting('hariKerja', hariBaru.join(','))
   }
-  await setSetting('jamMasukBatas', jamMasukBatas)
-  await setSetting('jamPulang', jamPulang)
+  // Konfigurasi kedua shift (hanya bila dikirim admin).
+  let shiftBaru = null
+  if (shift1 !== undefined || shift2 !== undefined) {
+    const s1 = validasiShift(1, shift1 ?? lama.shift1)
+    if (!s1.ok) return res.status(400).json({ error: s1.pesan })
+    const s2 = validasiShift(2, shift2 ?? lama.shift2)
+    if (!s2.ok) return res.status(400).json({ error: s2.pesan })
+    shiftBaru = { 1: s1.nilai, 2: s2.nilai }
+    await setSetting('shift1', JSON.stringify(s1.nilai))
+    await setSetting('shift2', JSON.stringify(s2.nilai))
+  }
+  if (modeBaru !== null) await setSetting('jadwalMode', modeBaru)
+  // Kosong = tidak diubah (dipakai saat mode shift tanpa jam kantor).
+  if (isiMasuk) await setSetting('jamMasukBatas', isiMasuk)
+  if (isiPulang) await setSetting('jamPulang', isiPulang)
 
   // Notifikasi hanya bila ada yang berubah (hemat kotak masuk dari klik tanpa edit).
-  const berubah =
-    lama.jamMasukBatas !== jamMasukBatas ||
-    lama.jamPulang !== jamPulang ||
-    (hariBaru && hariBaru.join(',') !== (lama.hariKerja || []).join(','))
+  const shifts = shiftBaru || { 1: lama.shift1, 2: lama.shift2 }
+  const intiShift = (s) => ({ nama: s.nama, masuk: s.masuk, batas: s.batas, pulang: s.pulang })
+  const berubah = Boolean(
+    (modeBaru !== null && modeBaru !== lama.mode) ||
+    (isiMasuk && lama.jamMasukBatas !== isiMasuk) ||
+    (isiPulang && lama.jamPulang !== isiPulang) ||
+    (hariBaru && hariBaru.join(',') !== (lama.hariKerja || []).join(',')) ||
+    (shiftBaru && (
+      JSON.stringify(shiftBaru[1]) !== JSON.stringify(intiShift(lama.shift1)) ||
+      JSON.stringify(shiftBaru[2]) !== JSON.stringify(intiShift(lama.shift2))
+    )),
+  )
   if (berubah) {
     const hariStr = hariBaru ? `, hari kerja ${hariBaru.map((n) => NAMA_HARI[n]).join(', ')}` : ''
     await kirimNotifikasi({
       employeeId: null,
-      judul: '📅 Jadwal kerja diperbarui',
-      pesan: `Jadwal baru — batas masuk ${jamMasukBatas}, jam pulang ${jamPulang}${hariStr}. Sesuaikan absensimu ya.`,
+      judul: modeAkhir === 'shift' ? '🔄 Jadwal shift diperbarui' : '📅 Jadwal kerja diperbarui',
+      pesan: modeAkhir === 'shift'
+        ? `Jadwal SHIFT berlaku — ${shifts[1].nama}: batas ${shifts[1].batas}, pulang ${shifts[1].pulang}; ${shifts[2].nama}: batas ${shifts[2].batas}, pulang ${shifts[2].pulang}${hariStr}. Cek shift-mu di Beranda.`
+        : `Jadwal baru — batas masuk ${isiMasuk || lama.jamMasukBatas}, jam pulang ${isiPulang || lama.jamPulang}${hariStr}. Sesuaikan absensimu ya.`,
       jenis: 'jadwal',
     })
   }
   // `notifikasiDikirim` ditaruh DI DALAM data karena klien (src/api.js) hanya
   // meneruskan `json.data` — dipakai panel admin untuk memberi tahu bahwa
   // broadcast sudah terkirim (atau tidak ada perubahan sehingga tidak ada notif).
-  res.json({ data: { ...(await getJadwal()), notifikasiDikirim: !!berubah } })
+  res.json({ data: { ...(await getJadwalGlobal()), notifikasiDikirim: berubah } })
 }))
 
 // ---------- Hari libur (nasional/cuti bersama + khusus dari admin) ----------
@@ -161,14 +220,33 @@ router.get('/peringatan', wrap(async (req, res) => {
   res.json({ data: await listSemuaPeringatan({ employeeId: req.query.employeeId }) })
 }))
 
+// GET /api/admin/peringatan/riwayat — RIWAYAT (jejak audit) penerbitan & pencabutan
+// surat, TERMASUK surat yang sudah dicabut/dihapus atau karyawan yang sudah dihapus.
+// Sinkron dulu warnings → warning_log supaya surat yang terbit saat server
+// masih memakai kode lama pasti ikut muncul di sini.
+// Filter opsional: employeeId, jenis, aksi, dari, sampai (tanggal surat).
+router.get('/peringatan/riwayat', wrap(async (req, res) => {
+  await sinkronkanRiwayatPeringatan()
+  res.json({
+    data: await listRiwayatPeringatan({
+      employeeId: req.query.employeeId,
+      jenis: req.query.jenis,
+      aksi: req.query.aksi,
+      dari: req.query.dari,
+      sampai: req.query.sampai,
+    }),
+  })
+}))
+
 // POST /api/admin/peringatan { employeeId, jenis: SP1|SP2|SP3|Pemecatan, tanggal, alasan }
-// Validasi & notifikasi ke karyawan ditangani di model.
+// Validasi & notifikasi ke karyawan ditangani di model; riwayat mencatat admin pelaku.
 router.post('/peringatan', wrap(async (req, res) => {
   const hasil = await buatPeringatan({
     employeeId: req.body?.employeeId,
     jenis: req.body?.jenis,
     tanggal: req.body?.tanggal,
     alasan: req.body?.alasan,
+    olehId: req.employeeId,
   })
   if (hasil.error) return res.status(400).json({ error: hasil.error })
   res.status(201).json({ data: hasil.data })
@@ -176,7 +254,7 @@ router.post('/peringatan', wrap(async (req, res) => {
 
 // DELETE /api/admin/peringatan/:id — cabut/hapus surat (karyawan dinotifikasi).
 router.delete('/peringatan/:id', wrap(async (req, res) => {
-  const data = await hapusPeringatan(Number(req.params.id))
+  const data = await hapusPeringatan(Number(req.params.id), req.employeeId)
   if (!data) return res.status(404).json({ error: 'Surat tidak ditemukan.' })
   res.json({ data })
 }))
