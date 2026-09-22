@@ -138,7 +138,7 @@ export default function LoginPage({ onLogin }) {
         </div>
 
         <p className="animate-slide-up mt-4 text-center text-[10px] font-medium text-white/60" style={{ animationDelay: '160ms' }}>
-          NUBSEN • Aplikasi absensi karyawan modern
+          NUBSEN v2.0.0
         </p>
       </div>
     </div>

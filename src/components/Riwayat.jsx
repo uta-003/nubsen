@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { History as HistoryIcon, Filter, MapPin, Paperclip, Info, Download, ChevronRight, PartyPopper, Loader2, Camera } from 'lucide-react'
+import { History as HistoryIcon, Filter, MapPin, Paperclip, Info, Download, ChevronRight, PartyPopper, Loader2, Camera, UserX } from 'lucide-react'
 import { formatTanggalLengkap, formatTanggalPendek, hariIndo } from '../utils/date'
 import { detailLibur } from '../utils/liburIndonesia'
 import { assetUrl } from '../api'
@@ -243,10 +243,16 @@ export default function Riwayat({ history, toast }) {
                       <PartyPopper size={11} className="mt-0.5 shrink-0" /> {detailLibur(h.tanggal).nama}
                     </p>
                   )}
-                  <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">
-                    Masuk {h.checkIn} • Pulang {h.checkOut}
-                  </p>
-                  {h.keterangan && (
+                  {h.status === 'Alpha' ? (
+                    <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-rose-500 dark:text-rose-400">
+                      <UserX size={12} className="shrink-0" /> Tanpa absen masuk &amp; pulang — Alpha otomatis
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">
+                      Masuk {h.checkIn} • Pulang {h.checkOut}
+                    </p>
+                  )}
+                  {h.keterangan && h.status !== 'Alpha' && (
                     <p className="mt-1.5 flex items-start gap-1 text-xs text-slate-500 dark:text-slate-400">
                       <Info size={12} className="mt-0.5 shrink-0" /> {h.keterangan}
                     </p>
