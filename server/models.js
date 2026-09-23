@@ -1264,6 +1264,28 @@ export async function catatCheckOut({ employeeId = 1, lokasi = {}, selfieUrl = n
   return getToday(employeeId)
 }
 
+// Izin/cuti AKTIF hari ini (Disetujui, rentangnya mencakup tanggal sekarang) —
+// dipakai Beranda untuk menandai bahwa karyawan sedang cuti/izin sehingga
+// tidak perlu absen dan hari itu tidak dihitung Alpha.
+export async function izinAktifHariIni(employeeId) {
+  const hariIni = toISODate()
+  const rows = await db.all(
+    `SELECT id, jenis, mulai, selesai, keterangan, status FROM leaves
+     WHERE employee_id = ? AND status = 'Disetujui' AND mulai <= ? AND selesai >= ?
+     ORDER BY mulai ASC LIMIT 1`,
+    [employeeId, hariIni, hariIni],
+  )
+  const l = rows[0]
+  if (!l) return null
+  return {
+    id: l.id,
+    jenis: l.jenis,
+    mulai: l.mulai,
+    selesai: l.selesai,
+    keterangan: l.keterangan || '',
+  }
+}
+
 // ---------- Alpha otomatis ----------
 // Hari kerja yang SUDAH BERLALU tanpa catatan absensi (dan tanpa pengajuan izin/
 // sakit/cuti yang tidak ditolak) dianggap ALPHA — jadi "tidak absen dari jam

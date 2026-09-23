@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MapPin, LogIn, LogOut, Navigation, Clock3, Loader2, CalendarCheck2, Bell, Copy, Check, TriangleAlert } from 'lucide-react'
+import { MapPin, LogIn, LogOut, Navigation, Clock3, Loader2, CalendarCheck2, Bell, Copy, Check, TriangleAlert, Plane } from 'lucide-react'
 import { formatJam, formatTanggalLengkap, formatTanggalPendek, sapaanWaktu, durasiKerja, toISODate } from '../utils/date'
 import { ambilCuaca, sapaanCuaca } from '../utils/cuaca'
 import { detailLibur, labelJenisPendek, liburBerikutnya } from '../utils/liburIndonesia'
@@ -34,6 +34,13 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
       .catch(() => { /* luring: biarkan null */ })
     return () => { batal = true }
   }, [])
+
+  // Tanda SEDANG CUTI/IZIN: pengajuan Disetujui yang mencakup hari ini (dari
+  // server via /api/jadwal → izinAktif). Hari itu karyawan tidak wajib absen
+  // dan TIDAK dihitung Alpha (server mengecualikannya di tanggalAlpha).
+  const izin = jadwal?.izinAktif || null
+  const NAMA_IZIN = { Izin: 'Izin', Sakit: 'Izin Sakit', Cuti: 'Cuti Tahunan', 'Izin Sakit': 'Izin Sakit', 'Cuti Tahunan': 'Cuti Tahunan' }
+  const namaIzin = izin ? (NAMA_IZIN[izin.jenis] || izin.jenis) : ''
 
   // Getaran haptic (Android/HP fisik) — feedback taktil ala aplikasi native
   const getar = (pola = 30) => {
@@ -147,6 +154,27 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
 
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* BANNER SEDANG CUTI/IZIN — pengajuan Disetujui mencakup hari ini.
+          Menenangkan karyawan: tidak wajib absen & tidak dihitung Alpha. */}
+      {izin && (
+        <div className="rounded-3xl bg-gradient-to-r from-sky-500 via-cyan-500 to-teal-500 p-[1.5px] shadow-lg shadow-cyan-500/20">
+          <div className="flex items-center gap-3 rounded-[calc(1.5rem-1.5px)] bg-white/95 p-4 dark:bg-slate-900/95">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-500 text-white shadow-md shadow-cyan-500/30">
+              <Plane size={20} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-extrabold text-slate-800 dark:text-white">
+                Kamu sedang {namaIzin.toLowerCase()} hari ini ✈️
+              </p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                {formatTanggalPendek(izin.mulai)} – {formatTanggalPendek(izin.selesai)}
+                {izin.keterangan ? ` • ${izin.keterangan}` : ''} — absen tidak diwajibkan dan tidak
+                dihitung <b>Alpha</b>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Sapaan: avatar inisial + nama. Tanggal TIDAK lagi nempel sebagai chip
           kecil di bawah nama (dulu posisinya menyempil di ujung blok sapaan dan
           saat halaman digulir chip putih itu lewat tepat di bawah header sticky —

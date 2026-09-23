@@ -6,7 +6,7 @@ import { tambahAntrean, adalahGalatJaringan } from '../utils/luring'
 export const JAM_MASUK_BATAS = '08:15'
 // Batas jam masuk & jam pulang (fallback tampilan) + hari kerja 0 = Minggu … 6 = Sabtu.
 // Sumber kebenaran tetap GET /api/jadwal (dapat diubah admin pada tab Jadwal).
-export const JADWAL_DEFAULT = { mode: 'biasa', jamMasukBatas: '08:15', jamPulang: '17:00', hariKerja: [1, 2, 3, 4, 5], shift: null }
+export const JADWAL_DEFAULT = { mode: 'biasa', jamMasukBatas: '08:15', jamPulang: '17:00', hariKerja: [1, 2, 3, 4, 5], shift: null, izinAktif: null }
 
 // Fallback profil saat server tidak terjangkau (tampilan tetap informatif).
 export const USER_DEFAULT = {
