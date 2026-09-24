@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Bell, Info, CalendarPlus, Clock4, CalendarCheck2, CheckCheck, Loader2, Megaphone, AlertTriangle, CalendarClock, Wallet, ChevronRight,
+  Bell, Info, CalendarPlus, Clock4, CalendarCheck2, CheckCheck, Loader2, Megaphone, AlertTriangle, CalendarClock, Wallet, ChevronRight, Brush,
 } from 'lucide-react'
 import { getNotifikasi, tandaiNotifikasiDibaca } from '../api'
 
@@ -10,6 +10,7 @@ const JENIS = {
   info: { Icon: Info, warna: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300', label: 'Info' },
   jadwal: { Icon: CalendarClock, warna: 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400', label: 'Jadwal' },
   lembur: { Icon: Clock4, warna: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400', label: 'Lembur' },
+  piket: { Icon: Brush, warna: 'bg-teal-100 text-teal-600 dark:bg-teal-500/15 dark:text-teal-400', label: 'Piket' },
   izin: { Icon: CalendarPlus, warna: 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400', label: 'Izin / Cuti' },
   absensi: { Icon: CalendarCheck2, warna: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400', label: 'Absensi' },
   gaji: { Icon: Wallet, warna: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400', label: 'Gaji' },
@@ -122,7 +123,7 @@ export default function Notifikasi({ onBukaPengumuman }) {
           </span>
           <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Belum ada notifikasi</p>
           <p className="max-w-[16rem] text-xs leading-relaxed text-slate-400">
-            Hasil pengajuan izin/lembur, absensi, dan slip gaji Anda muncul di sini.
+            Hasil pengajuan izin/lembur/piket, absensi, dan slip gaji Anda muncul di sini.
             Kabar perusahaan ada di menu Pengumuman.
           </p>
         </div>

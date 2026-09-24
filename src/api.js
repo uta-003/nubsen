@@ -234,6 +234,17 @@ export function buatLembur({ tanggal, jam_mulai, jam_selesai, keterangan }) {
   return request('/api/overtime', { method: 'POST', body: { tanggal, jam_mulai, jam_selesai, keterangan } })
 }
 
+// ---------- Piket (tugas jaga tambahan, berbayar) ----------
+// Daftar piket milik karyawan yang login + biaya piket yang sedang berlaku
+// (pengaturan admin) supaya besar bayarannya terlihat SEBELUM mengajukan.
+export function getPiket() {
+  return request('/api/piket')
+}
+
+export function buatPiket({ tanggal, jam_mulai, jam_selesai, keterangan }) {
+  return request('/api/piket', { method: 'POST', body: { tanggal, jam_mulai, jam_selesai, keterangan } })
+}
+
 // ---------- Notifikasi ----------
 export async function getNotifikasi() {
   const d = await request('/api/notifications')
@@ -268,6 +279,13 @@ export const adminHapusIzin = (id) => admin(`/leaves/${id}`, { method: 'DELETE' 
 export const adminLembur = () => admin('/overtime')
 export const adminStatusLembur = (id, status, alasan = '') => admin(`/overtime/${id}`, { method: 'PUT', body: { status, alasan } })
 export const adminHapusLembur = (id) => admin(`/overtime/${id}`, { method: 'DELETE' })
+// Piket: daftar pengajuan seluruh karyawan + penetapan biaya piket (Rp per piket
+// yang disetujui — dipakai penghitung gaji & slip gaji karyawan).
+export const adminPiket = () => admin('/piket')
+export const adminStatusPiket = (id, status, alasan = '') => admin(`/piket/${id}`, { method: 'PUT', body: { status, alasan } })
+export const adminHapusPiket = (id) => admin(`/piket/${id}`, { method: 'DELETE' })
+export const adminBiayaPiket = () => admin('/piket/biaya')
+export const adminSetBiayaPiket = (biaya) => admin('/piket/biaya', { method: 'PUT', body: { biaya } })
 export const adminNotifikasi = () => admin('/notifications')
 export const adminKirimNotifikasi = (d) => admin('/notifications', { method: 'POST', body: d })
 export const adminUbahPengumuman = (grupId, d) => admin(`/notifications/grup/${grupId}`, { method: 'PUT', body: d })
@@ -297,6 +315,11 @@ export const adminPeriodeGaji = () => admin('/gaji/periode')
 export const adminTetapkanPeriodeGaji = (d) => admin('/gaji/periode', { method: 'POST', body: d })
 export const adminAktifkanPeriodeGaji = (id) => admin(`/gaji/periode/${id}/aktif`, { method: 'PUT' })
 export const adminHapusPeriodeGaji = (id) => admin(`/gaji/periode/${id}`, { method: 'DELETE' })
+// Potong periode yang rentangnya bertumpuk agar satu tanggal hanya masuk satu slip.
+export const adminRapikanPeriodeGaji = () => admin('/gaji/periode/rapikan', { method: 'POST' })
+// Pemeriksa konsistensi rantai data absensi → izin → lembur → gaji (+ rapikan).
+export const adminPeriksaKonsistensi = () => admin('/konsistensi')
+export const adminRapikanKonsistensi = (d) => admin('/konsistensi/rapikan', { method: 'POST', body: d })
 
 // Slip gaji karyawan yang sedang login (periode aktif, atau periode terpilih).
 // Hasil: { periode, slip, hariKerja, hariKerjaHari, daftar }

@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "mulai": "powershell -NoProfile -ExecutionPolicy Bypass -File ./mulai.ps1",
+    "audit:gaji": "node scripts/audit-gaji.mjs",
     "android:url": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/set-url-android.ps1",
     "android:add": "cap add android",
     "android:sync": "npm run build && cap sync android",

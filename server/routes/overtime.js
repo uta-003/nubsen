@@ -25,6 +25,8 @@ router.post('/', wrap(async (req, res) => {
     jamSelesai: jam_selesai,
     keterangan,
   })
+  // Aturan "wajib ada absen masuk dulu" → buatLembur mengembalikan { error }.
+  if (row?.error) return res.status(400).json({ error: row.error })
   res.status(201).json({ data: row })
 }))
 

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { db, KANTOR, hashPin, getJadwal, hariKerjaAktif, HARI_KERJA_DEFAULT, shiftSah } from './db.js'
+import { db, KANTOR, hashPin, getJadwal, hariKerjaAktif, HARI_KERJA_DEFAULT, shiftSah, getSetting, setSetting } from './db.js'
 import { toISODate, jamSekarang } from './utils/waktu.js'
 
 // Jarak antar dua koordinat (meter) — formula Haversine.
@@ -73,6 +73,60 @@ export function leaveToClient(row) {
 
 // Status kepegawaian yang diakui sistem (dipilih admin pada form Karyawan).
 export const STATUS_KARYAWAN = ['Karyawan Tetap', 'Karyawan Kontrak']
+
+// ---------- Jenis pengajuan izin & perlakuan uang makan ----------
+// Cukup SATU jenis izin datang: "IZIN DATANG TERLAMBAT". Datang terlambat maupun
+// datang siang pada dasarnya sama (karyawan tetap masuk kerja) sehingga uang makan
+// hari yang disetujui tetap diberikan — beda dari Terlambat tanpa izin.
+export const IZIN_DATANG_TERLAMBAT = 'Izin Datang Terlambat'
+// Nama LAMA ("Izin Datang Siang") tetap DIKENALI agar data lama tidak rusak, tetapi
+// tidak lagi ditawarkan ke karyawan; dinormalkan otomatis ke jenis tunggal.
+export const IZIN_DATANG_SIANG_LAMA = 'Izin Datang Siang'
+// Daftar jenis RESMI yang boleh diajukan karyawan (dipakai validasi server & UI).
+export const JENIS_IZIN = ['Izin', 'Sakit', 'Cuti Tahunan', 'Cuti Khusus', IZIN_DATANG_TERLAMBAT]
+// Semua jenis izin datang yang dikenali (termasuk nama lama) — untuk membaca data lama.
+export const JENIS_IZIN_DATANG = [IZIN_DATANG_TERLAMBAT, IZIN_DATANG_SIANG_LAMA]
+
+// Status absensi hasil manfaat izin datang (gaji harian + uang makan dibayar).
+export const STATUS_IZIN_TERLAMBAT = 'Izin Terlambat'
+// Status LAMA — tetap dikenali sampai data lama dinormalkan.
+export const STATUS_IZIN_SIANG_LAMA = 'Izin Datang Siang'
+export const STATUS_IZIN_DATANG = [STATUS_IZIN_TERLAMBAT, STATUS_IZIN_SIANG_LAMA]
+// Semua status absensi yang LAHIR dari pengajuan izin — dibersihkan/dipulihkan
+// bila pengajuannya ditolak atau dihapus.
+export const STATUS_IZIN_PENGAJUAN = ['Izin', ...STATUS_IZIN_DATANG]
+
+// Jenis pengajuan → status absensi (null = jenis biasa). Jenis lama menghasilkan
+// status yang SAMA karena kedua izin itu setara.
+export function statusDariJenisIzin(jenis) {
+  return JENIS_IZIN_DATANG.includes(jenis) ? STATUS_IZIN_TERLAMBAT : null
+}
+
+// Kebalikannya: status absensi izin datang → daftar jenis pengajuan yang sah
+// (kosong untuk status 'Izin' biasa). Termasuk nama lama agar data lama tetap sah.
+export function jenisWajibStatusIzin(status) {
+  return STATUS_IZIN_DATANG.includes(status) ? [...JENIS_IZIN_DATANG] : []
+}
+
+// Satukan jenis/status izin datang yang lama ke yang tunggal (IDEMPOTEN). Dipanggil
+// otomatis saat server menyala & tersedia sebagai mode rapikan data.
+export async function satukanIzinDatang({ kering = false } = {}) {
+  const leaves = await db.all('SELECT id, employee_id, mulai, selesai FROM leaves WHERE jenis = ?', [IZIN_DATANG_SIANG_LAMA])
+  const absensi = await db.all('SELECT id, employee_id, tanggal, status FROM attendance WHERE status = ?', [STATUS_IZIN_SIANG_LAMA])
+  if (!kering) {
+    if (leaves.length) await db.run('UPDATE leaves SET jenis = ? WHERE jenis = ?', [IZIN_DATANG_TERLAMBAT, IZIN_DATANG_SIANG_LAMA])
+    if (absensi.length) await db.run('UPDATE attendance SET status = ? WHERE status = ?', [STATUS_IZIN_TERLAMBAT, STATUS_IZIN_SIANG_LAMA])
+  }
+  return {
+    jenisDiubah: leaves.length,
+    statusDiubah: absensi.length,
+    total: leaves.length + absensi.length,
+    detail: [
+      ...leaves.map((l) => ({ jenis: 'pengajuan', id: l.id, employeeId: l.employee_id, tanggal: l.mulai, baru: IZIN_DATANG_TERLAMBAT })),
+      ...absensi.map((a) => ({ jenis: 'absensi', id: a.id, employeeId: a.employee_id, tanggal: a.tanggal, baru: STATUS_IZIN_TERLAMBAT })),
+    ],
+  }
+}
 
 // ---------- Karyawan ----------
 async function employeeById(id) {
@@ -152,7 +206,18 @@ function lemburToClient(row) {
 }
 export { lemburToClient }
 
+// ATURAN: lembur hanya boleh diajukan pada hari yang SUDAH ada absen masuk.
+// Tanpa absensi, pengajuan ditolak agar lembur selalu punya dasar kehadiran.
 export async function buatLembur({ employeeId, tanggal, jamMulai, jamSelesai, keterangan = '' }) {
+  const absenHariItu = await db.get(
+    'SELECT status FROM attendance WHERE employee_id = ? AND tanggal = ?',
+    [employeeId, tanggal],
+  )
+  if (!absenHariItu) {
+    return {
+      error: `Lembur hanya bisa diajukan pada hari yang sudah ada absen masuk. Belum ada absensi tanggal ${tanggal} — silakan check-in dulu pada hari tersebut.`,
+    }
+  }
   const info = await db.run(
     `INSERT INTO overtime (employee_id, tanggal, jam_mulai, jam_selesai, keterangan) VALUES (?, ?, ?, ?, ?)`,
     [employeeId, tanggal, jamMulai, jamSelesai, keterangan],
@@ -171,6 +236,124 @@ export async function buatLembur({ employeeId, tanggal, jamMulai, jamSelesai, ke
 export async function listLembur(employeeId) {
   const rows = await db.all('SELECT * FROM overtime WHERE employee_id = ? ORDER BY id DESC', [employeeId])
   return rows.map(lemburToClient)
+}
+
+// ---------- Piket (tugas jaga tambahan — berbayar sesuai biaya piket admin) ----------
+// Biaya piket adalah pengaturan GLOBAL admin (settings 'biayaPiket'): setiap piket
+// yang DISETUJUI pada sebuah periode penggajian dibayar sebesar biaya itu.
+export async function biayaPiket() {
+  return Math.max(0, Math.round(Number(await getSetting('biayaPiket', '0')) || 0))
+}
+
+export async function setBiayaPiket(nilai) {
+  const angka = Math.max(0, Math.round(Number(nilai) || 0))
+  await setSetting('biayaPiket', String(angka))
+  return angka
+}
+
+function piketToClient(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    tanggal: row.tanggal,
+    jamMulai: row.jam_mulai || '',
+    jamSelesai: row.jam_selesai || '',
+    keterangan: row.keterangan || '',
+    status: row.status,
+    dibuat: row.created_at || null,
+    alasanTolak: row.alasan_tolak || '',
+  }
+}
+export { piketToClient }
+
+// Ajukan piket. Satu tanggal hanya boleh punya SATU pengajuan aktif (Menunggu/
+// Disetujui) agar tidak dobel bayar; jam opsional, tapi bila diisi harus lengkap.
+export async function buatPiket({ employeeId, tanggal, jamMulai = '', jamSelesai = '', keterangan = '' }) {
+  const tgl = String(tanggal || '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tgl)) {
+    return { error: 'Tanggal piket wajib diisi (format YYYY-MM-DD).' }
+  }
+  const mulai = String(jamMulai || '').trim()
+  const selesai = String(jamSelesai || '').trim()
+  if ((mulai && !selesai) || (!mulai && selesai)) {
+    return { error: 'Isi jam mulai dan jam selesai sekaligus, atau kosongkan keduanya.' }
+  }
+  if (mulai && !/^\d{2}:\d{2}$/.test(mulai)) return { error: 'Format jam mulai harus HH:MM.' }
+  if (selesai && !/^\d{2}:\d{2}$/.test(selesai)) return { error: 'Format jam selesai harus HH:MM.' }
+  if (mulai && selesai && selesai <= mulai) return { error: 'Jam selesai harus setelah jam mulai.' }
+
+  const dobel = await db.get(
+    `SELECT id, status FROM piket WHERE employee_id = ? AND tanggal = ? AND status IN ('Menunggu','Disetujui') LIMIT 1`,
+    [employeeId, tgl],
+  )
+  if (dobel) {
+    return { error: `Sudah ada pengajuan piket tanggal ${tgl} (status ${dobel.status}).` }
+  }
+
+  const info = await db.run(
+    `INSERT INTO piket (employee_id, tanggal, jam_mulai, jam_selesai, keterangan) VALUES (?, ?, ?, ?, ?)`,
+    [employeeId, tgl, mulai || null, selesai || null, keterangan],
+  )
+  const id = info.lastInsertRowid
+  const jam = mulai && selesai ? ` pukul ${mulai}-${selesai}` : ''
+  await kirimNotifikasi({
+    employeeId,
+    judul: '🧹 Pengajuan piket terkirim',
+    pesan: `Piket ${tgl}${jam} sedang menunggu persetujuan admin.`,
+    jenis: 'piket',
+  })
+  return piketToClient(await db.get('SELECT * FROM piket WHERE id = ?', [id]))
+}
+
+export async function listPiket(employeeId) {
+  const rows = await db.all('SELECT * FROM piket WHERE employee_id = ? ORDER BY tanggal DESC, id DESC LIMIT 200', [employeeId])
+  return rows.map(piketToClient)
+}
+
+// Daftar piket SELURUH karyawan untuk panel admin — plus penanda berapa piket
+// yang sudah disetujui (dipakai untuk menghitung biaya piket di slip).
+export async function listSemuaPiket() {
+  const rows = await db.all(
+    `SELECT p.*, e.nama AS nama_karyawan FROM piket p JOIN employees e ON e.id = p.employee_id
+     ORDER BY p.tanggal DESC, p.id DESC LIMIT 400`,
+  )
+  return rows.map((r) => ({ ...piketToClient(r), nama: r.nama_karyawan }))
+}
+
+export async function setStatusPiket(id, status, alasan = '') {
+  const p = await db.get(
+    'SELECT p.*, e.nama AS nama_karyawan FROM piket p LEFT JOIN employees e ON e.id = p.employee_id WHERE p.id = ?',
+    [id],
+  )
+  if (!p) return null
+  const teksAlasan = status === 'Ditolak' ? String(alasan || '').trim() : ''
+  await db.run('UPDATE piket SET status = ?, alasan_tolak = ? WHERE id = ?', [status, teksAlasan, id])
+  await kirimNotifikasi({
+    employeeId: p.employee_id,
+    judul: status === 'Disetujui' ? '✅ Piket disetujui' : status === 'Ditolak' ? '❌ Piket ditolak' : '🕒 Piket menunggu persetujuan',
+    pesan:
+      `Pengajuan piket ${p.tanggal} telah ${String(status).toLowerCase()} oleh admin.` +
+      (status === 'Disetujui' ? ` Biaya piket dibayarkan pada slip periode penggajian terkait.` : '') +
+      (status === 'Ditolak' && teksAlasan ? ` Alasan: ${teksAlasan}` : ''),
+    jenis: 'piket',
+  })
+  return { ...piketToClient(await db.get('SELECT * FROM piket WHERE id = ?', [id])), nama: p.nama_karyawan }
+}
+
+export async function hapusPiket(id) {
+  const info = await db.run('DELETE FROM piket WHERE id = ?', [id])
+  return info.changes
+}
+
+// Jumlah piket DISETUJUI (per karyawan / semua karyawan) dalam satu rentang.
+export async function hitungPiket(dari, sampai, employeeId = null) {
+  const params = [dari, sampai]
+  let sql = `SELECT employee_id, COUNT(*) AS n FROM piket
+             WHERE status = 'Disetujui' AND tanggal >= ? AND tanggal <= ?`
+  if (employeeId) { sql += ' AND employee_id = ?'; params.push(Number(employeeId)) }
+  sql += ' GROUP BY employee_id'
+  const rows = await db.all(sql, params)
+  return new Map(rows.map((r) => [r.employee_id, Number(r.n || 0)]))
 }
 
 // ---------- Notifikasi ----------
@@ -680,6 +863,80 @@ export async function fotoAbsensi(id, jenis = 'masuk') {
   return { id: a.id, employeeId: a.employee_id, tanggal: a.tanggal, jenis: jenis === 'pulang' ? 'pulang' : 'masuk', foto: a.foto || null }
 }
 
+// Rekonsiliasi baris absensi berstatus IZIN (termasuk "Izin Terlambat"/"Izin
+// Datang Siang" hasil pengajuan) terhadap tabel pengajuan — dipakai saat
+// pengajuan DITOLAK/dihapus dan oleh pemeriksa konsistensi data:
+//   • baris yang punya jam check-in  → status dipulihkan dari jamnya (aturan sama
+//     dengan check-in) agar hari yang benar-benar dihadiri tidak hilang;
+//   • baris tanpa check-in (hanya penanda izin) → dihapus, karena tanpa pengajuan
+//     yang sah hari itu TIDAK boleh dihitung/dibayar sebagai izin.
+export async function rekonsiliasiIzinKehadiran({ employeeId = null, dari = null, sampai = null, kering = false } = {}) {
+  const saring = [`status IN (${STATUS_IZIN_PENGAJUAN.map(() => '?').join(', ')})`]
+  const params = [...STATUS_IZIN_PENGAJUAN]
+  if (employeeId) { saring.push('employee_id = ?'); params.push(Number(employeeId)) }
+  if (dari) { saring.push('tanggal >= ?'); params.push(dari) }
+  if (sampai) { saring.push('tanggal <= ?'); params.push(sampai) }
+  const rows = await db.all(`SELECT * FROM attendance WHERE ${saring.join(' AND ')}`, params)
+
+  const hasil = { dipulihkan: [], dihapus: [] }
+  for (const r of rows) {
+    // Baris sah bila ada pengajuan (non-ditolak) yang mencakup tanggalnya.
+    // Status izin datang hanya sah bila pengajuan jenisnya memang izin datang.
+    const wajib = jenisWajibStatusIzin(r.status)
+    const dasar = await db.get(
+      `SELECT id FROM leaves WHERE employee_id = ? AND status <> 'Ditolak' AND mulai <= ? AND selesai >= ?`
+        + (wajib.length ? ` AND jenis IN (${wajib.map(() => '?').join(', ')})` : '') + ' LIMIT 1',
+      wajib.length ? [r.employee_id, r.tanggal, r.tanggal, ...wajib] : [r.employee_id, r.tanggal, r.tanggal],
+    )
+    if (dasar) continue
+
+    if (r.check_in) {
+      const jadwal = await getJadwal(r.employee_id)
+      const { status, alasan } = hitungStatusAbsen(jadwal, r.check_in)
+      const keterangan = `${alasan || `Jam check-in ${r.check_in}`} (izin tidak disetujui — status dipulihkan)`
+      if (!kering) await db.run('UPDATE attendance SET status = ?, keterangan = ? WHERE id = ?', [status, keterangan, r.id])
+      hasil.dipulihkan.push({
+        id: r.id, employeeId: r.employee_id, nama: r.nama, tanggal: r.tanggal,
+        checkIn: r.check_in, statusLama: r.status, statusBaru: status,
+      })
+    } else {
+      if (!kering) await db.run('DELETE FROM attendance WHERE id = ?', [r.id])
+      hasil.dihapus.push({ id: r.id, employeeId: r.employee_id, tanggal: r.tanggal, keterangan: r.keterangan || '' })
+    }
+  }
+  return hasil
+}
+
+// Manfaat izin datang: hari yang SUDAH check-in tetapi masih berstatus
+// 'Terlambat' (uang makan hangus) dinaikkan ke STATUS IZIN DATANG sehingga uang
+// makan hari itu tetap diberikan. Hanya hari kerja biasa yang disentuh (absen di
+// hari libur tetap "Hadir Libur" agar hitungannya tidak berubah). Aman dijalankan
+// berulang — hanya baris berstatus Terlambat diubah.
+export async function terapkanIzinDatang(leave, { kering = false } = {}) {
+  const status = statusDariJenisIzin(leave?.jenis)
+  const employeeId = leave?.employee_id ?? leave?.employeeId
+  if (!status || !employeeId || !leave?.mulai || !leave?.selesai) return { status: null, diterapkan: [] }
+
+  const rows = await db.all(
+    `SELECT * FROM attendance
+      WHERE employee_id = ? AND tanggal >= ? AND tanggal <= ?
+        AND COALESCE(hari_libur, 0) = 0
+        AND check_in IS NOT NULL AND TRIM(check_in) NOT IN ('', '-')
+        AND status = 'Terlambat'`,
+    [employeeId, leave.mulai, leave.selesai],
+  )
+  const diterapkan = []
+  for (const r of rows) {
+    const keterangan = `${leave.jenis} (disetujui): check-in ${r.check_in} — uang makan tetap diberikan`
+    if (!kering) await db.run('UPDATE attendance SET status = ?, keterangan = ? WHERE id = ?', [status, keterangan, r.id])
+    diterapkan.push({
+      id: r.id, employeeId, tanggal: r.tanggal, checkIn: r.check_in,
+      statusLama: r.status, statusBaru: status,
+    })
+  }
+  return { status, diterapkan }
+}
+
 export async function setStatusIzin(id, status, alasan = '') {
   const l = await db.get(
     'SELECT l.*, e.nama AS nama_karyawan FROM leaves l LEFT JOIN employees e ON e.id = l.employee_id WHERE l.id = ?',
@@ -689,6 +946,14 @@ export async function setStatusIzin(id, status, alasan = '') {
   // Alasan penolakan disimpan bersama status; dikosongkan bila dibuka ulang.
   const teksAlasan = status === 'Ditolak' ? String(alasan || '').trim() : ''
   await db.run('UPDATE leaves SET status = ?, alasan_tolak = ? WHERE id = ?', [status, teksAlasan, id])
+  // Izin DITOLAK → baris absensi 'Izin' yang menggantung dibersihkan/dipulihkan,
+  // supaya hari itu tidak lagi dihitung (dan dibayar) sebagai izin.
+  if (status === 'Ditolak') {
+    await rekonsiliasiIzinKehadiran({ employeeId: l.employee_id, dari: l.mulai, sampai: l.selesai })
+  }
+  // Izin "datang terlambat/siang" DISETUJUI → manfaatnya langsung diterapkan pada
+  // hari yang sudah check-in (status Terlambat) supaya uang makan tidak hangus.
+  if (status === 'Disetujui') await terapkanIzinDatang(l)
   await kirimNotifikasi({
     employeeId: l.employee_id,
     judul: status === 'Disetujui' ? '✅ Izin/cuti disetujui' : '❌ Izin/cuti ditolak',
@@ -701,15 +966,25 @@ export async function setStatusIzin(id, status, alasan = '') {
 }
 
 export async function hapusIzin(id) {
-  await db.run('DELETE FROM leaves WHERE id = ?', [id])
+  const l = await db.get('SELECT * FROM leaves WHERE id = ?', [id])
+  if (!l) return 0
+  // Hapus pengajuan = dasarnya hilang → bersihkan/pulihkan baris absensi 'Izin'.
+  await rekonsiliasiIzinKehadiran({ employeeId: l.employee_id, dari: l.mulai, sampai: l.selesai })
+  const info = await db.run('DELETE FROM leaves WHERE id = ?', [id])
+  return info.changes
 }
 
 // ---------- Panel Admin: kelola lembur ----------
+// `adaAbsensi` menandai lembur yang tanggalnya TIDAK punya catatan absensi
+// (mis. data lama sebelum aturan "wajib absen dulu" berlaku) agar admin bisa
+// meninjau sebelum menyetujui.
 export async function listSemuaLembur() {
   const rows = await db.all(
-    'SELECT o.*, e.nama AS nama_karyawan FROM overtime o JOIN employees e ON e.id = o.employee_id ORDER BY o.id DESC',
+    `SELECT o.*, e.nama AS nama_karyawan,
+            (SELECT COUNT(*) FROM attendance a WHERE a.employee_id = o.employee_id AND a.tanggal = o.tanggal) AS ada_absensi
+     FROM overtime o JOIN employees e ON e.id = o.employee_id ORDER BY o.id DESC`,
   )
-  return rows.map((o) => ({ ...lemburToClient(o), nama: o.nama_karyawan }))
+  return rows.map((o) => ({ ...lemburToClient(o), nama: o.nama_karyawan, adaAbsensi: Number(o.ada_absensi || 0) > 0 }))
 }
 
 export async function setStatusLembur(id, status, alasan = '') {
@@ -803,9 +1078,10 @@ function selisihJam(mulai, selesai) {
 }
 
 // Laporan rekap kehadiran per karyawan untuk satu periode. Sumber data:
-// attendance (Hadir/Terlambat/Hadir Libur) + rekapHarian() TERPADU untuk
-// Izin/Sakit/Cuti & Alpha — aturan persis sama dengan tabel Riwayat karyawan,
-// sehingga angka laporan admin dan riwayat karyawan selalu cocok.
+// attendance (Hadir/Terlambat/Hadir Libur + hari IZIN DATANG yang ikut kolom
+// Hadir) + rekapHarian() TERPADU untuk Izin/Sakit/Cuti & Alpha — aturan persis
+// sama dengan tabel Riwayat karyawan, sehingga angka laporan admin dan riwayat
+// karyawan selalu cocok. `izinDatang` dilaporkan terpisah sebagai catatan.
 // `employeeId` (opsional) membatasi laporan ke SATU karyawan — dipakai slip gaji
 // karyawan agar rumusnya persis sama dengan tab Gaji di panel admin.
 export async function laporanKehadiran({ dari, sampai, departemen, employeeId } = {}) {
@@ -838,11 +1114,17 @@ export async function laporanKehadiran({ dari, sampai, departemen, employeeId } 
     const [att, lembur, rekap] = await Promise.all([
       db.get(
         `SELECT
-           COALESCE(SUM(CASE WHEN status = 'Hadir' AND COALESCE(hari_libur, 0) = 0 THEN 1 ELSE 0 END), 0) AS hadir,
+           -- Hadir = datang TEPAT WAKTU + hari dengan IZIN DATANG (terlambat/siang):
+           -- dua-duanya hari MASUK kerja (uang makan keduanya dibayar). Jumlah hari
+           -- izin datang dilaporkan terpisah pada kolom izinDatang sebagai CATATAN,
+           -- bukan kolom Izin — izin itu tidak berarti "tidak masuk".
+           COALESCE(SUM(CASE WHEN status IN ('Hadir', ?, ?) AND COALESCE(hari_libur, 0) = 0 THEN 1 ELSE 0 END), 0) AS hadir,
            COALESCE(SUM(CASE WHEN status = 'Terlambat' AND COALESCE(hari_libur, 0) = 0 THEN 1 ELSE 0 END), 0) AS terlambat,
-           COALESCE(SUM(CASE WHEN status IN ('Hadir','Terlambat') AND COALESCE(hari_libur, 0) = 1 THEN 1 ELSE 0 END), 0) AS hadirLibur
+           COALESCE(SUM(CASE WHEN status IN ('Hadir','Terlambat') AND COALESCE(hari_libur, 0) = 1 THEN 1 ELSE 0 END), 0) AS hadirLibur,
+           -- Catatan: berapa di antara hari Hadir di atas yang memakai izin datang.
+           COALESCE(SUM(CASE WHEN status IN (?, ?) AND COALESCE(hari_libur, 0) = 0 THEN 1 ELSE 0 END), 0) AS izinDatang
          FROM attendance WHERE employee_id = ? AND tanggal >= ? AND tanggal <= ?`,
-        [e.id, mulai, selesai],
+        [STATUS_IZIN_TERLAMBAT, STATUS_IZIN_SIANG_LAMA, STATUS_IZIN_TERLAMBAT, STATUS_IZIN_SIANG_LAMA, e.id, mulai, selesai],
       ),
       db.all(
         `SELECT jam_mulai, jam_selesai FROM overtime
@@ -854,7 +1136,8 @@ export async function laporanKehadiran({ dari, sampai, departemen, employeeId } 
     ])
 
     // Izin/Sakit/Cuti = hari KERJA non-libur dari rekap terpadu (hari libur &
-    // akhir pekan tidak lagi ikut terhitung seperti pada rumus lama).
+    // akhir pekan tidak lagi ikut terhitung seperti pada rumus lama). Hari IZIN
+    // DATANG tidak pernah masuk sini — itu kehadiran (kolom Hadir).
     let izin = 0
     let sakit = 0
     let cuti = 0
@@ -867,9 +1150,14 @@ export async function laporanKehadiran({ dari, sampai, departemen, employeeId } 
 
     const hadir = att?.hadir || 0
     const terlambat = att?.terlambat || 0
+    // Hari dengan izin datang (disetujui) SUDAH termasuk pada `hadir` di atas —
+    // di sini hanya sebagai CATATAN berapa di antaranya, supaya angkanya bisa
+    // ditampilkan di laporan/slip tanpa dihitung dua kali.
+    const izinDatang = att?.izinDatang || 0
     // Absensi di luar hari kerja (mis. masuk hari Sabtu) dipisahkan agar tidak
     // menggelembungkan % kehadiran.
     const hadirLibur = att?.hadirLibur || 0
+    // Kehadiran = Hadir (termasuk hari izin datang — karyawan memang masuk) + Terlambat.
     const masuk = hadir + terlambat
     // Alpha DIHITUNG LANGSUNG dari rekap terpadu (bukan rumus pengurangan) —
     // menghormati jejak pertama karyawan, hari libur, dan "hari ini sebelum
@@ -886,6 +1174,7 @@ export async function laporanKehadiran({ dari, sampai, departemen, employeeId } 
       hadir,
       terlambat,
       hadirLibur,
+      izinDatang,
       izin,
       sakit,
       cuti,
@@ -911,6 +1200,7 @@ export async function laporanKehadiran({ dari, sampai, departemen, employeeId } 
       hadir: total('hadir'),
       terlambat: total('terlambat'),
       hadirLibur: total('hadirLibur'),
+      izinDatang: total('izinDatang'),
       izin: total('izin'),
       sakit: total('sakit'),
       cuti: total('cuti'),
@@ -950,16 +1240,22 @@ export function rekapDepartemen(baris = []) {
 // Gaji per karyawan untuk satu periode — dihitung dari laporan kehadiran yang
 // sama + tarif per karyawan (diisi admin di tab Karyawan/Gaji):
 //   • Hari Dibayar  = Hadir + Terlambat + Hadir Libur + Izin + Sakit + Cuti
-//     (pengajuan izin/sakit/cuti yang tidak ditolak tetap dibayar; Alpha tidak)
-//   • Hari Uang Makan = hanya hari masuk TEPAT WAKTU (Hadir + Hadir Libur).
-//     Terlambat masuk TIDAK mendapat uang makan; izin/sakit/cuti juga tidak.
+//     (Hadir SUDAH termasuk hari dengan izin datang terlambat/siang; pengajuan
+//     izin/sakit/cuti yang tidak ditolak juga tetap dibayar; Alpha tidak)
+//   • Hari Uang Makan = semua hari Hadir (termasuk hari izin datang) + Hadir Libur.
+//     Terlambat masuk TANPA izin TIDAK mendapat uang makan.
+//     Izin/sakit/cuti biasa juga tidak mendapat uang makan.
 //   • Lembur (Rp) = total jam lembur Disetujui × tarif lembur per jam
+//   • Piket (Rp)  = jumlah piket Disetujui pada periode × biaya piket (pengaturan admin)
 // `employeeId` (opsional) → slip gaji satu karyawan (dipakai aplikasi karyawan).
 export async function laporanGaji({ dari, sampai, departemen, employeeId } = {}) {
   const dasar = await laporanKehadiran({ dari, sampai, departemen, employeeId })
   const tarif = await db.all('SELECT id, gaji_harian, uang_makan, tarif_lembur FROM employees')
   const peta = new Map(tarif.map((e) => [e.id, e]))
   const rupiah = (n) => Math.round(Number(n) || 0)
+  // Biaya piket (pengaturan admin) + jumlah piket DISETUJUI per karyawan pada rentang ini.
+  const biaya = await biayaPiket()
+  const petaPiket = await hitungPiket(dasar.dari, dasar.sampai, employeeId)
 
   const baris = dasar.baris.map((r) => {
     const e = peta.get(r.id) || {}
@@ -967,20 +1263,28 @@ export async function laporanGaji({ dari, sampai, departemen, employeeId } = {})
     const uangMakan = Number(e.uang_makan ?? 0)
     const tarifLembur = Number(e.tarif_lembur ?? 0)
     const hariDibayar = r.hadir + r.terlambat + r.hadirLibur + r.izin + r.sakit + r.cuti
-    // Terlambat TIDAK dapat uang makan (gaji hariannya tetap dibayar).
+    // Hari izin datang SUDAH termasuk pada r.hadir (laporan kehadiran) → TIDAK
+    // ditambahkan lagi agar tidak dihitung dua kali; nilai ini hanya CATATAN.
+    const izinDatang = r.izinDatang || 0
+    // Uang makan = semua hari Hadir (termasuk hari izin datang) + Hadir Libur.
+    // Terlambat TANPA izin tidak dapat uang makan.
     const hariMakan = r.hadir + r.hadirLibur
     const tanpaUangMakan = r.terlambat
     const subGaji = rupiah(hariDibayar * gajiHarian)
     const subMakan = rupiah(hariMakan * uangMakan)
     const subLembur = rupiah(r.lembur * tarifLembur)
+    // Piket: jumlah piket disetujui dalam periode × biaya piket (pengaturan admin).
+    const piket = petaPiket.get(r.id) || 0
+    const subPiket = rupiah(piket * biaya)
     return {
       ...r,
       gajiHarian, uangMakan, tarifLembur,
-      hariDibayar, hariMakan, tanpaUangMakan,
+      hariDibayar, hariMakan, tanpaUangMakan, izinDatang,
       // Nilai uang makan yang hilang karena telat — ditampilkan agar transparan.
       potonganUangMakan: rupiah(tanpaUangMakan * uangMakan),
       subGaji, subMakan, subLembur,
-      total: subGaji + subMakan + subLembur,
+      piket, biayaPiket: biaya, subPiket,
+      total: subGaji + subMakan + subLembur + subPiket,
     }
   })
 
@@ -996,12 +1300,16 @@ export async function laporanGaji({ dari, sampai, departemen, employeeId } = {})
       totalKaryawan: baris.length,
       hariDibayar: total('hariDibayar'),
       hariMakan: total('hariMakan'),
+      izinDatang: total('izinDatang'),
       tanpaUangMakan: total('tanpaUangMakan'),
       potonganUangMakan: rupiah(total('potonganUangMakan')),
       lembur: Math.round(total('lembur') * 10) / 10,
+      piket: total('piket'),
+      biayaPiket: biaya,
       subGaji: rupiah(total('subGaji')),
       subMakan: rupiah(total('subMakan')),
       subLembur: rupiah(total('subLembur')),
+      subPiket: rupiah(total('subPiket')),
       total: rupiah(total('total')),
     },
   }
@@ -1029,10 +1337,26 @@ export async function periodeGajiAktif() {
   )
 }
 
+// Periode yang rentangnya bertumpuk membuat SATU tanggal masuk ke DUA slip gaji
+// (absensi & lembur bisa dibayar dua kali). Fungsi ini menemukan bentroknya.
+export async function periodeBertumpuk({ dari, sampai, kecualiId = null } = {}) {
+  const rows = await db.all('SELECT id, nama, dari, sampai FROM payroll_periods')
+  return rows.filter((p) => p.id !== Number(kecualiId) && dari <= p.sampai && sampai >= p.dari)
+}
+
 // Tetapkan periode penggajian (langsung AKTIF). Rentang tanggal yang sama tidak
-// diduplikasi — hanya namanya yang diperbarui.
+// diduplikasi — hanya namanya yang diperbarui. Rentang yang BERTUMPUK dengan
+// periode lain ditolak (mengembalikan { error }) agar tidak ada pembayaran ganda.
 export async function tetapkanPeriodeGaji({ nama, dari, sampai }) {
   const ada = await db.get('SELECT * FROM payroll_periods WHERE dari = ? AND sampai = ?', [dari, sampai])
+  const bentrok = await periodeBertumpuk({ dari, sampai, kecualiId: ada?.id ?? null })
+  if (bentrok.length) {
+    const daftar = bentrok.map((p) => `"${p.nama}" (${p.dari} s.d. ${p.sampai})`).join(', ')
+    return {
+      error: `Periode ${dari} s.d. ${sampai} bertumpuk dengan ${daftar}. Periode penggajian tidak boleh bertumpuk karena satu tanggal akan masuk dua slip gaji (berisiko dibayar dua kali). Ubah tanggalnya, atau rapikan periode yang bertumpuk lebih dulu.`,
+      bentrok,
+    }
+  }
   await db.run('UPDATE payroll_periods SET aktif = 0')
   if (ada) {
     await db.run('UPDATE payroll_periods SET nama = ?, aktif = 1 WHERE id = ?', [nama || ada.nama, ada.id])
@@ -1056,6 +1380,38 @@ export async function aktifkanPeriodeGaji(id) {
 export async function hapusPeriodeGaji(id) {
   const info = await db.run('DELETE FROM payroll_periods WHERE id = ?', [id])
   return info.changes
+}
+
+// Rapikan periode yang bertumpuk: periode yang lebih dulu dipotong menjadi
+// sehari SEBELUM periode berikutnya mulai, sehingga tanggal yang bertumpuk
+// hanya dihitung sekali (milik periode TERBARU). Aman dijalankan berulang
+// (idempoten) dan mengembalikan rincian perubahan untuk ditampilkan admin.
+export async function rapikanPeriodeGaji() {
+  const rows = await db.all('SELECT id, nama, dari, sampai FROM payroll_periods ORDER BY id')
+  const urut = [...rows].sort((a, b) => a.dari.localeCompare(b.dari) || a.id - b.id)
+  const kurangiHari = (tgl, n) => {
+    const d = new Date(`${tgl}T00:00:00Z`)
+    d.setUTCDate(d.getUTCDate() - n)
+    return d.toISOString().slice(0, 10)
+  }
+  const perubahan = []
+  const dilewati = []
+  for (const p of urut) {
+    const berikut = urut.find((x) => x.dari > p.dari || (x.dari === p.dari && x.id > p.id))
+    if (!berikut || p.sampai < berikut.dari) continue
+    const sampaiBaru = kurangiHari(berikut.dari, 1)
+    if (sampaiBaru < p.dari) {
+      // Rentangnya seluruhnya tertelan periode berikutnya → butuh keputusan admin.
+      dilewati.push({ id: p.id, nama: p.nama, dari: p.dari, sampai: p.sampai, bentrokDengan: berikut.nama })
+      continue
+    }
+    await db.run('UPDATE payroll_periods SET sampai = ? WHERE id = ?', [sampaiBaru, p.id])
+    perubahan.push({
+      id: p.id, nama: p.nama, dari: p.dari,
+      sampaiLama: p.sampai, sampaiBaru, bertumpukDengan: berikut.nama,
+    })
+  }
+  return { perubahan, dilewati, periode: await listPeriodeGaji() }
 }
 
 // Slip gaji SATU karyawan untuk periode aktif (atau periode terpilih). Rumusnya
@@ -1139,11 +1495,12 @@ export async function ringkasanAdmin() {
   return {
     totalKaryawan: await satu('SELECT COUNT(*) AS n FROM employees'),
     hadirHariIni: await satu(
-      `SELECT COUNT(*) AS n FROM attendance WHERE tanggal = ? AND status IN ('Hadir','Terlambat')`,
-      toISODate(),
+      `SELECT COUNT(*) AS n FROM attendance WHERE tanggal = ? AND status IN ('Hadir','Terlambat',?,?)`,
+      toISODate(), ...STATUS_IZIN_DATANG,
     ),
     izinMenunggu: await satu(`SELECT COUNT(*) AS n FROM leaves WHERE status = 'Menunggu'`),
     lemburMenunggu: await satu(`SELECT COUNT(*) AS n FROM overtime WHERE status = 'Menunggu'`),
+    piketMenunggu: await satu(`SELECT COUNT(*) AS n FROM piket WHERE status = 'Menunggu'`),
   }
 }
 
@@ -1176,7 +1533,7 @@ export async function trenKehadiran(hari = 7) {
   for (const d = new Date(`${t0}T00:00:00Z`); toISODate(d) <= hariIni; d.setUTCDate(d.getUTCDate() + 1)) {
     const tanggal = toISODate(d)
     const hariKerja = aktif.has(d.getUTCDay()) && !liburSet.has(tanggal)
-    const masuk = att.filter((r) => r.tanggal === tanggal && ['Hadir', 'Terlambat'].includes(r.status) && !r.hari_libur).length
+    const masuk = att.filter((r) => r.tanggal === tanggal && ['Hadir', 'Terlambat', ...STATUS_IZIN_DATANG].includes(r.status) && !r.hari_libur).length
     const izin = hariKerja ? (izinPerTanggal.get(tanggal) || 0) : 0
     const alpha = hariKerja ? (alphaPerTanggal.get(tanggal) || 0) : 0
     baris.push({ tanggal, masuk, izin, alpha, hariKerja })
@@ -1189,26 +1546,73 @@ export function getToday(employeeId = 1) {
   return db.get('SELECT * FROM attendance WHERE employee_id = ? AND tanggal = ?', [employeeId, toISODate()])
 }
 
+// Status absensi yang TIDAK otomatis dianggap Hadir karena jamnya tidak wajar
+// (mis. check-in 03:11 untuk jadwal masuk 09:00) — menunggu tinjauan admin.
+// Hari dengan status ini belum dihitung sebagai hari dibayar.
+export const STATUS_PERLU_TINJAUAN = 'Perlu Tinjauan'
+
+// Toleransi datang lebih awal: check-in lebih dari 4 jam sebelum jam masuk
+// (atau setelah jam pulang) dianggap tidak wajar.
+export const TOLERANSI_AWAL_MENIT = 240
+
+const keMenit = (jam) => {
+  const [h, m] = String(jam || '').split(':').map(Number)
+  return (Number(h) || 0) * 60 + (Number(m) || 0)
+}
+
+// Hitung status absensi dari jam check-in + jadwal efektif. SATU sumber aturan:
+// dipakai saat check-in, saat memulihkan status (mis. izin ditolak), dan saat
+// memeriksa data lama — sehingga hasilnya mustahil berbeda antar jalur.
+export function hitungStatusAbsen(jadwal, jam) {
+  const { jamMasukBatas, jamPulang, shiftNama } = jadwal || {}
+  // Mode 'biasa' tidak punya jam "mulai" terpisah → acuannya batas jam masuk.
+  const jamMulaiKerja = jadwal?.jamMasuk || jamMasukBatas
+  const terlaluAwal = keMenit(jam) < keMenit(jamMulaiKerja) - TOLERANSI_AWAL_MENIT
+  const lewatJamPulang = keMenit(jam) > keMenit(jamPulang)
+  const tidakWajar = terlaluAwal || lewatJamPulang
+  const status = tidakWajar ? STATUS_PERLU_TINJAUAN : String(jam) > String(jamMasukBatas) ? 'Terlambat' : 'Hadir'
+  const tugas = shiftNama ? ` (${shiftNama})` : ''
+  const alasan = tidakWajar
+    ? terlaluAwal
+      ? `Jam absen tidak wajar: ${jam} — jauh sebelum jam masuk ${jamMulaiKerja}${tugas}. Perlu ditinjau admin.`
+      : `Jam absen tidak wajar: ${jam} — setelah jam pulang ${jamPulang}. Perlu ditinjau admin.`
+    : status === 'Terlambat'
+      ? `Check-in melewati batas ${jamMasukBatas}${tugas}`
+      : ''
+  return { status, alasan, terlaluAwal, lewatJamPulang, tidakWajar }
+}
+
 export async function catatCheckIn({ employeeId = 1, lokasi = {}, selfieUrl = null } = {}) {
   const tanggal = toISODate()
   const jam = jamSekarang()
   // Jadwal EFEKTIF milik karyawan ini: mode 'biasa' memakai jadwal induk, mode
   // 'shift' mengikuti shift (1/2) yang ditetapkan admin → batas Terlambat ikut shift.
-  const { jamMasukBatas, shiftNama } = await getJadwal(employeeId)
-  const status = jam > jamMasukBatas ? 'Terlambat' : 'Hadir'
+  const jadwal = await getJadwal(employeeId)
+  const { status: statusJam, alasan: alasanJam } = hitungStatusAbsen(jadwal, jam)
   // Absensi di luar hari kerja atau pada HARI LIBUR yang terdaftar ditandai agar
   // laporan tidak menghitungnya sebagai hari kerja biasa (Hadir Libur).
   const aktif = await hariKerjaAktif()
   const libur = await db.get('SELECT nama FROM holidays WHERE tanggal = ?', [tanggal])
   const diLuarJadwal = !aktif.includes(new Date(`${tanggal}T00:00:00Z`).getUTCDay())
   const hariLibur = libur || diLuarJadwal ? 1 : 0
-  const keterangan = libur
-    ? `Libur: ${libur.nama}`
-    : diLuarJadwal
-      ? 'Absensi di luar hari kerja'
-      : status === 'Terlambat'
-        ? `Check-in melewati batas ${jamMasukBatas}${shiftNama ? ` (${shiftNama})` : ''}`
-        : ''
+  // Izin "datang terlambat/siang" yang SUDAH DISETUJUI untuk hari ini: keterlambatan
+  // TIDAK menghapus uang makan — status memakai status izin datang.
+  const izinDatang = hariLibur
+    ? null
+    : await db.get(
+        `SELECT id, jenis FROM leaves WHERE employee_id = ? AND status = 'Disetujui'
+           AND jenis IN (?, ?) AND mulai <= ? AND selesai >= ? ORDER BY mulai ASC LIMIT 1`,
+        [employeeId, ...JENIS_IZIN_DATANG, tanggal, tanggal],
+      )
+  const statusIzinDatang = izinDatang && statusJam === 'Terlambat' ? statusDariJenisIzin(izinDatang.jenis) : null
+  const status = statusIzinDatang || statusJam
+  const keterangan = statusIzinDatang
+    ? `${izinDatang.jenis} (disetujui): check-in ${jam} — uang makan tetap diberikan`
+    : libur
+      ? `Libur: ${libur.nama}`
+      : diLuarJadwal
+        ? 'Absensi di luar hari kerja'
+        : alasanJam
 
   // Geofence: hitung jarak ke kantor pusat (authoritative di server).
   let diLuar = null
@@ -1290,6 +1694,10 @@ export async function izinAktifHariIni(employeeId) {
 //              tertutup pengajuan non-ditolak ATAU absensi berstatus Izin.
 //              "Absen menang": hari dengan absensi Hadir/Terlambat TIDAK
 //              dihitung izin agar tidak terhitung dua kali.
+//              Hari dengan absensi IZIN DATANG (terlambat/siang) juga TIDAK
+//              masuk kategori ini — itu kehadiran (dihitung Hadir), bukan izin.
+//              Baris absensi di luar kehadiran (mis. status 'Alpha' yang dicatat
+//              admin) BUKAN kehadiran → hari itu tetap dihitung Alpha.
 export async function rekapHarian(employeeId, mulai, selesai) {
   const kosong = { alpha: [], kategori: new Map() }
   if (mulai > selesai) return kosong
@@ -1329,9 +1737,26 @@ export async function rekapHarian(employeeId, mulai, selesai) {
     if (!hariAktif.has(d.getUTCDay())) continue // bukan hari kerja
     if (liburSet.has(tanggal)) continue // hari libur terdaftar
     const st = absen.get(tanggal)
+    // Izin datang (terlambat/siang) = KEHADIRAN, bukan izin "tidak masuk":
+    // karyawan tetap masuk kerja, hanya jam masuknya lewat. Dihitung HADIR (gaji
+    // harian + uang makan dibayar) dan TIDAK pernah masuk keranjang Izin — sumber
+    // kebenarannya STATUS ABSENSI, bukan pengajuan. Hari dengan izin datang tetapi
+    // tanpa absensi tetap Alpha (lihat catatan di bawah), sehingga izin ini tidak
+    // bisa "menutup" hari dari rekap.
+    if (STATUS_IZIN_DATANG.includes(st)) continue
+    // Izin biasa = hari kerja tertutup pengajuan izin sehingga tidak pernah jatuh
+    // menjadi Alpha.
     if (st === 'Izin') { kategori.set(tanggal, 'Izin'); continue }
-    if (st) continue // Hadir/Terlambat/dll — kehadiran biasa, bukan izin/alpha
-    const l = pengajuan.find((x) => x.mulai <= tanggal && tanggal <= x.selesai)
+    // Kehadiran nyata (Hadir/Terlambat, termasuk hasil absen di hari libur).
+    if (st === 'Hadir' || st === 'Terlambat' || st === 'Hadir Libur') continue
+    // Baris absensi lain (mis. admin mencatat status 'Alpha') BUKAN kehadiran:
+    // hari itu tetap dihitung Alpha agar laporan & riwayat tidak berbeda —
+    // kecuali tanggalnya tertutup pengajuan izin/cuti/sakit non-ditolak.
+    // Pengajuan IZIN DATANG dikecualikan: izin itu tidak berarti "tidak masuk",
+    // jadi tidak boleh mengubah hari tanpa absensi menjadi Izin.
+    const l = pengajuan.find(
+      (x) => x.mulai <= tanggal && tanggal <= x.selesai && !JENIS_IZIN_DATANG.includes(x.jenis),
+    )
     if (l) {
       const j = (l.jenis || '').toLowerCase()
       kategori.set(tanggal, j.startsWith('cuti') ? 'Cuti' : j.startsWith('sakit') ? 'Sakit' : 'Izin')
@@ -1408,7 +1833,12 @@ export async function listHistory({ dari, sampai, status } = {}, employeeId = 1)
     }
   }
 
-  const alpha = (await tanggalAlpha(employeeId, dari, sampai)).map((tanggal) => ({
+  const alpha = (await tanggalAlpha(employeeId, dari, sampai))
+    // Tanggal yang sudah punya baris absensi TIDAK dibuatkan baris Alpha otomatis:
+    // baris absensi itu sendiri sudah tampil di riwayat (mis. berstatus 'Alpha'),
+    // sehingga riwayat tidak pernah menampilkan dua baris untuk tanggal yang sama.
+    .filter((t) => !absenHari.has(t))
+    .map((tanggal) => ({
     id: `alpha-${tanggal}`, tanggal, checkIn: null, checkOut: null, status: 'Alpha',
     keterangan: 'Tanpa absen masuk & pulang — tercatat Alpha otomatis',
     lokasi: null, selfie: null, adaSelfie: false, lampiran: null, adaLampiran: false,
@@ -1442,13 +1872,28 @@ export async function createLeave({ employeeId = 1, jenis, mulai, selesai, keter
   })
 
   // Jika rentang izin mencakup hari ini → status kehadiran hari ini menjadi "Izin".
+  // KHUSUS IZIN DATANG (terlambat/siang): baris absensi TIDAK dibuat — izin ini
+  // bukan "tidak masuk", melainkan izin datang lewat jam batas. Hari itu dihitung
+  // HADIR hanya bila karyawan benar-benar ABSEN (setelah disetujui admin, status
+  // absensinya naik ke 'Izin Terlambat' lewat terapkanIzinDatang()). Tanpa absensi,
+  // hari tersebut tidak ditutup sebagai Izin — rekap kehadiran membacanya dari
+  // tabel absensi, bukan dari pengajuan.
+  // ABSEN MENANG: bila karyawan sudah check-in hari ini, status kehadirannya TIDAK
+  // ditimpa — supaya jam masuk tetap benar walau pengajuan nanti ditolak.
   const hariIni = toISODate()
-  if (mulai <= hariIni && hariIni <= selesai) {
-    await db.run(
-      `INSERT INTO attendance (employee_id, tanggal, status, keterangan) VALUES (?, ?, 'Izin', ?)
-       ON CONFLICT (employee_id, tanggal) DO UPDATE SET status = 'Izin', keterangan = excluded.keterangan`,
-      [employeeId, hariIni, `${jenis}: ${keterangan}`],
+  const izinDatang = JENIS_IZIN_DATANG.includes(jenis)
+  if (!izinDatang && mulai <= hariIni && hariIni <= selesai) {
+    const ada = await db.get(
+      'SELECT check_in FROM attendance WHERE employee_id = ? AND tanggal = ?',
+      [employeeId, hariIni],
     )
+    if (!ada?.check_in) {
+      await db.run(
+        `INSERT INTO attendance (employee_id, tanggal, status, keterangan) VALUES (?, ?, 'Izin', ?)
+         ON CONFLICT (employee_id, tanggal) DO UPDATE SET status = 'Izin', keterangan = excluded.keterangan`,
+        [employeeId, hariIni, `${jenis}: ${keterangan}`],
+      )
+    }
   }
   return db.get('SELECT * FROM leaves WHERE id = ?', [id])
 }

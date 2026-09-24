@@ -13,11 +13,23 @@ const FAQ = [
   },
   {
     q: 'Bagaimana cara mengajukan izin, sakit, atau cuti?',
-    a: 'Buka tab Izin → pilih jenis, rentang tanggal, tulis keterangan, dan unggah lampiran (surat dokter, dsb.). Pengajuan yang mencakup hari ini otomatis mengubah status kehadiran. Sisa cuti tahunan terpotong otomatis saat cuti disetujui.',
+    a: 'Buka tab Izin → pilih jenis (Izin, Sakit, Cuti Tahunan, Cuti Khusus, Izin Datang Terlambat), rentang tanggal, tulis keterangan, dan unggah lampiran (surat dokter, dsb.). Pengajuan yang mencakup hari ini otomatis mengubah status kehadiran. Sisa cuti tahunan terpotong otomatis saat cuti disetujui.',
   },
   {
     q: 'Bagaimana cara mengajukan lembur?',
-    a: 'Buka tab Lembur → isi tanggal, jam mulai–selesai, dan deskripsi pekerjaan. Status pengajuan (Menunggu/Disetujui/Ditolak) akan muncul di daftar dan notifikasi.',
+    a: 'Buka tab Lembur → isi tanggal, jam mulai–selesai, dan deskripsi pekerjaan. PENTING: lembur hanya bisa diajukan untuk tanggal yang SUDAH ada absen masuknya — check-in dulu pada hari itu. Status pengajuan (Menunggu/Disetujui/Ditolak) muncul di daftar dan notifikasi.',
+  },
+  {
+    q: 'Bagaimana cara mengajukan izin datang terlambat?',
+    a: 'Buka tab Izin → pilih jenis "Datang Terlambat" (mencakup masuk lewat jam batas maupun masuk siang), lalu isi tanggal dan alasannya. Bagi karyawan yang memakai izin ini, hari yang disetujui tetap dihitung MASUK: gaji harian tetap dibayar dan UANG MAKAN TETAP DIBERIKAN walau jam masuknya lewat. Absen masuk tetap wajib dilakukan seperti biasa — setelah izin disetujui, status absensi hari itu otomatis menjadi "Izin Terlambat".',
+  },
+  {
+    q: 'Bagaimana cara mengajukan piket?',
+    a: 'Buka tab Pengajuan → sub-halaman Piket → isi tanggal piket (jam mulai/selesai bersifat opsional) dan keterangannya, lalu kirim. Pengajuan yang disetujui admin dibayar sebesar BIAYA PIKET yang ditetapkan perusahaan dan otomatis ikut terhitung pada slip gaji periode penggajian terkait. Satu tanggal hanya boleh punya satu pengajuan yang masih Menunggu/Disetujui.',
+  },
+  {
+    q: 'Kenapa absensi saya berstatus "Perlu Tinjauan"?',
+    a: 'Jam absen yang tidak wajar (mis. check-in lebih dari 4 jam sebelum jam masuk, atau setelah jam pulang) tidak otomatis dihitung Hadir. Catatan itu ditandai "Perlu Tinjauan" dan belum dihitung sebagai hari dibayar sampai admin mengoreksinya di panel Absensi. Kalau memang sah, hubungi admin agar statusnya diubah menjadi Hadir/Terlambat.',
   },
   {
     q: 'Di mana saya bisa melihat riwayat absensi?',

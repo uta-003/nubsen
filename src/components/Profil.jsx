@@ -19,19 +19,33 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
     Hadir: 'text-emerald-600 dark:text-emerald-400',
     Terlambat: 'text-amber-600 dark:text-amber-400',
     Izin: 'text-sky-600 dark:text-sky-400',
+    'Izin Terlambat': 'text-teal-600 dark:text-teal-400',
     Alpha: 'text-rose-600 dark:text-rose-400',
   }
   const AKSEN_STAT = {
     Hadir: 'bg-emerald-500',
     Terlambat: 'bg-amber-500',
     Izin: 'bg-sky-500',
+    'Izin Terlambat': 'bg-teal-500',
     Alpha: 'bg-rose-500',
   }
   const stats = useMemo(() => {
     const s = { Hadir: 0, Terlambat: 0, Izin: 0, Alpha: 0 }
-    history.forEach((h) => { if (s[h.status] !== undefined) s[h.status]++ })
+    history.forEach((h) => {
+      // Hari IZIN DATANG (nama baru "Izin Terlambat", nama lama "Izin Datang
+      // Siang") = KEHADIRAN: karyawan tetap masuk kerja, hanya jam masuknya
+      // lewat → dihitung HADIR (gaji harian & uang makan tetap dibayar), sama
+      // dengan laporan admin, slip gaji, dan kartu Statistik Mingguan.
+      const kunci = IZIN_DATANG.includes(h.status) ? 'Hadir' : h.status
+      if (s[kunci] !== undefined) s[kunci]++
+    })
     return s
   }, [history])
+  // Catatan: berapa di antara hari Hadir itu yang memakai izin datang.
+  const izinDatang = useMemo(
+    () => history.filter((h) => IZIN_DATANG.includes(h.status)).length,
+    [history],
+  )
 
   const inisial = user.nama
     .split(' ')

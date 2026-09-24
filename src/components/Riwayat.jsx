@@ -9,18 +9,22 @@ import StatusBadge from './StatusBadge'
 import RiwayatDetail from './RiwayatDetail'
 import KalenderBulan from './KalenderBulan'
 
-const STATUS_LIST = ['Semua', 'Hadir', 'Terlambat', 'Izin', 'Alpha']
+const STATUS_LIST = ['Semua', 'Hadir', 'Terlambat', 'Izin', 'Izin Terlambat', 'Alpha']
 // Warna angka rekap & aksen kiri kartu per status — hierarki visual instan.
 const WARNA_REKAP = {
   Hadir: 'text-emerald-600 dark:text-emerald-400',
   Terlambat: 'text-amber-600 dark:text-amber-400',
   Izin: 'text-sky-600 dark:text-sky-400',
+  'Izin Terlambat': 'text-teal-600 dark:text-teal-400',
+  'Izin Datang Siang': 'text-cyan-600 dark:text-cyan-400',
   Alpha: 'text-rose-600 dark:text-rose-400',
 }
 const AKSEN_REKAP = {
   Hadir: 'bg-emerald-500',
   Terlambat: 'bg-amber-500',
   Izin: 'bg-sky-500',
+  'Izin Terlambat': 'bg-teal-500',
+  'Izin Datang Siang': 'bg-cyan-500',
   Alpha: 'bg-rose-500',
 }
 
@@ -84,7 +88,7 @@ export default function Riwayat({ history, toast }) {
       const sekarang = new Date()
       const dua = (n) => String(n).padStart(2, '0')
       const jamUnduh = `${dua(sekarang.getDate())}/${dua(sekarang.getMonth() + 1)}/${sekarang.getFullYear()} ${dua(sekarang.getHours())}:${dua(sekarang.getMinutes())}`
-      const rekap = ['Hadir', 'Terlambat', 'Izin', 'Alpha']
+      const rekap = ['Hadir', 'Terlambat', 'Izin', 'Izin Terlambat', 'Alpha']
         .map((s) => `${s} ${data.filter((h) => h.status === s).length}`)
         .join(' • ')
       const baris = [
@@ -151,7 +155,7 @@ export default function Riwayat({ history, toast }) {
 
       {/* Rekap cepat sesuai filter aktif — kartu kaca dengan aksen bar warna status */}
       <div className="mb-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
-        {['Hadir', 'Terlambat', 'Izin', 'Alpha'].map((s, i) => (
+        {['Hadir', 'Terlambat', 'Izin', 'Izin Terlambat', 'Alpha'].map((s, i) => (
           <div
             key={s}
             className="animate-rise relative min-w-0 overflow-hidden rounded-2xl border border-white/60 bg-white/85 p-2.5 pt-3 shadow-card backdrop-blur-xl dark:border-white/[.06] dark:bg-slate-900/70"

@@ -1,5 +1,7 @@
-import { toISODate, hariIndo, bulanIndo } from './date'
-import { detailLibur, liburRentang } from './liburIndonesia'
+// Ekstensi .js ditulis eksplisit agar modul ini juga bisa diimpor langsung dari
+// skrip uji Node (uji-izin-datang) — di browser/build Vite tetap sama saja.
+import { toISODate, hariIndo, bulanIndo } from './date.js'
+import { detailLibur, liburRentang } from './liburIndonesia.js'
 
 // ============================================================================
 //  Statistik absensi — berbasis PEKAN (Senin → Minggu).
@@ -12,6 +14,11 @@ import { detailLibur, liburRentang } from './liburIndonesia'
 export const URUTAN_HARI = [1, 2, 3, 4, 5, 6, 0] // Senin … Minggu (0 = Minggu)
 export const HARI_PENDEK = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
 export const HARI_KERJA_DEFAULT = [1, 2, 3, 4, 5]
+// Status absensi hari IZIN DATANG (nama baru "Izin Terlambat", nama lama "Izin
+// Datang Siang"). Hari dengan status ini = KEHADIRAN: karyawan tetap masuk kerja
+// (hanya jam masuknya lewat) sehingga dihitung HADIR di seluruh rekap/report —
+// gaji harian & uang makan tetap dibayar, dan jumlahnya diberi catatan terpisah.
+export const STATUS_IZIN_DATANG = ['Izin Terlambat', 'Izin Datang Siang']
 
 // Senin 00:00 dari pekan yang memuat `date`; `geser` menggeser per pekan
 // (0 = pekan ini, -1 = pekan lalu, +1 = pekan depan).
@@ -72,11 +79,19 @@ export function dataPekan(history = [], { geser = 0, hariKerja = HARI_KERJA_DEFA
   // tersebut — sejalan dengan laporan kehadiran panel admin (kehadiran di hari
   // libur dihitung terpisah sebagai "Hadir Libur"). Rekap Hadir/Terlambat juga
   // memakai hitungKerja agar ANGKA REKAP cocok persis dengan kolom laporan admin.
-  const masuk = hitungKerja('Hadir') + hitungKerja('Terlambat')
+  //
+  // % kehadiran = Hadir + Terlambat dan IDENTIK dengan % Kehadiran di laporan
+  // panel admin. Hari IZIN DATANG (terlambat/siang) = KEHADIRAN: karyawan
+  // tetap masuk kerja (hanya jam masuknya lewat), jadi ikut dihitung HADIR —
+  // sama dengan laporan admin & slip gaji — dan dilaporkan terpisah sebagai
+  // catatan `izinDatang` supaya tidak hilang jejaknya.
+  const datang = STATUS_IZIN_DATANG.reduce((t, s) => t + hitungKerja(s), 0)
+  const masuk = hitungKerja('Hadir') + datang + hitungKerja('Terlambat')
   const rekap = {
-    Hadir: hitungKerja('Hadir'),
+    Hadir: hitungKerja('Hadir') + datang,
     Terlambat: hitungKerja('Terlambat'),
     Izin: hitung('Izin'),
+    izinDatang: datang,
     Alpha: hitungKerja('Alpha'),
     hariKerja: hariKerjaPekan,
     masuk,
@@ -98,11 +113,12 @@ export function dataPekan(history = [], { geser = 0, hariKerja = HARI_KERJA_DEFA
   }
 }
 
-// Streak hari hadir beruntun (Hadir/Terlambat dihitung hadir). Minggu dan
-// tanggal merah tidak memutus streak karena memang bukan hari kerja.
+// Streak hari hadir beruntun (Hadir/Terlambat + hari izin datang terlambat/siang
+// dihitung hadir karena karyawan tetap masuk). Minggu dan tanggal merah tidak
+// memutus streak karena memang bukan hari kerja.
 export function hitungStreak(history = []) {
   const perTanggal = new Map(history.map((h) => [h.tanggal, h]))
-  const hadir = (r) => r && (r.status === 'Hadir' || r.status === 'Terlambat')
+  const hadir = (r) => r && ['Hadir', 'Terlambat', ...STATUS_IZIN_DATANG].includes(r.status)
   let streak = 0
   const d = new Date()
   if (!hadir(perTanggal.get(toISODate(d)))) d.setDate(d.getDate() - 1)

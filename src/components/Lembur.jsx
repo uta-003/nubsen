@@ -80,6 +80,13 @@ export default function Lembur({ toast }) {
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Ajukan lembur, admin akan menyetujui lewat notifikasi.
         </p>
+        <p className="mt-2 flex items-start gap-2 rounded-2xl bg-indigo-50 px-3.5 py-2.5 text-[11px] leading-relaxed text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+          <Clock4 size={14} className="mt-0.5 shrink-0" />
+          <span>
+            <b>Wajib absen masuk dulu.</b> Lembur hanya bisa diajukan untuk tanggal yang sudah ada
+            absensinya — jadi pastikan Anda sudah check-in pada hari tersebut.
+          </span>
+        </p>
       </div>
 
       <form onSubmit={submit} className="card space-y-4">

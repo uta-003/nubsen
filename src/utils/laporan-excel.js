@@ -85,6 +85,9 @@ function kpiLaporan(ringkasan, hariKerja) {
     ['Alpha', 'FFFFE4E6', 'FFE11D48', ringkasan.alpha],
     ['Lembur (jam)', 'FFE0E7FF', 'FF4338CA', ringkasan.lembur, '0.0'],
     ['% Kehadiran', warnaPersen[0], warnaPersen[1], ringkasan.persen, '0"%"'],
+    // Catatan hari izin datang: sudah masuk di angka "Hadir" (karyawan tetap
+    // masuk kerja), tapi ditampilkan terpisah agar mudah ditelusuri.
+    ['Izin Datang', 'FFCCFBF1', 'FF0F766E', ringkasan.izinDatang || 0],
   ]
 }
 
@@ -285,11 +288,11 @@ export async function buatWorkbookLaporan(data, ExcelJS) {
 // ============ Workbook "penghitung gaji" (ExcelJS) ============
 // Gaya sama dengan laporan kehadiran (banner + KPI + tabel berwarna + TOTAL +
 // autofilter); kolom uang memakai format '#,##0' (rupiah tanpa desimal).
-export const KOLOM_GAJI = ['Nama', 'NIP', 'Departemen', 'Hari Dibayar', 'Hari Uang Makan', 'Lembur (jam)', 'Gaji Harian (Rp)', 'Uang Makan/Hari (Rp)', 'Tarif Lembur/jam (Rp)', 'Gaji (Rp)', 'Uang Makan (Rp)', 'Lembur (Rp)', 'TOTAL GAJI (Rp)']
+export const KOLOM_GAJI = ['Nama', 'NIP', 'Departemen', 'Hari Dibayar', 'Hari Uang Makan', 'Lembur (jam)', 'Piket', 'Gaji Harian (Rp)', 'Uang Makan/Hari (Rp)', 'Tarif Lembur/jam (Rp)', 'Gaji (Rp)', 'Uang Makan (Rp)', 'Lembur (Rp)', 'Piket (Rp)', 'TOTAL GAJI (Rp)']
 
 // Satu baris Excel dari baris gaji (nilai uang berupa ANGKA — bisa dijumlahkan).
 export function barisGajiExcel(r) {
-  return [r.nama, r.nip, r.departemen, r.hariDibayar, r.hariMakan, r.lembur, r.gajiHarian, r.uangMakan, r.tarifLembur, r.subGaji, r.subMakan, r.subLembur, r.total]
+  return [r.nama, r.nip, r.departemen, r.hariDibayar, r.hariMakan, r.lembur, r.piket || 0, r.gajiHarian, r.uangMakan, r.tarifLembur, r.subGaji, r.subMakan, r.subLembur, r.subPiket || 0, r.total]
 }
 
 const RUPIAH = '#,##0'
@@ -299,9 +302,9 @@ function isiSheetGaji(wb, nama, data, ringkasan, baris, aksen, labelDept) {
     views: [{ state: 'frozen', xSplit: 1 }],
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   })
-  const nKol = KOLOM_GAJI.length // 13 → kolom M
+  const nKol = KOLOM_GAJI.length // 15 → kolom O
   const kolomN = hurufKolom(nKol)
-  const lebar = [22, 13, 18, 11, 13, 11, 14, 15, 14, 14, 14, 13, 16]
+  const lebar = [22, 13, 18, 11, 13, 11, 10, 14, 15, 14, 14, 14, 13, 14, 16]
   lebar.forEach((w, i) => { ws.getColumn(i + 1).width = w })
   const garis = { style: 'thin', color: { argb: GARIS } }
   const bingkai = { top: garis, bottom: garis, left: garis, right: garis }
@@ -329,7 +332,7 @@ function isiSheetGaji(wb, nama, data, ringkasan, baris, aksen, labelDept) {
   // 3) Meta + keterangan aturan hitung.
   ws.mergeCells(`A3:${kolomN}3`)
   const meta = ws.getCell('A3')
-  meta.value = `Diunduh: ${stempelWaktu()}   •   Hari Dibayar = Hadir+Terlambat+Hadir Libur+Izin+Sakit+Cuti   •   Uang makan HANYA hari tepat waktu (Terlambat tidak dapat)   •   Lembur dari pengajuan Disetujui   •   Dibuat otomatis oleh NUBSEN`
+  meta.value = `Diunduh: ${stempelWaktu()}   •   Hari Dibayar = Hadir+Terlambat+Hadir Libur+Izin+Sakit+Cuti   •   Uang makan = hari tepat waktu + IZIN DATANG TERLAMBAT (Terlambat tanpa izin tidak dapat)   •   Lembur & Piket dari pengajuan Disetujui   •   Dibuat otomatis oleh NUBSEN`
   meta.font = { name: 'Calibri', size: 9, italic: true, color: { argb: ABU } }
   meta.alignment = { vertical: 'middle', horizontal: 'left' }
   ws.getRow(3).height = 16
@@ -344,6 +347,7 @@ function isiSheetGaji(wb, nama, data, ringkasan, baris, aksen, labelDept) {
     ['Gaji (Rp)', 'FFEDE9FE', 'FF6D28D9', ringkasan.subGaji, RUPIAH],
     ['Uang Makan (Rp)', 'FFFEF3C7', 'FFB45309', ringkasan.subMakan, RUPIAH],
     ['Lembur (Rp)', 'FFE0F2FE', 'FF0369A1', ringkasan.subLembur, RUPIAH],
+    ['Piket (Rp)', 'FFCCFBF1', 'FF0F766E', ringkasan.subPiket || 0, RUPIAH],
     ['TOTAL GAJI (Rp)', 'FFD1FAE5', 'FF047857', ringkasan.total, RUPIAH],
   ]
   kpi.forEach(([label, latar, teks, nilai, fmt], i) => {
@@ -393,7 +397,7 @@ function isiSheetGaji(wb, nama, data, ringkasan, baris, aksen, labelDept) {
       sel.font = { name: 'Calibri', size: 10, color: { argb: SLATE } }
       sel.alignment = { vertical: 'middle', horizontal: j <= 2 ? 'left' : 'center' }
       if (j === 5) sel.numFmt = '0.0'  // Lembur (jam)
-      if (j >= 6) sel.numFmt = RUPIAH  // Kolom uang (tarif & subtotal)
+      if (j >= 7) sel.numFmt = RUPIAH  // Kolom uang (tarif & subtotal)
       if (i % 2 === 1) sel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } }
     })
     ws.getRow(no).height = 16
@@ -402,7 +406,7 @@ function isiSheetGaji(wb, nama, data, ringkasan, baris, aksen, labelDept) {
   // 8) Baris TOTAL (di luar rentang autofilter): kolom tarif tidak dijumlahkan.
   const barisTotal = 10 + baris.length
   ws.mergeCells(`A${barisTotal}:C${barisTotal}`)
-  const totalNilai = { 4: ringkasan.hariDibayar, 5: ringkasan.hariMakan, 6: ringkasan.lembur, 10: ringkasan.subGaji, 11: ringkasan.subMakan, 12: ringkasan.subLembur, 13: ringkasan.total }
+  const totalNilai = { 4: ringkasan.hariDibayar, 5: ringkasan.hariMakan, 6: ringkasan.lembur, 7: ringkasan.piket || 0, 11: ringkasan.subGaji, 12: ringkasan.subMakan, 13: ringkasan.subLembur, 14: ringkasan.subPiket || 0, 15: ringkasan.total }
   for (let j = 1; j <= nKol; j++) {
     const sel = ws.getCell(barisTotal, j)
     sel.border = { top: { style: 'medium', color: { argb: aksen } }, bottom: garis, left: garis, right: garis }
@@ -450,6 +454,8 @@ export async function buatWorkbookGaji(data, ExcelJS) {
       subGaji: Math.round(jumlah('subGaji')),
       subMakan: Math.round(jumlah('subMakan')),
       subLembur: Math.round(jumlah('subLembur')),
+      piket: jumlah('piket'),
+      subPiket: Math.round(jumlah('subPiket')),
       total: Math.round(jumlah('total')),
     }
     isiSheetGaji(wb, namaSheetExcel(namaDept, dipakai), data, ringkasanDept, list, TEAL, namaDept)

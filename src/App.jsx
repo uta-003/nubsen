@@ -50,11 +50,12 @@ export default function App() {
       return 'dashboard'
     }
   })
-  // Sub-halaman tab Pengajuan: 'izin' (Izin/Cuti) atau 'lembur'. Disimpan agar
-  // aplikasi dibuka kembali di sub-halaman yang terakhir dipakai.
+  // Sub-halaman tab Pengajuan: 'izin' (Izin/Cuti), 'lembur', atau 'piket'.
+  // Disimpan agar aplikasi dibuka kembali di sub-halaman yang terakhir dipakai.
   const [jenisPengajuan, setJenisPengajuan] = useState(() => {
     try {
-      return localStorage.getItem('absenku-pengajuan') === 'lembur' ? 'lembur' : 'izin'
+      const t = localStorage.getItem('absenku-pengajuan')
+      return ['izin', 'lembur', 'piket'].includes(t) ? t : 'izin'
     } catch {
       return 'izin'
     }

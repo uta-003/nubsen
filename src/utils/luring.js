@@ -1,6 +1,6 @@
 // ============ Mode luring: antrean & sinkronisasi otomatis ============
-// Saat server tidak terjangkau, absen (check-in/out), izin, dan lembur TIDAK
-// hilang — disimpan di perangkat lalu dikirim otomatis begitu kembali online
+// Saat server tidak terjangkau, absen (check-in/out), izin, lembur, dan piket
+// TIDAK hilang — disimpan di perangkat lalu dikirim otomatis begitu kembali online
 // (event 'online', interval 60 dtk, atau ketuk chip status di header).
 //
 // Dua penyimpanan dipakai berdampingan:
@@ -85,7 +85,7 @@ function simpanAntrean(arr) {
 async function siapkanItem(jenis, payload) {
   const item = {
     id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-    jenis, // 'checkin' | 'checkout' | 'izin' | 'lembur'
+    jenis, // 'checkin' | 'checkout' | 'izin' | 'lembur' | 'piket'
     payload,
     dibuat: new Date().toISOString(),
     // requestId unik → server mengenali pengiriman ulang (idempoten).
@@ -148,6 +148,7 @@ async function kirimItem(item) {
   if (item.jenis === 'checkin') return api.checkIn(denganId)
   if (item.jenis === 'checkout') return api.checkOut(denganId)
   if (item.jenis === 'lembur') return api.buatLembur(denganId)
+  if (item.jenis === 'piket') return api.buatPiket(denganId)
   if (item.jenis === 'izin') return api.createLeave(denganId)
   throw new Error(`Jenis antrean tak dikenal: ${item.jenis}`)
 }

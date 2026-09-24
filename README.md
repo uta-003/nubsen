@@ -56,10 +56,11 @@ menjalankan proses Node terus-menerus + *persistent disk*.
 | **📶 Mode Luring (antrean + sinkron otomatis)** | Bila jaringan/server mati, absen (check-in/out), izin, dan lembur disimpan ke antrean perangkat (localStorage) lalu dikirim **FIFO otomatis** saat online lagi (event `online`, interval 60 dtk, atau ketuk chip di header). Chip header: **"Luring · n"** saat luring, **"n antre"** saat menunggu; item yang ditolak server (validasi/401) dibuang agar antrean tak menggantung |
 | **🔔 Notifikasi Perubahan Jadwal** | Admin ubah jam masuk/pulang/hari kerja → seluruh karyawan dapat notifikasi in-app **dan pemberitahuan peramban** (Service Worker `showNotification`, klik membuka `#notifikasi`); hanya notifikasi **baru** yang dipicu (anti-banjir), dan panel admin menjelaskan bila tak ada nilai yang berubah |
 | **â±ï¸ Lembur** | Form pengajuan lembur (tanggal/jam/keterangan) + riwayat status persetujuan |
+| **🧹 Piket** | Sub-halaman **Pengajuan → Piket**: catat tugas piket/jaga tambahan (tanggal + jam opsional + keterangan) + riwayat status. Setiap piket **disetujui admin** dibayar sebesar **BIAYA PIKET** yang ditetapkan admin dan otomatis ikut terhitung pada **slip gaji** periode terkait |
 | **Riwayat Pengajuan Izin/Cuti** | Di halaman Izin/Cuti: SEMUA pengajuan (Izin, Sakit, Cuti Tahunan, Cuti Khusus) dengan chip status Menunggu/Disetujui/Ditolak, waktu pengajuan, rentang tanggal & lampiran — gaya sama dengan riwayat lembur; entri luring tampil optimistik sebagai "Menunggu sinkron" |
 | **🔔 Notifikasi In-App** | Kotak masuk karyawan dengan lonceng + badge belum-dibaca (polling 30 detik); sumber: sistem (izin/lembur/absensi) & admin; keputusan izin/lembur (disetujui/ditolak) juga memunculkan **pemberitahuan peramban** |
 | **ðŸ“¢ Pengumuman dari Admin** | Admin membuat pemberitahuan â†’ otomatis muncul di menu **Notifikasi SEMUA karyawan** (satu baris per orang), status baca **terpisah per karyawan**, statistik **X/Y sudah dibaca** + daftar nama yang belum, bisa **diedit** (status baca direset) & **dihapus** sekaligus |
-| **ðŸ–¥ï¸ Panel Admin** | Website backend: kelola karyawan (tambah/edit/hapus/reset PIN/jadikan admin), koreksi absensi, setujui izin & lembur, jadwal kerja (jam + hari kerja), **laporan kehadiran + export Excel/PDF**, **kelola pengumuman** â€” hanya untuk akun admin |
+| **ðŸ–¥ï¸ Panel Admin** | Website backend: kelola karyawan (tambah/edit/hapus/reset PIN/jadikan admin), koreksi absensi, setujui izin & lembur, **setujui piket + tetapkan biaya piket**, jadwal kerja (jam + hari kerja), **laporan kehadiran + export Excel/PDF**, **kelola pengumuman** â€” hanya untuk akun admin |
 | **Profil** | Data karyawan dari database + rekap kehadiran |
 | **Laporan Kehadiran (admin)** | Rekap per karyawan & per departemen pada satu periode; kolom Hadir/Terlambat/**Hadir Libur**/Izin/Sakit/Cuti/Alpha/Lembur (jam)/% Kehadiran; export **Excel (sheet per departemen)** dan **PDF** |
 | **PWA** | Installable ke home screen (Android/desktop/iOS), offline page, caching pintar |
@@ -112,7 +113,7 @@ npm run dev     # â†’ http://localhost:9090
 2. Login sebagai admin:
    - Email `afriani.putri@perusahaan.co.id` â€” PIN `123456` (**admin**)
    - Staf biasa: `budi.santoso@perusahaan.co.id` â€” PIN `654321`
-3. Di panel admin tersedia tab: **Ringkasan Â· Karyawan Â· Absensi Â· Izin Â· Lembur Â· Notifikasi**
+3. Di panel admin tersedia tab: **Ringkasan / Laporan / Gaji / Jadwal / Karyawan / Absensi / Izin / Lembur / Piket / Peringatan / Riwayat SP / Notifikasi**
    - Kelola Karyawan: tambah, edit (jabatan/departemen/kuota cuti/reset PIN), jadikan admin, hapus
    - **Jadwal**: jam masuk (batas Terlambat), jam pulang, dan **hari kerja mingguan**
      (Sen-Jum default; pilih Sen-Sab bila perusahaan bekerja enam hari) - dipakai untuk
@@ -177,6 +178,8 @@ Service worker hanya aktif di build produksi (tidak mengganggu HMR saat dev).
 | GET/PUT/DELETE | `/api/admin/attendance[...]` | **[Admin]** Lihat semua absensi (filter), koreksi, hapus |
 | GET/PUT/DELETE | `/api/admin/leaves[...]` | **[Admin]** Setujui/Tolak/Hapus izin (otomatis kirim notifikasi) |
 | GET/PUT/DELETE | `/api/admin/overtime[...]` | **[Admin]** Setujui/Tolak/Hapus lembur (otomatis kirim notifikasi) |
+| GET/POST | `/api/piket` | Piket milik sendiri: `GET` → `{ items, biaya }` (biaya piket yang berlaku tampil sebelum mengajukan); `POST` `{ tanggal, jam_mulai?, jam_selesai?, keterangan? }` — satu tanggal hanya boleh punya satu pengajuan aktif |
+| GET/PUT/DELETE | `/api/admin/piket[...]` | **[Admin]** `GET` daftar piket semua karyawan (+`biaya`); `PUT /piket/biaya` menetapkan **biaya piket** (Rp per piket disetujui, dipakai slip gaji & penghitung gaji); `PUT /piket/:id` setujui/tolak (alasan wajib saat menolak) + notifikasi; `DELETE /piket/:id` hapus |
 | GET/POST/PUT/DELETE | `/api/admin/notifications[...]` | **[Admin]** `POST` tanpa `employeeId` = **pengumuman ke semua karyawan** (fan-out 1 baris/orang) â†’ `{ grupId, jumlah }`; `POST` dengan `employeeId` = notifikasi personal; `PUT`/`DELETE` `/grup/:grupId` untuk **edit** (reset status baca) & **hapus** pengumuman; `GET` mengembalikan pengumuman **terkelompok** + `total`/`dibaca`/`belumBaca` |
 | GET | `/api/admin/overview` | **[Admin]** Ringkasan angka dashboard admin |
 | GET | `/api/leaves` | Daftar pengajuan izin |

@@ -8,12 +8,16 @@ const WARNA_BAR = {
   Hadir: 'bg-gradient-to-t from-emerald-600 to-emerald-400',
   Terlambat: 'bg-gradient-to-t from-amber-600 to-amber-400',
   Izin: 'bg-gradient-to-t from-sky-600 to-sky-400',
+  'Izin Terlambat': 'bg-gradient-to-t from-teal-600 to-teal-400',
+  'Izin Datang Siang': 'bg-gradient-to-t from-cyan-600 to-cyan-400',
   Alpha: 'bg-gradient-to-t from-rose-600 to-rose-400',
 }
 const WARNA_ANGKA = {
   Hadir: 'text-emerald-600 dark:text-emerald-400',
   Terlambat: 'text-amber-600 dark:text-amber-400',
   Izin: 'text-sky-600 dark:text-sky-400',
+  'Izin Terlambat': 'text-teal-600 dark:text-teal-400',
+  'Izin Datang Siang': 'text-cyan-600 dark:text-cyan-400',
   Alpha: 'text-rose-600 dark:text-rose-400',
 }
 const STATUS_REKAP = ['Hadir', 'Terlambat', 'Izin', 'Alpha']
@@ -93,6 +97,12 @@ export default function KartuStatistik({ history = [], jadwal = JADWAL_DEFAULT }
       <p className="mb-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-300">
         {pekan.rekap.masuk} dari {pekan.rekap.hariKerja} hari kerja ·{' '}
         <b className="text-indigo-600 dark:text-indigo-400">{pekan.rekap.persen}% kehadiran</b>
+        {/* Hari izin datang dihitung Hadir — angkanya diberi catatan di sini. */}
+        {pekan.rekap.izinDatang > 0 && (
+          <span className="mt-1 block text-[11px] font-medium text-teal-600 dark:text-teal-400">
+            termasuk {pekan.rekap.izinDatang} hari izin datang terlambat (dihitung Hadir)
+          </span>
+        )}
       </p>
 
       {/* Batang per hari: Senin → Minggu, nomor tanggal di bawah tiap batang */}

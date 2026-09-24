@@ -75,8 +75,9 @@ sama('ukuran berkas wajar (> 4 kB)', bytes.byteLength > 4096, true)
 // ---------- workbook penghitung gaji ----------
 // Perhitungan contoh (aturan baru: Terlambat TIDAK dapat uang makan):
 // Budi hariDibayar=15 (10+2+1+1+1+0), hariMakan=11 (10+1 — 2 hari telat tidak dapat),
-// subGaji=2.250.000, subMakan=220.000, subLembur=87.500 → total 2.557.500;
-// Afriani hariDibayar=15, hariMakan=15, total 3.075.000. Ringkasan = 5.632.500.
+// subGaji=2.250.000, subMakan=220.000, subLembur=87.500, piket 2 × 50.000 = 100.000
+// → total 2.657.500; Afriani hariDibayar=15, hariMakan=15, total 3.075.000.
+// Ringkasan = 4.950.000 + 595.000 + 87.500 + 100.000 = 5.732.500.
 const dataGaji = {
   dari: '2026-09-01',
   sampai: '2026-09-20',
@@ -84,8 +85,8 @@ const dataGaji = {
   hariKerja: 15,
   hariKerjaHari: [1, 2, 3, 4, 5, 6],
   baris: [
-    { id: 1, nama: 'Budi Santoso', nip: 'NIP-002', departemen: 'Produksi', hadir: 10, terlambat: 2, hadirLibur: 1, izin: 1, sakit: 1, cuti: 0, alpha: 1, lembur: 3.5, gajiHarian: 150000, uangMakan: 20000, tarifLembur: 25000 },
-    { id: 2, nama: 'Afriani Putri', nip: 'NIP-001', departemen: 'Produksi', hadir: 13, terlambat: 0, hadirLibur: 2, izin: 0, sakit: 0, cuti: 0, alpha: 0, lembur: 0, gajiHarian: 180000, uangMakan: 25000, tarifLembur: 30000 },
+    { id: 1, nama: 'Budi Santoso', nip: 'NIP-002', departemen: 'Produksi', hadir: 10, terlambat: 2, hadirLibur: 1, izin: 1, sakit: 1, cuti: 0, alpha: 1, lembur: 3.5, piket: 2, gajiHarian: 150000, uangMakan: 20000, tarifLembur: 25000, biayaPiket: 50000 },
+    { id: 2, nama: 'Afriani Putri', nip: 'NIP-001', departemen: 'Produksi', hadir: 13, terlambat: 0, hadirLibur: 2, izin: 0, sakit: 0, cuti: 0, alpha: 0, lembur: 0, piket: 0, gajiHarian: 180000, uangMakan: 25000, tarifLembur: 30000, biayaPiket: 50000 },
   ],
   ringkasan: {
     totalKaryawan: 2,
@@ -94,27 +95,36 @@ const dataGaji = {
     tanpaUangMakan: 2,
     potonganUangMakan: 40000,
     lembur: 3.5,
+    piket: 2,
     subGaji: 4950000,
     subMakan: 595000,
     subLembur: 87500,
-    total: 5632500,
+    subPiket: 100000,
+    total: 5732500,
   },
 }
 
-sama('KOLOM_GAJI berisi 13 kolom', KOLOM_GAJI.length, 13)
-sama('kolom terakhir gaji = TOTAL GAJI (Rp)', KOLOM_GAJI[12], 'TOTAL GAJI (Rp)')
-sama('baris gaji 13 sel', barisGajiExcel(dataGaji.baris[0]).length, 13)
+sama('KOLOM_GAJI berisi 15 kolom (termasuk Piket)', KOLOM_GAJI.length, 15)
+sama('kolom terakhir gaji = TOTAL GAJI (Rp)', KOLOM_GAJI[14], 'TOTAL GAJI (Rp)')
+sama('kolom Piket (jumlah) tepat setelah Lembur (jam)', KOLOM_GAJI[6], 'Piket')
+sama('kolom Piket (Rp) tepat sebelum TOTAL', KOLOM_GAJI[13], 'Piket (Rp)')
+sama('baris gaji 15 sel', barisGajiExcel(dataGaji.baris[0]).length, 15)
 
 const wbGaji = await buatWorkbookGaji(dataGaji, ExcelJS)
 sama('workbook gaji: 2 sheet (Ringkasan + Produksi)', wbGaji.worksheets.length, 2)
 const wsG = wbGaji.worksheets[0]
 sama('banner gaji', wsG.getCell('A1').value, 'PENGHITUNG GAJI KARYAWAN — NUBSEN')
-sama('header kolom terakhir gaji (M9)', wsG.getCell('M9').value, 'TOTAL GAJI (Rp)')
-sama('KPI TOTAL GAJI (H6)', wsG.getCell('H6').value, 5632500)
+sama('header kolom terakhir gaji (O9)', wsG.getCell('O9').value, 'TOTAL GAJI (Rp)')
+sama('header kolom Piket (G9)', wsG.getCell('G9').value, 'Piket')
+sama('header kolom Piket Rp (N9)', wsG.getCell('N9').value, 'Piket (Rp)')
+sama('KPI Piket (Rp) (H6)', wsG.getCell('H6').value, 100000)
+sama('KPI TOTAL GAJI (I6)', wsG.getCell('I6').value, 5732500)
 sama('baris data gaji pertama (A10)', wsG.getCell('A10').value, 'Budi Santoso')
-sama('TOTAL gaji keseluruhan (M12)', wsG.getCell('M12').value, 5632500)
-sama('TOTAL sub gaji (J12)', wsG.getCell('J12').value, 4950000)
-sama('catatan aturan uang makan (telat) di Excel', /Terlambat tidak dapat/.test(String(wsG.getCell('A3').value)), true)
+sama('TOTAL gaji keseluruhan (O12)', wsG.getCell('O12').value, 5732500)
+sama('TOTAL sub gaji (K12)', wsG.getCell('K12').value, 4950000)
+sama('TOTAL sub piket (N12)', wsG.getCell('N12').value, 100000)
+sama('catatan aturan uang makan (telat) di Excel', /Terlambat tanpa izin tidak dapat/.test(String(wsG.getCell('A3').value)), true)
+sama('catatan aturan piket di Excel', /Piket dari pengajuan Disetujui/.test(String(wsG.getCell('A3').value)), true)
 
 const bufGaji = await wbGaji.xlsx.writeBuffer()
 const bytesGaji = Buffer.isBuffer(bufGaji) ? bufGaji : Buffer.from(bufGaji)

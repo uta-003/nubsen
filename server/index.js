@@ -4,10 +4,11 @@ import path from 'node:path'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { seedIfEmpty } from './seed.js'
-import { sinkronkanRiwayatPeringatan, lengkapiNomorSuratLama } from './models.js'
+import { sinkronkanRiwayatPeringatan, lengkapiNomorSuratLama, satukanIzinDatang } from './models.js'
 import { db, dbSiap, modeDatabase } from './db.js'
 import authRoutes from './routes/auth.js'
 import overtimeRoutes from './routes/overtime.js'
+import piketRoutes from './routes/piket.js'
 import notificationRoutes from './routes/notifications.js'
 import adminRoutes from './routes/admin.js'
 import jadwalRoutes from './routes/jadwal.js'
@@ -49,6 +50,9 @@ function persiapan() {
       await sinkronkanRiwayatPeringatan()
       // Surat lama tanpa nomor otomatis diberi nomor resmi (urut, bulan & tahun otomatis).
       await lengkapiNomorSuratLama()
+      // Data izin datang dengan nama LAMA ("Izin Datang Siang") disatukan ke satu
+      // jenis resmi "Izin Datang Terlambat" — sekali jalan, aman diulang.
+      await satukanIzinDatang()
     })().catch((err) => {
       console.error('⚠️  Persiapan data dilewati:', err.message)
       janjiPersiapan = null // coba lagi pada permintaan berikutnya
@@ -88,6 +92,7 @@ app.use('/api/jadwal', jadwalRoutes)
 app.use('/api/attendance', attendanceRoutes)
 app.use('/api/leaves', leaveRoutes)
 app.use('/api/overtime', overtimeRoutes)
+app.use('/api/piket', piketRoutes) // pengajuan piket (biaya diatur admin)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/slip', slipRoutes) // slip gaji karyawan per periode penggajian
 

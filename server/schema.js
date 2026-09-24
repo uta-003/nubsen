@@ -62,6 +62,20 @@ CREATE TABLE IF NOT EXISTS overtime (
   created_at  TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS piket (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id  INTEGER NOT NULL,
+  tanggal      TEXT NOT NULL,
+  -- Jam piket bersifat OPSIONAL (mis. piket harian tanpa jam khusus).
+  jam_mulai    TEXT,
+  jam_selesai  TEXT,
+  keterangan   TEXT DEFAULT '',
+  status       TEXT DEFAULT 'Menunggu',
+  -- Alasan penolakan dari admin (tampil di notifikasi & riwayat karyawan).
+  alasan_tolak TEXT DEFAULT '',
+  created_at   TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS notifications (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   employee_id INTEGER,
@@ -176,6 +190,7 @@ CREATE INDEX IF NOT EXISTS idx_attendance_employee_tanggal ON attendance (employ
 CREATE INDEX IF NOT EXISTS idx_attendance_tanggal          ON attendance (tanggal);
 CREATE INDEX IF NOT EXISTS idx_leaves_employee             ON leaves (employee_id, mulai);
 CREATE INDEX IF NOT EXISTS idx_overtime_employee           ON overtime (employee_id);
+CREATE INDEX IF NOT EXISTS idx_piket_employee              ON piket (employee_id, tanggal);
 CREATE INDEX IF NOT EXISTS idx_notifications_employee      ON notifications (employee_id, dibaca);
 CREATE INDEX IF NOT EXISTS idx_notifications_grup          ON notifications (grup_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_employee           ON sessions (employee_id);

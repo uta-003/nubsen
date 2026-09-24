@@ -3,8 +3,10 @@
 // AKTIF inilah yang tampil di sini. Karyawan bisa memilih periode lain dan
 // mengunduh slipnya sebagai PDF. Rumusnya sama dengan panel admin:
 //   • Hari Dibayar    = Hadir + Terlambat + Hadir Libur + Izin + Sakit + Cuti
-//   • Hari Uang Makan = Hadir + Hadir Libur (TELAT tidak dapat uang makan)
+//   • Hari Uang Makan = Hadir + Hadir Libur + Izin Datang Terlambat
+//     (TELAT tanpa izin tidak dapat uang makan; izin datang tetap dapat)
 //   • Lembur          = jam lembur Disetujui × tarif/jam
+// Periode yang dipakai = periode AKTIF yang ditetapkan admin di tab Gaji.
 import { useEffect, useState } from 'react'
 import {
   X, Wallet, Loader2, Download, TriangleAlert, Utensils, Clock4,
@@ -65,6 +67,8 @@ export default function SlipGaji({ open, onClose, user, toast }) {
           ['Gaji harian', `${rupiah(slip.gajiHarian)} × ${slip.hariDibayar} hari`, rupiah(slip.subGaji)],
           ['Uang makan', `${rupiah(slip.uangMakan)} × ${slip.hariMakan} hari`, rupiah(slip.subMakan)],
           ['Lembur', `${rupiah(slip.tarifLembur)} × ${slip.lembur || 0} jam`, rupiah(slip.subLembur)],
+          // Piket hanya muncul bila ada piket DISETUJUI pada periode ini.
+          ...(slip.piket > 0 ? [['Piket', `${rupiah(slip.biayaPiket)} × ${slip.piket} kali`, rupiah(slip.subPiket)]] : []),
           ['TOTAL DITERIMA', '', rupiah(slip.total)],
         ],
         styles: { fontSize: 9, cellPadding: 5 },
@@ -74,7 +78,7 @@ export default function SlipGaji({ open, onClose, user, toast }) {
       const y = (doc.lastAutoTable?.finalY || 200) + 18
       doc.setFontSize(8.5)
       doc.setTextColor(110)
-      doc.text('Catatan: hari Terlambat tetap dibayar gaji hariannya, tetapi tidak mendapat uang makan.', 40, y)
+      doc.text('Catatan: hari Terlambat TANPA izin tetap dibayar gaji hariannya tetapi tidak mendapat uang makan; hari dengan izin datang terlambat tetap mendapat uang makan; piket dibayar dari pengajuan yang disetujui.', 40, y)
       doc.text(
         `Rincian: hadir ${slip.hadir} • terlambat ${slip.terlambat || 0} (tanpa uang makan) • hadir libur ${slip.hadirLibur} • izin ${slip.izin} • sakit ${slip.sakit} • cuti ${slip.cuti} • alpha ${slip.alpha}`,
         40, y + 12,
@@ -180,6 +184,10 @@ export default function SlipGaji({ open, onClose, user, toast }) {
                 ['Gaji harian', `${rupiah(slip?.gajiHarian)} × ${slip?.hariDibayar ?? 0} hari`, rupiah(slip?.subGaji ?? 0)],
                 ['Uang makan', `${rupiah(slip?.uangMakan)} × ${slip?.hariMakan ?? 0} hari`, rupiah(slip?.subMakan ?? 0)],
                 ['Lembur', `${rupiah(slip?.tarifLembur)} × ${slip?.lembur ?? 0} jam`, rupiah(slip?.subLembur ?? 0)],
+                // Piket = jumlah piket DISETUJUI × biaya piket (pengaturan admin).
+                ...((slip?.piket ?? 0) > 0
+                  ? [['Piket', `${rupiah(slip?.biayaPiket)} × ${slip.piket} kali`, rupiah(slip?.subPiket ?? 0)]]
+                  : []),
               ].map(([label, hitung, nilai]) => (
                 <div key={label} className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -200,7 +208,15 @@ export default function SlipGaji({ open, onClose, user, toast }) {
               <TrendingUp size={12} className="mr-1 inline" />
               Hadir {slip?.hadir ?? 0} • Terlambat {slip?.terlambat ?? 0} • Hadir libur {slip?.hadirLibur ?? 0} • Izin{' '}
               {slip?.izin ?? 0} • Sakit {slip?.sakit ?? 0} • Cuti {slip?.cuti ?? 0} • Alpha {slip?.alpha ?? 0}
+              {(slip?.izinDatang ?? 0) > 0 && <> • Izin datang {slip.izinDatang}</>}
+              {(slip?.piket ?? 0) > 0 && <> • Piket {slip.piket}</>}
             </p>
+            {(slip?.izinDatang ?? 0) > 0 && (
+              <p className="mt-2 rounded-2xl bg-teal-50 px-3.5 py-3 text-[11px] font-semibold leading-relaxed text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+                <Utensils size={12} className="mr-1 inline" />
+                {slip.izinDatang} hari izin datang terlambat — gaji harian dan uang makan tetap dibayarkan.
+              </p>
+            )}
             {(slip?.tanpaUangMakan ?? 0) > 0 && (
               <p className="mt-2 rounded-2xl bg-amber-50 px-3.5 py-3 text-[11px] font-semibold leading-relaxed text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
                 <Info size={12} className="mr-1 inline" />

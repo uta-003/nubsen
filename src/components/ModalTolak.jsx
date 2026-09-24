@@ -22,6 +22,13 @@ const ALASAN_CEPAT = {
     'Pengajuan melewati batas waktu',
     'Jadwal istirahat karyawan perlu dijaga',
   ],
+  piket: [
+    'Piket pada tanggal itu sudah ada petugas lain',
+    'Piket belum masuk anggaran',
+    'Tanggal tidak sesuai jadwal piket',
+    'Tugas piket belum dikonfirmasi atasan',
+    'Pengajuan melewati batas waktu',
+  ],
 }
 
 const MAKS = 300
@@ -75,7 +82,7 @@ export default function ModalTolak({ buka, jenis = 'izin', nama, detail, onTutup
             </span>
             <div className="min-w-0">
               <h3 className="truncate text-sm font-extrabold">
-                Tolak {jenis === 'lembur' ? 'Pengajuan Lembur' : 'Pengajuan Izin / Cuti'}
+                Tolak {jenis === 'lembur' ? 'Pengajuan Lembur' : jenis === 'piket' ? 'Pengajuan Piket' : 'Pengajuan Izin / Cuti'}
               </h3>
               <p className="truncate text-[11px] text-slate-400">Alasan wajib — sampai ke karyawan</p>
             </div>
@@ -99,7 +106,7 @@ export default function ModalTolak({ buka, jenis = 'izin', nama, detail, onTutup
               <MessageSquareQuote size={12} /> Pilih alasan cepat (bisa diedit)
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {ALASAN_CEPAT[jenis === 'lembur' ? 'lembur' : 'izin'].map((teks) => (
+              {(ALASAN_CEPAT[jenis] || ALASAN_CEPAT.izin).map((teks) => (
                 <button
                   key={teks}
                   type="button"
@@ -126,7 +133,9 @@ export default function ModalTolak({ buka, jenis = 'izin', nama, detail, onTutup
               className="input min-h-28 resize-none text-sm"
               placeholder={jenis === 'lembur'
                 ? 'Contoh: Beban kerja bulan ini sudah penuh — lembur belum bisa disetujui.'
-                : 'Contoh: Kuota cuti tahunan sudah habis — silakan ajukan kembali bulan depan.'}
+                : jenis === 'piket'
+                  ? 'Contoh: Piket tanggal itu sudah ada petugas lain — silakan pilih tanggal lain.'
+                  : 'Contoh: Kuota cuti tahunan sudah habis — silakan ajukan kembali bulan depan.'}
               value={alasan}
               maxLength={MAKS}
               onChange={(e) => { setAlasan(e.target.value); setGalat(null) }}

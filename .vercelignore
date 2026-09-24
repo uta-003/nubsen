@@ -1,0 +1,14 @@
+# Berkas yang TIDAK boleh diunggah ke Vercel.
+# (Vercel tidak memakai .gitignore saat mengunggah, jadi daftar ini penting
+#  terutama untuk mencegah kredensial .env ikut ter-publish.)
+.env
+.env.*
+!.env.example
+node_modules
+server/node_modules
+server/data
+server/uploads
+dist
+*.apk
+android
+server/*.log

@@ -7,21 +7,23 @@ import {
   listSemuaAbsensi, ubahAbsensi, hapusAbsensi, fotoAbsensi,
   listSemuaIzin, setStatusIzin, hapusIzin, lampiranIzin,
   listSemuaLembur, setStatusLembur, hapusLembur,
+  listSemuaPiket, setStatusPiket, hapusPiket, biayaPiket, setBiayaPiket,
   listSemuaPeringatan, buatPeringatan, hapusPeringatan, listRiwayatPeringatan,
   laporanKehadiran, laporanGaji,
   listHariLibur, tambahHariLibur, hapusHariLibur,
-  listPeriodeGaji, tetapkanPeriodeGaji, aktifkanPeriodeGaji, hapusPeriodeGaji,
+  listPeriodeGaji, tetapkanPeriodeGaji, aktifkanPeriodeGaji, hapusPeriodeGaji, rapikanPeriodeGaji,
   STATUS_KARYAWAN, statusKaryawanSah,
   notifToClient, kirimNotifikasi, listSemuaNotifikasi, hapusNotifikasi,
   kirimPengumuman, ubahPengumuman, hapusPengumuman,
 } from '../models.js'
+import { periksaKonsistensi, rapikanKonsistensi, MODE_RAPIKAN } from '../konsistensi.js'
 import { wrap } from '../utils/wrap.js'
 import { sinkronkanRiwayatPeringatan, lengkapiNomorSuratLama } from '../models.js'
 
 // 'pengumuman' | 'penting' | 'info' | 'jadwal' = kategori PENGUMUMAN (kabar
 // perusahaan, tampil di menu 📢 Pengumuman). Sisanya = NOTIFIKASI personal
 // (alert transaksional, tampil di menu 🔔 Notifikasi).
-const JENIS_VALID = ['pengumuman', 'penting', 'info', 'jadwal', 'lembur', 'izin', 'absensi', 'gaji']
+const JENIS_VALID = ['pengumuman', 'penting', 'info', 'jadwal', 'lembur', 'piket', 'izin', 'absensi', 'gaji']
 
 // Status kepegawaian dikirim admin pada form Karyawan: hanya dua nilai yang sah.
 // Nilai kosong dianggap tidak diubah; nilai asing ditolak 400 agar tidak senyap.
@@ -303,6 +305,8 @@ router.post('/gaji/periode', wrap(async (req, res) => {
     nama: String(nama || '').trim() || namaPeriodeGaji(dari, sampai),
     dari, sampai,
   })
+  // Rentang bertumpuk dengan periode lain → ditolak (cegah slip ganda).
+  if (periode?.error) return res.status(400).json({ error: periode.error, bentrok: periode.bentrok })
   await kirimNotifikasi({
     employeeId: null,
     judul: '🧾 Slip gaji sudah tersedia',
@@ -310,6 +314,29 @@ router.post('/gaji/periode', wrap(async (req, res) => {
     jenis: 'gaji',
   })
   res.status(201).json({ data: periode })
+}))
+
+// POST /api/admin/gaji/periode/rapikan — potong periode yang bertumpuk sehingga
+// satu tanggal hanya masuk SATU periode (milik periode terbaru). Idempoten.
+router.post('/gaji/periode/rapikan', wrap(async (_req, res) => {
+  const hasil = await rapikanPeriodeGaji()
+  res.json({ data: hasil })
+}))
+
+// ---------- Pemeriksa konsistensi data → hitungan gaji ----------
+// GET /api/admin/konsistensi — audit menyeluruh (hanya membaca).
+router.get('/konsistensi', wrap(async (_req, res) => {
+  res.json({ data: await periksaKonsistensi() })
+}))
+
+// POST /api/admin/konsistensi/rapikan { mode, kering } — perbaiki data lama agar
+// sesuai aturan berlaku (jam tidak wajar, lembur tanpa absensi, izin menggantung).
+router.post('/konsistensi/rapikan', wrap(async (req, res) => {
+  const { mode = 'semua', kering = false } = req.body || {}
+  if (mode !== 'semua' && !MODE_RAPIKAN.includes(mode)) {
+    return res.status(400).json({ error: `Mode rapikan harus salah satu dari: semua, ${MODE_RAPIKAN.join(', ')}.` })
+  }
+  res.json({ data: await rapikanKonsistensi({ mode, kering: kering === true }) })
 }))
 
 // PUT /api/admin/gaji/periode/:id/aktif — pindah periode aktif (slip karyawan ikut)
@@ -464,6 +491,47 @@ router.put('/overtime/:id', wrap(async (req, res) => {
 
 router.delete('/overtime/:id', wrap(async (req, res) => {
   await hapusLembur(Number(req.params.id))
+  res.json({ data: { ok: true } })
+}))
+
+// ---------- Kelola Piket (tugas jaga tambahan, berbayar) ----------
+// Biaya piket = pengaturan GLOBAL admin: setiap piket yang DISETUJUI pada sebuah
+// periode penggajian dibayar sebesar nilai ini (dipakai penghitung gaji, slip
+// gaji karyawan, dan export Excel).
+router.get('/piket', wrap(async (_req, res) => {
+  res.json({ data: { items: await listSemuaPiket(), biaya: await biayaPiket() } })
+}))
+
+// PENTING: rute '/piket/biaya' didaftarkan SEBELUM '/piket/:id' agar kata
+// "biaya" tidak dibaca sebagai id pengajuan.
+router.get('/piket/biaya', wrap(async (_req, res) => {
+  res.json({ data: { biaya: await biayaPiket() } })
+}))
+
+// PUT /api/admin/piket/biaya — body { biaya } (rupiah per piket disetujui).
+router.put('/piket/biaya', wrap(async (req, res) => {
+  const biaya = await setBiayaPiket(req.body?.biaya)
+  res.json({ data: { biaya, pesan: `Biaya piket kini Rp${biaya.toLocaleString('id-ID')} per piket disetujui.` } })
+}))
+
+router.put('/piket/:id', wrap(async (req, res) => {
+  const status = req.body?.status
+  if (!['Disetujui', 'Ditolak', 'Menunggu'].includes(status)) {
+    return res.status(400).json({ error: 'Status tidak valid.' })
+  }
+  // Alasan penolakan WAJIB saat menolak — dikirim ke notifikasi & riwayat
+  // karyawan agar penolakan tidak "tanpa penjelasan".
+  const alasan = String(req.body?.alasan || '').trim()
+  if (status === 'Ditolak' && !alasan) {
+    return res.status(400).json({ error: 'Alasan penolakan wajib diisi.' })
+  }
+  const hasil = await setStatusPiket(Number(req.params.id), status, alasan)
+  if (!hasil) return res.status(404).json({ error: 'Pengajuan piket tidak ditemukan.' })
+  res.json({ data: hasil })
+}))
+
+router.delete('/piket/:id', wrap(async (req, res) => {
+  await hapusPiket(Number(req.params.id))
   res.json({ data: { ok: true } })
 }))
 

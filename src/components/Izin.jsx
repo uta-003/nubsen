@@ -1,19 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   CalendarPlus, Paperclip, Send, CheckCircle2, Trash2, FileText, Thermometer, Plane, Sparkles,
-  Hourglass, XCircle, Clock4, ListChecks, Info, Loader2,
+  Hourglass, XCircle, Clock4, ListChecks, Info, Loader2, Utensils,
 } from 'lucide-react'
 import { getLeaves, getLampiranIzin } from '../api'
 import { toISODate, formatTanggalPendek } from '../utils/date'
 import PratinjauLampiran from './PratinjauLampiran'
 
-const JENIS = ['Izin', 'Sakit', 'Cuti Tahunan', 'Cuti Khusus']
+const JENIS = ['Izin', 'Sakit', 'Cuti Tahunan', 'Cuti Khusus', 'Izin Datang Terlambat']
+// Izin DATANG TERLAMBAT mencakup dua keadaan sekaligus: masuk lewat jam batas
+// maupun masuk siang — dua-duanya SAMA (karyawan tetap masuk kerja), sehingga
+// uang makan hari yang disetujui tetap diberikan (dihitung server setelah disetujui).
+const JENIS_DATANG = ['Izin Datang Terlambat']
+// Label pendek pada tombol (nama resmi tetap dikirim ke server).
+const LABEL_JENIS = { 'Izin Datang Terlambat': 'Datang Terlambat' }
 // Ikon + warna per jenis pengajuan — chip berwarna di tombol pilihan.
 const IKON_JENIS = {
   Izin: { Icon: FileText, chip: 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400' },
   Sakit: { Icon: Thermometer, chip: 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400' },
   'Cuti Tahunan': { Icon: Plane, chip: 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400' },
   'Cuti Khusus': { Icon: Sparkles, chip: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400' },
+  'Izin Datang Terlambat': { Icon: Clock4, chip: 'bg-teal-100 text-teal-600 dark:bg-teal-500/15 dark:text-teal-400' },
 }
 // Chip status pengajuan pada riwayat — gaya sama dengan riwayat pengajuan lembur.
 const CHIP = {
@@ -118,7 +125,7 @@ export default function Izin({ onSubmit, sisaCuti = null }) {
       <div className="mb-4">
         <h1 className="text-xl font-extrabold tracking-tight">Pengajuan Izin / Cuti</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Ajukan ketidakhadiran dengan lampiran pendukung.
+          Ajukan ketidakhadiran — atau izin <b>datang terlambat</b> bila tetap masuk kerja dengan jam berbeda.
         </p>
       </div>
 
@@ -150,11 +157,24 @@ export default function Izin({ onSubmit, sisaCuti = null }) {
                   <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${aktif ? 'bg-white/20 text-white' : chip}`}>
                     <Icon size={14} />
                   </span>
-                  <span className="truncate">{j}</span>
+                  <span className="truncate">{LABEL_JENIS[j] || j}</span>
                 </button>
               )
             })}
           </div>
+
+          {/* Penjelasan aturan uang makan untuk izin datang terlambat/siang —
+              pembeda utamanya: tetap dapat uang makan walau jam masuk lewat. */}
+          {JENIS_DATANG.includes(form.jenis) && (
+            <p className="animate-rise mt-2 flex items-start gap-2 rounded-2xl bg-teal-50 px-3.5 py-2.5 text-[11px] leading-relaxed text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+              <Utensils size={14} className="mt-0.5 shrink-0" />
+              <span>
+                <b>Uang makan tetap diberikan.</b> Satu jenis ini mencakup datang terlambat maupun datang siang. Untuk
+                hari yang disetujui admin, gaji harian tetap dibayar dan uang makan tidak hangus walau jam masuknya
+                lewat. Absen masuk tetap wajib dilakukan seperti biasa.
+              </span>
+            </p>
+          )}
         </div>
 
         {form.jenis.startsWith('Cuti') && sisaCuti != null && (
@@ -306,9 +326,9 @@ export default function Izin({ onSubmit, sisaCuti = null }) {
         <Info size={18} className="shrink-0" />
         <p>
           Pengajuan yang tanggalnya mencakup hari ini otomatis mengubah status kehadiranmu menjadi
-          <b> Izin</b>. Semua pengajuan (Izin, Sakit, Cuti Tahunan, Cuti Khusus) tercatat di
-          <b> Riwayat Pengajuan</b> di atas — dan kamu akan menerima <b>notifikasi</b> begitu admin
-          menyetujui atau menolaknya.
+          <b> Izin</b>. Semua pengajuan (Izin, Sakit, Cuti Tahunan, Cuti Khusus, Izin Datang
+          Terlambat) tercatat di <b>Riwayat Pengajuan</b> di atas — dan kamu akan menerima <b>notifikasi</b> begitu admin
+          menyetujui atau menolaknya. Khusus <b>Izin Datang Terlambat</b>, uang makan hari itu tetap dibayarkan.
         </p>
       </div>
 

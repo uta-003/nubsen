@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import multer from 'multer'
-import { createLeave, listLeaves, leaveToClient, lampiranIzin } from '../models.js'
+import { createLeave, listLeaves, leaveToClient, lampiranIzin, JENIS_IZIN } from '../models.js'
 import { bufferToDataUrl } from '../utils/files.js'
 import { wrap } from '../utils/wrap.js'
 
@@ -29,6 +29,9 @@ router.post('/', upload.single('lampiran'), wrap(async (req, res) => {
   const { jenis, mulai, selesai, keterangan = '' } = req.body || {}
   if (!jenis || !mulai || !selesai) {
     return res.status(400).json({ error: 'jenis, mulai, dan selesai wajib diisi.' })
+  }
+  if (!JENIS_IZIN.includes(jenis)) {
+    return res.status(400).json({ error: `Jenis pengajuan harus salah satu dari: ${JENIS_IZIN.join(', ')}.` })
   }
   if (selesai < mulai) {
     return res.status(400).json({ error: 'Tanggal selesai tidak boleh sebelum tanggal mulai.' })

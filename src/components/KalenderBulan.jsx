@@ -22,6 +22,8 @@ const WARNA_TITIK = {
   Hadir: 'bg-emerald-500',
   Terlambat: 'bg-amber-500',
   Izin: 'bg-sky-500',
+  'Izin Terlambat': 'bg-teal-500',
+  'Izin Datang Siang': 'bg-cyan-500',
   Alpha: 'bg-rose-500',
 }
 // Pekan dimulai SENIN agar sejalan dengan kartu Statistik Mingguan (Senin–Minggu).
