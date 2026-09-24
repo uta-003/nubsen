@@ -791,14 +791,6 @@ function hitungHariKerja(dari, sampai, hariAktif = HARI_KERJA_DEFAULT, liburSet 
   return n
 }
 
-// Jumlah hari tumpang-tindih rentang [a..b] dengan [mulai..selesai] (string ISO).
-function hariTumpangTindih(a, b, mulai, selesai) {
-  const dariS = a > mulai ? a : mulai
-  const sampaiS = b < selesai ? b : selesai
-  const ms = new Date(`${sampaiS}T00:00:00Z`) - new Date(`${dariS}T00:00:00Z`)
-  return ms < 0 ? 0 : Math.round(ms / 86400000) + 1
-}
-
 // Selisih dua jam 'HH:MM' dalam jam desimal (lembur lintas tengah malam tetap dihitung).
 function selisihJam(mulai, selesai) {
   const keMenit = (s) => {
@@ -811,8 +803,9 @@ function selisihJam(mulai, selesai) {
 }
 
 // Laporan rekap kehadiran per karyawan untuk satu periode. Sumber data:
-// attendance (Hadir/Terlambat), leaves (Izin/Sakit/Cuti, bukan Ditolak, dipotong
-// tepi rentang), overtime Disetujui (total jam). Alpha = hari kerja − masuk − izin.
+// attendance (Hadir/Terlambat/Hadir Libur) + rekapHarian() TERPADU untuk
+// Izin/Sakit/Cuti & Alpha — aturan persis sama dengan tabel Riwayat karyawan,
+// sehingga angka laporan admin dan riwayat karyawan selalu cocok.
 // `employeeId` (opsional) membatasi laporan ke SATU karyawan — dipakai slip gaji
 // karyawan agar rumusnya persis sama dengan tab Gaji di panel admin.
 export async function laporanKehadiran({ dari, sampai, departemen, employeeId } = {}) {
@@ -842,37 +835,33 @@ export async function laporanKehadiran({ dari, sampai, departemen, employeeId } 
 
   const baris = []
   for (const e of karyawan) {
-    const [att, leaves, lembur] = await Promise.all([
+    const [att, lembur, rekap] = await Promise.all([
       db.get(
         `SELECT
            COALESCE(SUM(CASE WHEN status = 'Hadir' AND COALESCE(hari_libur, 0) = 0 THEN 1 ELSE 0 END), 0) AS hadir,
            COALESCE(SUM(CASE WHEN status = 'Terlambat' AND COALESCE(hari_libur, 0) = 0 THEN 1 ELSE 0 END), 0) AS terlambat,
-           COALESCE(SUM(CASE WHEN status IN ('Hadir','Terlambat') AND COALESCE(hari_libur, 0) = 1 THEN 1 ELSE 0 END), 0) AS hadirLibur,
-           COALESCE(SUM(CASE WHEN status = 'Izin' THEN 1 ELSE 0 END), 0) AS izin
+           COALESCE(SUM(CASE WHEN status IN ('Hadir','Terlambat') AND COALESCE(hari_libur, 0) = 1 THEN 1 ELSE 0 END), 0) AS hadirLibur
          FROM attendance WHERE employee_id = ? AND tanggal >= ? AND tanggal <= ?`,
         [e.id, mulai, selesai],
-      ),
-      db.all(
-        `SELECT jenis, mulai, selesai FROM leaves
-         WHERE employee_id = ? AND status <> 'Ditolak' AND mulai <= ? AND selesai >= ?`,
-        [e.id, selesai, mulai],
       ),
       db.all(
         `SELECT jam_mulai, jam_selesai FROM overtime
          WHERE employee_id = ? AND status = 'Disetujui' AND tanggal >= ? AND tanggal <= ?`,
         [e.id, mulai, selesai],
       ),
+      // Satu panggilan untuk izin/sakit/cuti + alpha dengan aturan riwayat.
+      rekapHarian(e.id, mulai, selesai),
     ])
 
-    let izin = att?.izin || 0 // hari berstatus izin yang tercatat langsung di absensi
+    // Izin/Sakit/Cuti = hari KERJA non-libur dari rekap terpadu (hari libur &
+    // akhir pekan tidak lagi ikut terhitung seperti pada rumus lama).
+    let izin = 0
     let sakit = 0
     let cuti = 0
-    for (const l of leaves) {
-      const hari = hariTumpangTindih(l.mulai, l.selesai, mulai, selesai)
-      const jenis = (l.jenis || '').toLowerCase()
-      if (jenis.startsWith('cuti')) cuti += hari
-      else if (jenis.startsWith('sakit')) sakit += hari
-      else izin += hari
+    for (const k of rekap.kategori.values()) {
+      if (k === 'Cuti') cuti++
+      else if (k === 'Sakit') sakit++
+      else izin++
     }
     const lemburJam = lembur.reduce((t, o) => t + selisihJam(o.jam_mulai, o.jam_selesai), 0)
 
@@ -882,7 +871,10 @@ export async function laporanKehadiran({ dari, sampai, departemen, employeeId } 
     // menggelembungkan % kehadiran.
     const hadirLibur = att?.hadirLibur || 0
     const masuk = hadir + terlambat
-    const alpha = Math.max(0, hariKerja - masuk - izin - sakit - cuti)
+    // Alpha DIHITUNG LANGSUNG dari rekap terpadu (bukan rumus pengurangan) —
+    // menghormati jejak pertama karyawan, hari libur, dan "hari ini sebelum
+    // pulang" persis seperti yang tampil di halaman Riwayat karyawan.
+    const alpha = rekap.alpha.length
     const persen = hariKerja ? Math.min(100, Math.round((masuk / hariKerja) * 100)) : 0
     baris.push({
       id: e.id,
@@ -1156,8 +1148,9 @@ export async function ringkasanAdmin() {
 }
 
 // Tren kehadiran N hari terakhir (default 7) untuk grafik Ringkasan admin:
-// per hari = jumlah masuk (Hadir+Terlambat), izin (cuti/izin berjalan), dan
-// alpha (hari kerja yang terlewat — dihitung seperti pada riwayat karyawan).
+// per hari = masuk (Hadir+Terlambat) dari attendance, izin & alpha per karyawan
+// dari rekapHarian TERPADU — aturan identik dengan riwayat karyawan, sehingga
+// angka grafik admin tidak pernah menyimpang dari halaman Riwayat.
 export async function trenKehadiran(hari = 7) {
   const hariIni = toISODate()
   const mulai = new Date(`${hariIni}T00:00:00Z`)
@@ -1165,26 +1158,27 @@ export async function trenKehadiran(hari = 7) {
   const t0 = toISODate(mulai)
   const aktif = new Set(await hariKerjaAktif())
   const liburSet = await setTanggalLibur(t0, hariIni)
-  const { jamPulang } = await getJadwal()
   const totalKaryawan = (await db.get('SELECT COUNT(*) AS n FROM employees'))?.n ?? 0
   const att = await db.all(
     'SELECT tanggal, status, COALESCE(hari_libur, 0) AS hari_libur FROM attendance WHERE tanggal >= ? AND tanggal <= ?',
     [t0, hariIni],
   )
-  const leaves = await db.all(
-    "SELECT mulai, selesai FROM leaves WHERE status <> 'Ditolak' AND mulai <= ? AND selesai >= ?",
-    [hariIni, t0],
-  )
+  // Alpha & izin per tanggal dihitung per karyawan lewat rekap terpadu —
+  // bukan rumus "total − masuk − izin" yang bisa salah hitung.
+  const alphaPerTanggal = new Map()
+  const izinPerTanggal = new Map()
+  for (const k of (await db.all('SELECT id FROM employees'))) {
+    const r = await rekapHarian(k.id, t0, hariIni)
+    for (const t of r.alpha) alphaPerTanggal.set(t, (alphaPerTanggal.get(t) || 0) + 1)
+    for (const t of r.kategori.keys()) izinPerTanggal.set(t, (izinPerTanggal.get(t) || 0) + 1)
+  }
   const baris = []
   for (const d = new Date(`${t0}T00:00:00Z`); toISODate(d) <= hariIni; d.setUTCDate(d.getUTCDate() + 1)) {
     const tanggal = toISODate(d)
     const hariKerja = aktif.has(d.getUTCDay()) && !liburSet.has(tanggal)
     const masuk = att.filter((r) => r.tanggal === tanggal && ['Hadir', 'Terlambat'].includes(r.status) && !r.hari_libur).length
-    const izinAbsen = att.filter((r) => r.tanggal === tanggal && r.status === 'Izin').length
-    const izinSurat = leaves.filter((l) => l.mulai <= tanggal && tanggal <= l.selesai).length
-    const izin = Math.max(izinAbsen, izinSurat)
-    const sudahLewat = tanggal < hariIni || (tanggal === hariIni && jamSekarang() >= jamPulang)
-    const alpha = hariKerja && sudahLewat ? Math.max(0, totalKaryawan - masuk - izin) : 0
+    const izin = hariKerja ? (izinPerTanggal.get(tanggal) || 0) : 0
+    const alpha = hariKerja ? (alphaPerTanggal.get(tanggal) || 0) : 0
     baris.push({ tanggal, masuk, izin, alpha, hariKerja })
   }
   return { dari: t0, sampai: hariIni, totalKaryawan, baris }
@@ -1286,24 +1280,25 @@ export async function izinAktifHariIni(employeeId) {
   }
 }
 
-// ---------- Alpha otomatis ----------
-// Hari kerja yang SUDAH BERLALU tanpa catatan absensi (dan tanpa pengajuan izin/
-// sakit/cuti yang tidak ditolak) dianggap ALPHA — jadi "tidak absen dari jam
-// masuk sampai jam pulang" pada hari kerja = alpha. Hari berjalan baru dianggap
-// alpha setelah jam pulang terlewat. Perhitungan dilakukan saat riwayat dibaca
-// (lazy), sehingga tidak butuh proses terjadwal — aman untuk serverless.
-export async function tanggalAlpha(employeeId, dari, sampai) {
+// Rekap harian TERPADU per karyawan — SUMBER KEBENARAN TUNGGAL yang dipakai
+// laporan admin, tren ringkasan, dan riwayat karyawan supaya angkanya SELALU
+// cocok. Mengembalikan:
+//   alpha    : [tanggal…] hari kerja tanpa absen, tanpa izin non-ditolak,
+//              setelah jejak pertama karyawan, dan (untuk hari ini) setelah
+//              jam pulang — aturan identik dengan tabel riwayat.
+//   kategori : Map(tanggal → 'Izin'|'Sakit'|'Cuti') hari KERJA non-libur yang
+//              tertutup pengajuan non-ditolak ATAU absensi berstatus Izin.
+//              "Absen menang": hari dengan absensi Hadir/Terlambat TIDAK
+//              dihitung izin agar tidak terhitung dua kali.
+export async function rekapHarian(employeeId, mulai, selesai) {
+  const kosong = { alpha: [], kategori: new Map() }
+  if (mulai > selesai) return kosong
   const hariIni = toISODate()
-  // Jam pulang mengikuti shift karyawan agar "hari belum berakhir" tepat.
   const { jamPulang } = await getJadwal(employeeId)
-  const mundur = new Date(`${hariIni}T00:00:00Z`)
-  mundur.setUTCDate(mundur.getUTCDate() - 31)
-  const mulai = dari || toISODate(mundur)
-  const selesai = sampai || hariIni
-  if (mulai > selesai) return []
+  const hariAktif = new Set(await hariKerjaAktif())
+  const liburSet = await setTanggalLibur(mulai, selesai)
 
-  // Tanpa satu pun jejak (absensi/pengajuan) riwayat tidak mengarang alpha —
-  // akun yang baru dibuat tidak langsung penuh alpha untuk hari-hari lampau.
+  // Anti-alpha-fiktif: tanpa satu pun jejak (absensi/pengajuan) jangan mengarang.
   const jejak = await db.get(
     `SELECT MIN(t) AS awal FROM (
        SELECT MIN(tanggal) AS t FROM attendance WHERE employee_id = ?
@@ -1311,37 +1306,54 @@ export async function tanggalAlpha(employeeId, dari, sampai) {
      )`,
     [employeeId, employeeId],
   )
-  const awalData = jejak?.awal
-  if (!awalData) return []
-  const batasAwal = awalData > mulai ? awalData : mulai
-  if (batasAwal > selesai) return []
+  if (!jejak?.awal) return kosong
+  const batasAwal = jejak.awal > mulai ? jejak.awal : mulai
+  if (batasAwal > selesai) return kosong
 
-  const hariAktif = new Set(await hariKerjaAktif())
-  // Hari libur yang terdaftar (nasional/cuti bersama/khusus admin) tidak Alpha.
-  const liburSet = await setTanggalLibur(batasAwal, selesai)
-  const adaAbsen = new Set(
+  const absen = new Map(
     (await db.all(
-      'SELECT tanggal FROM attendance WHERE employee_id = ? AND tanggal >= ? AND tanggal <= ?',
+      'SELECT tanggal, status FROM attendance WHERE employee_id = ? AND tanggal >= ? AND tanggal <= ?',
       [employeeId, batasAwal, selesai],
-    )).map((r) => r.tanggal),
+    )).map((r) => [r.tanggal, r.status]),
   )
   const pengajuan = await db.all(
-    `SELECT mulai, selesai FROM leaves
+    `SELECT jenis, mulai, selesai FROM leaves
      WHERE employee_id = ? AND status <> 'Ditolak' AND mulai <= ? AND selesai >= ?`,
     [employeeId, selesai, batasAwal],
   )
 
-  const hasil = []
-  for (const d = new Date(`${batasAwal}T00:00:00Z`); toISODate(d) <= selesai; d.setUTCDate(d.getUTCDate() + 1)) {
+  const alpha = []
+  const kategori = new Map()
+  for (let d = new Date(`${batasAwal}T00:00:00Z`); toISODate(d) <= selesai; d.setUTCDate(d.getUTCDate() + 1)) {
     const tanggal = toISODate(d)
     if (!hariAktif.has(d.getUTCDay())) continue // bukan hari kerja
-    if (liburSet.has(tanggal)) continue // hari libur — bukan Alpha
+    if (liburSet.has(tanggal)) continue // hari libur terdaftar
+    const st = absen.get(tanggal)
+    if (st === 'Izin') { kategori.set(tanggal, 'Izin'); continue }
+    if (st) continue // Hadir/Terlambat/dll — kehadiran biasa, bukan izin/alpha
+    const l = pengajuan.find((x) => x.mulai <= tanggal && tanggal <= x.selesai)
+    if (l) {
+      const j = (l.jenis || '').toLowerCase()
+      kategori.set(tanggal, j.startsWith('cuti') ? 'Cuti' : j.startsWith('sakit') ? 'Sakit' : 'Izin')
+      continue
+    }
     if (tanggal === hariIni && jamSekarang() < jamPulang) continue // hari belum berakhir
-    if (adaAbsen.has(tanggal)) continue // sudah ada catatan absensi
-    if (pengajuan.some((l) => l.mulai <= tanggal && tanggal <= l.selesai)) continue // izin/cuti
-    hasil.push(tanggal)
+    alpha.push(tanggal)
   }
-  return hasil
+  return { alpha, kategori }
+}
+
+// Tanggal Alpha untuk riwayat karyawan (default 31 hari terakhir) — kini hanya
+// pembungkus tipis di atas rekapHarian sehingga riwayat & laporan mustahil beda.
+export async function tanggalAlpha(employeeId, dari, sampai) {
+  const hariIni = toISODate()
+  const mundur = new Date(`${hariIni}T00:00:00Z`)
+  mundur.setUTCDate(mundur.getUTCDate() - 31)
+  const mulai = dari || toISODate(mundur)
+  const selesai = sampai || hariIni
+  if (mulai > selesai) return []
+  const { alpha } = await rekapHarian(employeeId, mulai, selesai)
+  return alpha
 }
 
 // Riwayat gabungan: catatan absensi + pengajuan izin + ALPHA otomatis.
@@ -1356,20 +1368,45 @@ export async function listHistory({ dari, sampai, status } = {}, employeeId = 1)
 
   let sqlL = 'SELECT * FROM leaves WHERE employee_id = ?'
   const paramsL = [employeeId]
-  if (dari) { sqlL += ' AND mulai >= ?'; paramsL.push(dari) }
+  // Filter OVERLAP rentang (bukan "mulai di dalam rentang") — pengajuan yang
+  // dimulai sebelum rentang tapi masih berjalan TETAP tampil.
+  if (dari) { sqlL += ' AND selesai >= ?'; paramsL.push(dari) }
   if (sampai) { sqlL += ' AND mulai <= ?'; paramsL.push(sampai) }
   // `sumber: 'izin'` menandai baris TURUNAN dari pengajuan izin (bukan catatan
   // absensi). Dipakai Dashboard untuk statistik, namun disaring keluar oleh
   // halaman Riwayat (bottom-nav) yang khusus menampilkan riwayat absensi saja —
   // riwayat pengajuan izin kini ada di halaman Izin/Cuti.
-  const izin = (await db.all(sqlL, paramsL)).map((l) => ({
-    id: `izin-${l.id}`, tanggal: l.mulai, checkIn: '-', checkOut: '-', status: 'Izin',
-    keterangan: `${l.jenis}: ${l.keterangan || ''} (pengajuan ${l.status})`,
-    lokasi: null, selfie: null, adaSelfie: false,
-    lampiran: null, adaLampiran: !!l.lampiran,
-    lokasiPulang: null, selfiePulang: null, adaSelfiePulang: false, diLuarAreaPulang: null, jarakPulang: null,
-    sumber: 'izin',
-  }))
+  //
+  // SATU BARIS PER HARI KERJA (bukan per pengajuan) supaya statistik pekan di
+  // Beranda cocok dengan Laporan admin (cuti 3 hari = 3 baris). Hari punya
+  // absensi (absen menang) dan hari non-kerja/libur tidak dibuat baris —
+  // aturan identik dengan rekapHarian() di sisi server.
+  const hariAktifL = new Set(await hariKerjaAktif())
+  const absenHari = new Set(
+    (await db.all(
+      'SELECT tanggal FROM attendance WHERE employee_id = ?' +
+      (dari ? ' AND tanggal >= ?' : '') + (sampai ? ' AND tanggal <= ?' : ''),
+      [employeeId, ...(dari ? [dari] : []), ...(sampai ? [sampai] : [])],
+    )).map((r) => r.tanggal),
+  )
+  const izin = []
+  for (const l of await db.all(sqlL, paramsL)) {
+    const aw = dari && l.mulai < dari ? dari : l.mulai
+    const ak = sampai && l.selesai > sampai ? sampai : l.selesai
+    for (let d = new Date(`${aw}T00:00:00Z`); toISODate(d) <= ak; d.setUTCDate(d.getUTCDate() + 1)) {
+      const t = toISODate(d)
+      if (!hariAktifL.has(d.getUTCDay())) continue // bukan hari kerja
+      if (absenHari.has(t)) continue // absen menang — jangan ganda
+      izin.push({
+        id: `izin-${l.id}-${t}`, tanggal: t, checkIn: '-', checkOut: '-', status: 'Izin',
+        keterangan: `${l.jenis}: ${l.keterangan || ''} (pengajuan ${l.status})`,
+        lokasi: null, selfie: null, adaSelfie: false,
+        lampiran: null, adaLampiran: !!l.lampiran,
+        lokasiPulang: null, selfiePulang: null, adaSelfiePulang: false, diLuarAreaPulang: null, jarakPulang: null,
+        sumber: 'izin',
+      })
+    }
+  }
 
   const alpha = (await tanggalAlpha(employeeId, dari, sampai)).map((tanggal) => ({
     id: `alpha-${tanggal}`, tanggal, checkIn: null, checkOut: null, status: 'Alpha',

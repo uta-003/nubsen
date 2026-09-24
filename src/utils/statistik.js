@@ -70,13 +70,14 @@ export function dataPekan(history = [], { geser = 0, hariKerja = HARI_KERJA_DEFA
   const hariKerjaPekan = hari.filter((h) => h.hariKerja).length
   // % kehadiran hanya membandingkan hari kerja dengan kehadiran PADA hari kerja
   // tersebut — sejalan dengan laporan kehadiran panel admin (kehadiran di hari
-  // libur dihitung terpisah sebagai "Hadir Libur").
+  // libur dihitung terpisah sebagai "Hadir Libur"). Rekap Hadir/Terlambat juga
+  // memakai hitungKerja agar ANGKA REKAP cocok persis dengan kolom laporan admin.
   const masuk = hitungKerja('Hadir') + hitungKerja('Terlambat')
   const rekap = {
-    Hadir: hitung('Hadir'),
-    Terlambat: hitung('Terlambat'),
+    Hadir: hitungKerja('Hadir'),
+    Terlambat: hitungKerja('Terlambat'),
     Izin: hitung('Izin'),
-    Alpha: hitung('Alpha'),
+    Alpha: hitungKerja('Alpha'),
     hariKerja: hariKerjaPekan,
     masuk,
     // Catatan pada hari libur/akhir pekan (tidak masuk hitungan kehadiran).
