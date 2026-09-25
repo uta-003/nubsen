@@ -4,6 +4,7 @@ import {
   ChevronRight, KeyRound, Eye, EyeOff, Loader2, Wallet, FileWarning, ShieldCheck, Sparkles,
 } from 'lucide-react'
 import { USER_DEFAULT } from '../hooks/useAbsensi'
+import { STATUS_IZIN_DATANG } from '../utils/statistik'
 import * as api from '../api'
 import Bantuan from './Bantuan'
 import SlipGaji from './SlipGaji'
@@ -36,14 +37,14 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
       // Siang") = KEHADIRAN: karyawan tetap masuk kerja, hanya jam masuknya
       // lewat → dihitung HADIR (gaji harian & uang makan tetap dibayar), sama
       // dengan laporan admin, slip gaji, dan kartu Statistik Mingguan.
-      const kunci = IZIN_DATANG.includes(h.status) ? 'Hadir' : h.status
+      const kunci = STATUS_IZIN_DATANG.includes(h.status) ? 'Hadir' : h.status
       if (s[kunci] !== undefined) s[kunci]++
     })
     return s
   }, [history])
   // Catatan: berapa di antara hari Hadir itu yang memakai izin datang.
   const izinDatang = useMemo(
-    () => history.filter((h) => IZIN_DATANG.includes(h.status)).length,
+    () => history.filter((h) => STATUS_IZIN_DATANG.includes(h.status)).length,
     [history],
   )
 
