@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SKEMA } from './schema.js'
 import { muatEnv } from './utils/env.js'
+import { toISODate } from './utils/waktu.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -312,26 +313,53 @@ export function shiftSah(nilai) {
 }
 
 // Jadwal INDUK (pengaturan umum): mode + jam mode biasa + hari kerja + kedua
-// shift. Dipakai panel admin untuk mengisi formulir tab Jadwal.
+// shift + jadwal khusus SABTU. Dipakai panel admin untuk mengisi formulir tab
+// Jadwal.
 export async function getJadwalGlobal() {
   const shifts = await getShifts()
   return {
     mode: await getModeJadwal(),
     jamMasukBatas: await getSetting('jamMasukBatas', JAM_MASUK_BATAS),
     jamPulang: await getSetting('jamPulang', JAM_PULANG_DEFAULT),
+    // Jadwal khusus SABTU (mode 'biasa') — Senin–Jumat memakai jam umum di atas,
+    // sedangkan Sabtu dapat jam masuk/pulang yang berbeda. Kosong = ikut Sen–Jum.
+    jamMasukBatasSabtu: (await getSetting('jamMasukBatasSabtu', '')) || '',
+    jamPulangSabtu: (await getSetting('jamPulangSabtu', '')) || '',
     hariKerja: await hariKerjaAktif(),
     shift1: shifts[1],
     shift2: shifts[2],
   }
 }
 
+// Hari (0 = Minggu … 6 = Sabtu) dari tanggal 'YYYY-MM-DD'.
+function hariDariTanggal(tanggal) {
+  return new Date(`${tanggal}T00:00:00Z`).getUTCDay()
+}
+
 // Jadwal EFEKTIF — sumber kebenaran status Terlambat, hitung mundur UI, laporan,
 // dan deteksi alpha. Saat mode 'shift' jam masuk/pulang mengikuti shift karyawan
-// (tanpa employeeId dipakai Shift 1 sebagai acuan). Bentuk keluaran tetap punya
-// jamMasukBatas & jamPulang sehingga seluruh pemakai lama tidak perlu diubah.
-export async function getJadwal(employeeId = null) {
+// (tanpa employeeId dipakai Shift 1 sebagai acuan); saat mode 'biasa' dan
+// `tanggal` jatuh pada SABTU dengan jadwal Sabtu yang diisi admin, jam
+// masuk/pulang memakai jadwal Sabtu. Bentuk keluaran tetap punya jamMasukBatas &
+// jamPulang sehingga seluruh pemakai lama tidak perlu diubah.
+export async function getJadwal(employeeId = null, tanggal = null) {
   const induk = await getJadwalGlobal()
-  if (induk.mode !== 'shift') return { ...induk, shift: null }
+  const hari = tanggal || toISODate()
+  if (induk.mode !== 'shift') {
+    if (
+      hariDariTanggal(hari) === 6 &&
+      induk.jamMasukBatasSabtu && induk.jamPulangSabtu
+    ) {
+      return {
+        ...induk,
+        jamMasukBatas: induk.jamMasukBatasSabtu,
+        jamPulang: induk.jamPulangSabtu,
+        sabtu: true,
+        shift: null,
+      }
+    }
+    return { ...induk, sabtu: false, shift: null }
+  }
 
   let nomor = 1
   if (employeeId != null) {
@@ -346,6 +374,7 @@ export async function getJadwal(employeeId = null) {
     jamMasuk: s.masuk,
     jamMasukBatas: s.batas,
     jamPulang: s.pulang,
+    sabtu: false,
   }
 }
 

@@ -172,7 +172,7 @@ Service worker hanya aktif di build produksi (tidak mengganggu HMR saat dev).
 | GET/POST | `/api/overtime` | Pengajuan lembur milik sendiri |
 | GET | `/api/notifications` | Notifikasi sendiri + broadcast (`{ items, belumDibaca }`) |
 | POST | `/api/notifications/read` | Tandai semua notifikasi dibaca |
-| GET/PUT | `/api/admin/jadwal` | **[Admin]** Jam masuk (batas Terlambat), jam pulang, dan **hari kerja mingguan** (`hariKerja: [1,2,3,4,5]`, 0 = Minggu, minimal satu hari) |
+| GET/PUT | `/api/admin/jadwal` | **[Admin]** Jam masuk (batas Terlambat), jam pulang, **hari kerja mingguan** (`hariKerja: [1,2,3,4,5]`, 0 = Minggu, minimal satu hari), dan **jadwal khusus Sabtu** (`jamMasukBatasSabtu`/`jamPulangSabtu` — kosong = ikut Senin–Jumat; mode Biasa) |
 | GET | `/api/admin/reports?dari=&sampai=&departemen=` | **[Admin]** Laporan kehadiran: rekap per karyawan (`baris`), ringkasan, dan `rekap` per departemen (Hadir/Terlambat/Hadir Libur/Izin/Sakit/Cuti/Alpha/Lembur/% Kehadiran) |
 | GET/POST/PUT/DELETE | `/api/admin/employees[...]` | **[Admin]** Kelola karyawan (tambah/edit/hapus, reset PIN, flag admin) |
 | GET/PUT/DELETE | `/api/admin/attendance[...]` | **[Admin]** Lihat semua absensi (filter), koreksi, hapus |

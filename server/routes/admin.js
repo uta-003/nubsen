@@ -147,14 +147,36 @@ router.put('/jadwal', wrap(async (req, res) => {
   if (isiMasuk) await setSetting('jamMasukBatas', isiMasuk)
   if (isiPulang) await setSetting('jamPulang', isiPulang)
 
+  // Jadwal khusus SABTU (mode 'biasa'): HH:MM = jadwal sendiri untuk Sabtu,
+  // '' = mengikuti Senin–Jumat (dihapus), tidak dikirim = tidak diubah.
+  const kirimSabtuMasuk = req.body != null && 'jamMasukBatasSabtu' in req.body
+  const kirimSabtuPulang = req.body != null && 'jamPulangSabtu' in req.body
+  const masukSabtu = kirimSabtuMasuk ? String(req.body.jamMasukBatasSabtu ?? '').trim() : undefined
+  const pulangSabtu = kirimSabtuPulang ? String(req.body.jamPulangSabtu ?? '').trim() : undefined
+  if (masukSabtu && !POLA_JAM.test(masukSabtu)) {
+    return res.status(400).json({ error: 'Jam masuk Sabtu harus format HH:MM (contoh 08:00), atau kosongkan agar mengikuti Senin–Jumat.' })
+  }
+  if (pulangSabtu && !POLA_JAM.test(pulangSabtu)) {
+    return res.status(400).json({ error: 'Jam pulang Sabtu harus format HH:MM (contoh 14:00), atau kosongkan agar mengikuti Senin–Jumat.' })
+  }
+  if (masukSabtu !== undefined) await setSetting('jamMasukBatasSabtu', masukSabtu)
+  if (pulangSabtu !== undefined) await setSetting('jamPulangSabtu', pulangSabtu)
+
   // Notifikasi hanya bila ada yang berubah (hemat kotak masuk dari klik tanpa edit).
   const shifts = shiftBaru || { 1: lama.shift1, 2: lama.shift2 }
   const intiShift = (s) => ({ nama: s.nama, masuk: s.masuk, batas: s.batas, pulang: s.pulang })
+  const masukSabtuEfektif = masukSabtu !== undefined ? masukSabtu : (lama.jamMasukBatasSabtu || '')
+  const pulangSabtuEfektif = pulangSabtu !== undefined ? pulangSabtu : (lama.jamPulangSabtu || '')
+  const sabtuStr = masukSabtuEfektif && pulangSabtuEfektif
+    ? `; Sabtu masuk batas ${masukSabtuEfektif}, pulang ${pulangSabtuEfektif}`
+    : ''
   const berubah = Boolean(
     (modeBaru !== null && modeBaru !== lama.mode) ||
     (isiMasuk && lama.jamMasukBatas !== isiMasuk) ||
     (isiPulang && lama.jamPulang !== isiPulang) ||
     (hariBaru && hariBaru.join(',') !== (lama.hariKerja || []).join(',')) ||
+    (masukSabtu !== undefined && masukSabtu !== (lama.jamMasukBatasSabtu || '')) ||
+    (pulangSabtu !== undefined && pulangSabtu !== (lama.jamPulangSabtu || '')) ||
     (shiftBaru && (
       JSON.stringify(shiftBaru[1]) !== JSON.stringify(intiShift(lama.shift1)) ||
       JSON.stringify(shiftBaru[2]) !== JSON.stringify(intiShift(lama.shift2))
@@ -167,7 +189,7 @@ router.put('/jadwal', wrap(async (req, res) => {
       judul: modeAkhir === 'shift' ? '🔄 Jadwal shift diperbarui' : '📅 Jadwal kerja diperbarui',
       pesan: modeAkhir === 'shift'
         ? `Jadwal SHIFT berlaku — ${shifts[1].nama}: batas ${shifts[1].batas}, pulang ${shifts[1].pulang}; ${shifts[2].nama}: batas ${shifts[2].batas}, pulang ${shifts[2].pulang}${hariStr}. Cek shift-mu di Beranda.`
-        : `Jadwal baru — batas masuk ${isiMasuk || lama.jamMasukBatas}, jam pulang ${isiPulang || lama.jamPulang}${hariStr}. Sesuaikan absensimu ya.`,
+        : `Jadwal baru — batas masuk ${isiMasuk || lama.jamMasukBatas}, jam pulang ${isiPulang || lama.jamPulang}${hariStr}${sabtuStr}. Sesuaikan absensimu ya.`,
       jenis: 'jadwal',
     })
   }

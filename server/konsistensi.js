@@ -277,7 +277,7 @@ export async function periksaKonsistensi() {
   let nilaiJamAneh = 0
   for (const a of semuaAbs) {
     if (!['Hadir', 'Terlambat'].includes(a.status) || !a.check_in) continue
-    const jadwal = await getJadwal(a.employee_id)
+    const jadwal = await getJadwal(a.employee_id, a.tanggal)
     if (hitungStatusAbsen(jadwal, a.check_in).status !== STATUS_TINJAUAN) continue
     const nilai = nilaiHari(a, a.tanggal, ctx)
     jamAneh.push({
@@ -418,7 +418,7 @@ export async function rapikanKonsistensi({ mode = 'semua', kering = false } = {}
     const rincian = []
     let nilai = 0
     for (const k of ambil('jam-tidak-wajar')) {
-      const jadwal = await getJadwal(k.employeeId)
+      const jadwal = await getJadwal(k.employeeId, k.tanggal)
       const { status, alasan } = hitungStatusAbsen(jadwal, k.checkIn)
       if (!kering) await db.run('UPDATE attendance SET status = ?, keterangan = ? WHERE id = ?', [status, alasan, k.id])
       nilai += k.nilai

@@ -891,7 +891,7 @@ export async function rekonsiliasiIzinKehadiran({ employeeId = null, dari = null
     if (dasar) continue
 
     if (r.check_in) {
-      const jadwal = await getJadwal(r.employee_id)
+      const jadwal = await getJadwal(r.employee_id, r.tanggal)
       const { status, alasan } = hitungStatusAbsen(jadwal, r.check_in)
       const keterangan = `${alasan || `Jam check-in ${r.check_in}`} (izin tidak disetujui — status dipulihkan)`
       if (!kering) await db.run('UPDATE attendance SET status = ?, keterangan = ? WHERE id = ?', [status, keterangan, r.id])
@@ -1585,9 +1585,10 @@ export function hitungStatusAbsen(jadwal, jam) {
 export async function catatCheckIn({ employeeId = 1, lokasi = {}, selfieUrl = null } = {}) {
   const tanggal = toISODate()
   const jam = jamSekarang()
-  // Jadwal EFEKTIF milik karyawan ini: mode 'biasa' memakai jadwal induk, mode
-  // 'shift' mengikuti shift (1/2) yang ditetapkan admin → batas Terlambat ikut shift.
-  const jadwal = await getJadwal(employeeId)
+  // Jadwal EFEKTIF milik karyawan ini untuk HARI INI: mode 'biasa' memakai jadwal
+  // induk (atau jadwal Sabtu bila hari ini Sabtu), mode 'shift' mengikuti shift
+  // (1/2) yang ditetapkan admin → batas Terlambat ikut shift.
+  const jadwal = await getJadwal(employeeId, tanggal)
   const { status: statusJam, alasan: alasanJam } = hitungStatusAbsen(jadwal, jam)
   // Absensi di luar hari kerja atau pada HARI LIBUR yang terdaftar ditandai agar
   // laporan tidak menghitungnya sebagai hari kerja biasa (Hadir Libur).
@@ -1762,6 +1763,10 @@ export async function rekapHarian(employeeId, mulai, selesai) {
       kategori.set(tanggal, j.startsWith('cuti') ? 'Cuti' : j.startsWith('sakit') ? 'Sakit' : 'Izin')
       continue
     }
+    // Hari masa depan (periode penggajian yang belum selesai) belum bisa
+    // dihukum Alpha — slip & laporan hanya menghitung hari yang SUDAH lewat
+    // sesuai absensi nyata, bukan hari yang belum terjadi.
+    if (tanggal > hariIni) continue
     if (tanggal === hariIni && jamSekarang() < jamPulang) continue // hari belum berakhir
     alpha.push(tanggal)
   }

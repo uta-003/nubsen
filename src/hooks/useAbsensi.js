@@ -33,18 +33,22 @@ export function useAbsensi(enabled = true) {
   const [state, setState] = useState({
     user: null, today: null, history: [], loading: enabled, error: null,
     jadwal: JADWAL_DEFAULT, // jadwal kerja aktif dari server (dapat diubah admin)
+    leaves: [], // pengajuan izin/cuti milik karyawan (untuk banner "Sedang cuti")
   })
 
   const muat = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }))
     try {
-      const [user, today, history, jadwal] = await Promise.all([
+      const [user, today, history, jadwal, leaves] = await Promise.all([
         api.getProfile(),
         api.getToday(),
         api.getHistory(),
         api.getJadwal().catch(() => JADWAL_DEFAULT),
+        // Daftar pengajuan izin/cuti sendiri — dipakai Beranda untuk banner
+        // "Sedang cuti". Gagal (mis. luring) → daftar kosong, banner hilang.
+        api.getLeaves().catch(() => []),
       ])
-      setState({ user, today, history, loading: false, error: null, jadwal: jadwal || JADWAL_DEFAULT })
+      setState({ user, today, history, loading: false, error: null, jadwal: jadwal || JADWAL_DEFAULT, leaves: leaves || [] })
     } catch (e) {
       setState((s) => ({ ...s, loading: false, error: e.message }))
     }
@@ -52,7 +56,7 @@ export function useAbsensi(enabled = true) {
 
   useEffect(() => {
     if (enabled) muat()
-    else setState({ user: null, today: null, history: [], loading: false, error: null, jadwal: JADWAL_DEFAULT })
+    else setState({ user: null, today: null, history: [], loading: false, error: null, jadwal: JADWAL_DEFAULT, leaves: [] })
   }, [enabled, muat])
 
   // Setelah mutasi (absen/izin), segarkan data secara latar belakang. PROFIL ikut
@@ -60,12 +64,13 @@ export function useAbsensi(enabled = true) {
   // langsung berkurang/terbarui tanpa perlu menutup aplikasi.
   const segarkan = useCallback(async () => {
     try {
-      const [profil, today, history] = await Promise.all([
+      const [profil, today, history, leaves] = await Promise.all([
         api.getProfile(),
         api.getToday(),
         api.getHistory(),
+        api.getLeaves().catch(() => []),
       ])
-      setState((s) => ({ ...s, user: profil || s.user, today, history }))
+      setState((s) => ({ ...s, user: profil || s.user, today, history, leaves: leaves || s.leaves }))
     } catch {
       /* biarkan data lama; error sudah ditangani pemanggil */
     }

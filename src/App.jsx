@@ -30,7 +30,7 @@ export default function App() {
   const [authUser, setAuthUser] = useState(null)
   const [authSiap, setAuthSiap] = useState(false)
   const authed = !!authUser
-  const { user, today, history, loading, error, catatCheckIn, catatCheckOut, ajukanIzin, muatUlang, segarkanData, jadwal } =
+  const { user, today, history, loading, error, catatCheckIn, catatCheckOut, ajukanIzin, muatUlang, segarkanData, jadwal, leaves } =
     useAbsensi(authed)
   // Mode luring — status koneksi + antrean + sinkron otomatis (utils/luring.js).
   // Callback lewat ref agar identitasnya stabil (hook tak perlu re-subscribe).
@@ -426,6 +426,7 @@ export default function App() {
                 today={today || { tanggal: '', checkIn: null, checkOut: null, status: null, keterangan: '' }}
                 history={history}
                 jadwal={jadwal}
+                leaves={leaves}
                 onCheckIn={handleCheckIn}
                 onCheckOut={handleCheckOut}
                 goToIzin={() => bukaPengajuan('izin')}

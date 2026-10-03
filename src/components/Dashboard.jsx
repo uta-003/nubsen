@@ -12,7 +12,7 @@ import InfoKantor from './InfoKantor'
 import usePengingat from '../hooks/usePengingat'
 import { JADWAL_DEFAULT } from '../hooks/useAbsensi'
 
-export default function Dashboard({ user, today, history = [], onCheckIn, onCheckOut, goToIzin, jadwal = JADWAL_DEFAULT }) {
+export default function Dashboard({ user, today, history = [], onCheckIn, onCheckOut, goToIzin, jadwal = JADWAL_DEFAULT, leaves = [] }) {
   const [now, setNow] = useState(new Date())
   const [modal, setModal] = useState(null) // 'in' | 'out' | null
   const [lokasi, setLokasi] = useState(null)
@@ -112,6 +112,26 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
   const bukanHariKerja = !!liburHariIni || !hariKerjaSet.includes(now.getDay())
   const liburDepan = bukanHariKerja ? null : liburBerikutnya(now)
 
+  // --- Sedang cuti / izin (banner Beranda) ---
+  // Pengajuan berstatus Disetujui yang rentang tanggalnya mencakup hari ini.
+  // Bandingkan lewat stempel waktu (bukan string) agar aman terhadap format
+  // tanggal; stempel "habis hari terakhir" (23:59) tetap terhitung.
+  const hariIniStamp = new Date(`${hariIniIso}T00:00:00`).getTime()
+  const cutiAktif = leaves.find(
+    (l) =>
+      l.status === 'Disetujui' &&
+      new Date(`${l.mulai}T00:00:00`).getTime() <= hariIniStamp &&
+      hariIniStamp <= new Date(`${l.selesai}T23:59:59`).getTime(),
+  ) || null
+  // Emoji + label sesuai jenis pengajuan (Cuti / Izin / Sakit).
+  const labelCuti = cutiAktif
+    ? cutiAktif.jenis && cutiAktif.jenis.toLowerCase().includes('cuti')
+      ? { ikon: '🌴', label: 'Sedang cuti' }
+      : cutiAktif.jenis && cutiAktif.jenis.toLowerCase().includes('sakit')
+        ? { ikon: '🤒', label: 'Sedang sakit (izin)' }
+        : { ikon: '📝', label: 'Sedang izin' }
+    : null
+
   // Countdown live — pakai jadwal kerja aktif dari server (jam masuk batas & jam pulang)
   const toDetik = (hhmm) => {
     const [j, m] = (hhmm || '00:00').split(':').map(Number)
@@ -121,7 +141,7 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
   let countdown = null
   // Di hari libur/non-kerja tidak ada countdown masuk — "batas terlewat" di hari
   // Minggu/libur justru menyesatkan (tidak ada kewajiban absen hari itu).
-  if (!sudahMasuk && !bukanHariKerja) {
+  if (!sudahMasuk && !bukanHariKerja && !cutiAktif) {
     const sisa = toDetik(jamMasukBatas) - detikKini
     countdown =
       sisa > 0
@@ -243,6 +263,19 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
           </div>
         </div>
       </div>
+
+      {/* Sedang cuti / izin disetujui — banner beranda selama rentang cuti */}
+      {cutiAktif && (
+        <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+          <p className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
+            {labelCuti.ikon} {labelCuti.label} — hingga {formatTanggalPendek(new Date(`${cutiAktif.selesai}T00:00:00`))}
+          </p>
+          <p className="mt-0.5 text-[11px] text-indigo-600/80 dark:text-indigo-400/80">
+            Tidak wajib absen selama masa {cutiAktif.jenis ? cutiAktif.jenis.toLowerCase() : 'izin'} ini.
+            {cutiAktif.keterangan ? ` Catatan: ${cutiAktif.keterangan}` : ''}
+          </p>
+        </div>
+      )}
 
       {/* Hari libur / bukan hari kerja — menggantikan countdown agar tidak
           muncul "batas masuk terlewat" yang menyesatkan di hari non-kerja. */}

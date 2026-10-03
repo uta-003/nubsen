@@ -204,7 +204,7 @@ const NAMA_HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 // pengingat, serta perhitungan hari kerja pada laporan/gaji langsung mengikuti.
 function KelolaJadwal() {
   const [mode, setMode] = useState('biasa')
-  const [form, setForm] = useState({ jamMasukBatas: '', jamPulang: '' })
+  const [form, setForm] = useState({ jamMasukBatas: '', jamPulang: '', jamMasukBatasSabtu: '', jamPulangSabtu: '' })
   const [shift, setShift] = useState({
     1: { nama: '', masuk: '', batas: '', pulang: '' },
     2: { nama: '', masuk: '', batas: '', pulang: '' },
@@ -223,7 +223,12 @@ function KelolaJadwal() {
     api.adminGetJadwal()
       .then((d) => {
         setMode(d.mode === 'shift' ? 'shift' : 'biasa')
-        setForm({ jamMasukBatas: d.jamMasukBatas, jamPulang: d.jamPulang })
+        setForm({
+          jamMasukBatas: d.jamMasukBatas,
+          jamPulang: d.jamPulang,
+          jamMasukBatasSabtu: d.jamMasukBatasSabtu || '',
+          jamPulangSabtu: d.jamPulangSabtu || '',
+        })
         setShift({
           1: { nama: d.shift1?.nama || '', masuk: d.shift1?.masuk || '', batas: d.shift1?.batas || '', pulang: d.shift1?.pulang || '' },
           2: { nama: d.shift2?.nama || '', masuk: d.shift2?.masuk || '', batas: d.shift2?.batas || '', pulang: d.shift2?.pulang || '' },
@@ -254,6 +259,9 @@ function KelolaJadwal() {
         mode,
         jamMasukBatas: form.jamMasukBatas,
         jamPulang: form.jamPulang,
+        // Jadwal khusus Sabtu (mode Biasa) — kosong = ikut Senin–Jumat.
+        jamMasukBatasSabtu: form.jamMasukBatasSabtu,
+        jamPulangSabtu: form.jamPulangSabtu,
         hariKerja,
         shift1: shift[1],
         shift2: shift[2],
@@ -279,9 +287,12 @@ function KelolaJadwal() {
       const soalNotif = d.notifikasiDikirim
         ? 'Notifikasi perubahan sudah dikirim ke seluruh karyawan.'
         : 'Tidak ada nilai yang berubah, jadi notifikasi tidak dikirim.'
+      const sabtuTeks = d.jamMasukBatasSabtu && d.jamPulangSabtu
+        ? `; Sabtu masuk batas ${d.jamMasukBatasSabtu}, pulang ${d.jamPulangSabtu}`
+        : ''
       const ringkas = d.mode === 'shift'
         ? `Mode SHIFT aktif — ${d.shift1.nama} (batas ${d.shift1.batas}, pulang ${d.shift1.pulang}) & ${d.shift2.nama} (batas ${d.shift2.batas}, pulang ${d.shift2.pulang})`
-        : `Mode BIASA aktif — masuk batas ${d.jamMasukBatas}, pulang ${d.jamPulang}`
+        : `Mode BIASA aktif — masuk batas ${d.jamMasukBatas}, pulang ${d.jamPulang}${sabtuTeks}`
       setPesan({ ok: true, teks: `Jadwal tersimpan — ${ringkas}, hari kerja ${labelHari}.${soalShift} ${soalNotif}` })
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
@@ -296,8 +307,11 @@ function KelolaJadwal() {
   const alihHari = (n) =>
     setHariKerja((h) => (h.includes(n) ? h.filter((x) => x !== n) : [...h, n].sort((a, b) => a - b)))
   const jamSah = (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v || '')
+  // Jadwal Sabtu (mode Biasa): boleh kosong (ikut Senin–Jumat) atau KEDUANYA sah.
+  const sabtuSah = mode !== 'biasa' || (!form.jamMasukBatasSabtu && !form.jamPulangSabtu) ||
+    (jamSah(form.jamMasukBatasSabtu) && jamSah(form.jamPulangSabtu))
   // Mode biasa: jam kantor wajib sah. Mode shift: KEDUA shift wajib lengkap sah.
-  const siapSimpan = hariKerja.length > 0 && (mode === 'shift'
+  const siapSimpan = hariKerja.length > 0 && sabtuSah && (mode === 'shift'
     ? [1, 2].every((n) => jamSah(shift[n].masuk) && jamSah(shift[n].batas) && jamSah(shift[n].pulang))
     : jamSah(form.jamMasukBatas) && jamSah(form.jamPulang))
 
@@ -349,15 +363,44 @@ function KelolaJadwal() {
         </h2>
 
         {mode === 'biasa' ? (
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="label">Jam Masuk (Batas)</span>
-              <input type="time" value={form.jamMasukBatas} onChange={ubah('jamMasukBatas')} className="input !px-3" />
-            </label>
-            <label className="block">
-              <span className="label">Jam Pulang</span>
-              <input type="time" value={form.jamPulang} onChange={ubah('jamPulang')} className="input !px-3" />
-            </label>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="label">Jam Masuk (Batas)</span>
+                <input type="time" value={form.jamMasukBatas} onChange={ubah('jamMasukBatas')} className="input !px-3" />
+              </label>
+              <label className="block">
+                <span className="label">Jam Pulang</span>
+                <input type="time" value={form.jamPulang} onChange={ubah('jamPulang')} className="input !px-3" />
+              </label>
+            </div>
+            {/* Senin–Jumat memakai jam umum di atas; Sabtu boleh punya jam masuk
+                & pulang SENDIRI (mis. setengah hari). Kosong = ikut Sen–Jum. */}
+            <div
+              className={`rounded-[1.4rem] border p-3.5 transition ${
+                form.jamMasukBatasSabtu && form.jamPulangSabtu
+                  ? 'border-indigo-200 bg-indigo-50/50 dark:border-indigo-500/25 dark:bg-indigo-500/[.07]'
+                  : 'border-slate-200 bg-slate-50/60 dark:border-slate-700 dark:bg-slate-800/40'
+              }`}
+            >
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Jadwal Sabtu (opsional)</p>
+              <div className="grid grid-cols-2 gap-2.5">
+                <label className="block">
+                  <span className="label">Jam Masuk Sabtu (Batas)</span>
+                  <input type="time" value={form.jamMasukBatasSabtu} onChange={ubah('jamMasukBatasSabtu')} className="input !px-3" />
+                </label>
+                <label className="block">
+                  <span className="label">Jam Pulang Sabtu</span>
+                  <input type="time" value={form.jamPulangSabtu} onChange={ubah('jamPulangSabtu')} className="input !px-3" />
+                </label>
+              </div>
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+                Senin–Jumat memakai jam di atas; bila Sabtu jam kerjanya berbeda, isi <b>kedua</b> jam —
+                check-in, countdown Beranda, dan status Terlambat otomatis memakai jadwal Sabtu. Kosongkan
+                = Sabtu ikut Senin–Jumat. Tandai <b>Sab</b> pada Hari Kerja bila Sabtu dihitung hari kerja
+                pada laporan &amp; gaji.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -481,7 +524,8 @@ function KelolaJadwal() {
       <p className="rounded-3xl bg-indigo-50 p-4 text-xs leading-relaxed text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
         ⏰ <b>Cara kerja:</b> check-in setelah <b>Batas Terlambat</b> otomatis berstatus <b>Terlambat</b> (dihitung di server,
         tahan manipulasi jam HP). Countdown di Beranda, pengingat notifikasi, dan tulisan &quot;Batas:&quot; mengikuti jadwal ini.
-        Format 24 jam HH:MM. <b>Jadwal Biasa</b> memakai satu jam kerja untuk semua; <b>Jadwal Shift</b> memakai dua giliran
+        Format 24 jam HH:MM. <b>Jadwal Biasa</b> memakai satu jam kerja untuk semua (Sabtu bisa punya jam
+        masuk/pulang sendiri — lihat <b>Jadwal Sabtu</b>); <b>Jadwal Shift</b> memakai dua giliran
         sehingga batas terlambat &amp; jam pulang otomatis mengikuti shift masing-masing karyawan (atur shift-nya di tab
         <b> Karyawan</b>). Pilihan <b>Hari Kerja</b> dipakai untuk menghitung hari kerja pada laporan &amp; gaji — pilih
         <b> Sen–Sab</b> bila perusahaan bekerja enam hari.
