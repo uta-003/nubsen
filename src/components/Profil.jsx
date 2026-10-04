@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Briefcase, Building2, Mail, Phone, MapPinned, BadgeCheck, Award, Plane, LogOut, HelpCircle,
   ChevronRight, KeyRound, Eye, EyeOff, Loader2, Wallet, FileWarning, ShieldCheck, Sparkles, CalendarRange,
 } from 'lucide-react'
 import { USER_DEFAULT } from '../hooks/useAbsensi'
 import { STATUS_IZIN_DATANG } from '../utils/statistik'
+import { formatTanggalPendek } from '../utils/date'
 import * as api from '../api'
 import Bantuan from './Bantuan'
 import SlipGaji from './SlipGaji'
@@ -12,31 +13,19 @@ import SuratKertas from './SuratKertas'
 import RekapDetail from './RekapDetail'
 import RiwayatDetail from './RiwayatDetail'
 
-// Pilihan PERIODE rekap kehadiran (murni tampilan — menyaring riwayat absensi).
-const PERIODE = [
-  ['semua', 'Semua'],
-  ['bulan', 'Bulan ini'],
-  ['30', '30 hari'],
-  ['tahun', 'Tahun ini'],
-]
-
-// Saring riwayat absensi sesuai periode terpilih (client-side).
+// Saring riwayat absensi menurut RENTANG PERIODE PENGGAJIAN yang ditetapkan admin
+// (panel → tab Gaji → Periode Penggajian). Rekap TIDAK lagi memakai bulan
+// berjalan / 30 hari / tahun berjalan agar angkanya sejalan dengan slip gaji
+// karyawan. Bila admin belum menetapkan periode apa pun, seluruh riwayat dipakai.
 function saringPeriode(history, periode) {
-  if (periode === 'semua') return history
-  const d = new Date()
-  const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
-  if (periode === 'bulan') {
-    const awal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-    return history.filter((h) => h.tanggal >= awal)
-  }
-  if (periode === 'tahun') return history.filter((h) => h.tanggal >= `${d.getFullYear()}-01-01`)
-  if (periode === '30') {
-    const batas = new Date(d)
-    batas.setDate(batas.getDate() - 29)
-    const awal = iso(batas)
-    return history.filter((h) => h.tanggal >= awal)
-  }
-  return history
+  if (!periode) return history
+  return history.filter((h) => h.tanggal >= periode.dari && h.tanggal <= periode.sampai)
+}
+
+// Label rentang satu periode, mis. "1 Sep 2026 – 30 Sep 2026".
+function labelRentang(periode) {
+  if (!periode) return ''
+  return `${formatTanggalPendek(periode.dari)} – ${formatTanggalPendek(periode.sampai)}`
 }
 
 export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }) {
@@ -44,8 +33,12 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
   const [slipOpen, setSlipOpen] = useState(false)
   // Kartu Keamanan dilipat agar halaman tetap ringkas & mudah dipindai.
   const [bukaPin, setBukaPin] = useState(false)
-  // Filter periode rekap + kategori yang sedang dibuka detailnya.
-  const [periode, setPeriode] = useState('semua')
+  // Periode rekap kehadiran = PERIODE PENGGAJIAN yang ditetapkan admin (tab Gaji).
+  // Daftar periode + periode AKTIF diambil sekali dari /api/slip (tak ada request baru).
+  const [periodeGaji, setPeriodeGaji] = useState([])
+  const [periodeId, setPeriodeId] = useState(null)
+  const [memuatPeriode, setMemuatPeriode] = useState(true)
+  // Kategori rekap yang lembar rinciannya sedang dibuka.
   const [detailKategori, setDetailKategori] = useState(null) // 'Hadir' | 'Terlambat' | ...
   const [detailRiwayat, setDetailRiwayat] = useState(null) // satu catatan → RiwayatDetail
   // Warna angka rekap per status — hierarki visual kekinian.
@@ -63,8 +56,31 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
     Izin: 'bg-sky-500',
     Alpha: 'bg-rose-500',
   }
-  // Riwayat yang sudah disaring sesuai PERIODE terpilih.
-  const historyPeriode = useMemo(() => saringPeriode(history, periode), [history, periode])
+  // Periode penggajian dimuat sekali saat halaman dibuka. Periode AKTIF (yang
+  // ditetapkan admin) jadi pilihan awal; karyawan tetap boleh memilih periode lain.
+  useEffect(() => {
+    let batal = false
+    api.getSlipGaji()
+      .then((d) => {
+        if (batal) return
+        setPeriodeGaji(Array.isArray(d?.daftar) ? d.daftar : [])
+        setPeriodeId(d?.periode?.id ?? null)
+      })
+      .catch(() => { /* tanpa periode → rekap memakai seluruh riwayat */ })
+      .finally(() => { if (!batal) setMemuatPeriode(false) })
+    return () => { batal = true }
+  }, [])
+
+  // Periode penggajian yang sedang dipilih (null = admin belum menetapkan).
+  const periodeDipilih = useMemo(
+    () => periodeGaji.find((p) => p.id === periodeId) || null,
+    [periodeGaji, periodeId],
+  )
+  // Riwayat yang sudah disaring sesuai RENTANG periode penggajian terpilih.
+  const historyPeriode = useMemo(
+    () => saringPeriode(history, periodeDipilih),
+    [history, periodeDipilih],
+  )
   const stats = useMemo(() => {
     const s = { Hadir: 0, Terlambat: 0, 'Datang Terlambat': 0, Izin: 0, Alpha: 0 }
     historyPeriode.forEach((h) => {
@@ -196,26 +212,43 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
             {historyPeriode.length} catatan
           </span>
         </div>
-        {/* Pilih periode — angka & rincian mengikuti rentang ini. */}
-        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        {/* Pilih PERIODE PENGGAJIAN dari admin — angka & rincian mengikuti rentangnya. */}
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-            <CalendarRange size={12} /> Periode
+            <CalendarRange size={12} /> Periode Gaji
           </span>
-          {PERIODE.map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setPeriode(id)}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition active:scale-95 ${
-                periode === id
-                  ? 'bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-500/30'
-                  : 'bg-slate-100 text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+          {memuatPeriode ? (
+            <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+              <Loader2 size={11} className="animate-spin" /> Memuat periode…
+            </span>
+          ) : periodeGaji.length === 0 ? (
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              Seluruh riwayat
+            </span>
+          ) : (
+            periodeGaji.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPeriodeId(p.id)}
+                title={labelRentang(p)}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition active:scale-95 ${
+                  periodeDipilih?.id === p.id
+                    ? 'bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-500/30'
+                    : 'bg-slate-100 text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                }`}
+              >
+                {p.nama}
+                {p.aktif && <span className="ml-1 font-extrabold opacity-90">• aktif</span>}
+              </button>
+            ))
+          )}
         </div>
+        <p className="mb-3 text-[10px] font-semibold text-slate-400">
+          {periodeDipilih
+            ? `${labelRentang(periodeDipilih)} — mengikuti periode penggajian yang ditetapkan admin`
+            : 'Admin belum menetapkan periode penggajian — rekap menampilkan seluruh riwayat absensi.'}
+        </p>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
           {Object.entries(stats).map(([k, v], i) => (
             <button
@@ -236,7 +269,7 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
           ))}
         </div>
         <p className="mt-2.5 text-[10px] leading-relaxed text-slate-400">
-          Ketuk salah satu petak untuk melihat tanggal-tanggalnya pada periode terpilih.
+          Ketuk salah satu petak untuk melihat tanggal-tanggalnya pada periode gaji terpilih.
           &quot;Datang Terlambat&quot; = izin datang terlambat/siang — tetap dihitung Hadir pada
           laporan &amp; slip gaji.
         </p>

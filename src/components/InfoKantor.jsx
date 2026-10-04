@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Building2, MapPin, Navigation, Route, ExternalLink, Copy, Check } from 'lucide-react'
-import { KANTOR, statusGeofence } from '../utils/geo'
+import { KANTOR, statusGeofence, bboxSekitar } from '../utils/geo'
 
 // Kartu Info Kantor: identitas kantor + peta OpenStreetMap (iframe embed,
 // tanpa API key) + jarak live pengguna ke kantor + tombol arah & salin alamat.
@@ -38,7 +38,7 @@ export default function InfoKantor({ lokasi = null }) {
       <div className="relative h-52 w-full border-y border-slate-100 dark:border-slate-800">
         <iframe
           title={`Peta ${KANTOR.nama}`}
-          src={`https://www.openstreetmap.org/export/embed.html?bbox=${KANTOR.lon + 0.004},${KANTOR.lat - 0.002},${KANTOR.lon - 0.004},${KANTOR.lat + 0.002}&layer=mapnik&marker=${KANTOR.lat},${KANTOR.lon}`}
+          src={`https://www.openstreetmap.org/export/embed.html?bbox=${bboxSekitar(KANTOR.lat, KANTOR.lon)}&layer=mapnik&marker=${KANTOR.lat},${KANTOR.lon}`}
           className="h-full w-full"
           loading="lazy"
         />
