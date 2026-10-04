@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   Briefcase, Building2, Mail, Phone, MapPinned, BadgeCheck, Award, Plane, LogOut, HelpCircle,
-  ChevronRight, KeyRound, Eye, EyeOff, Loader2, Wallet, FileWarning, ShieldCheck, Sparkles,
+  ChevronRight, KeyRound, Eye, EyeOff, Loader2, Wallet, FileWarning, ShieldCheck, Sparkles, CalendarRange,
 } from 'lucide-react'
 import { USER_DEFAULT } from '../hooks/useAbsensi'
 import { STATUS_IZIN_DATANG } from '../utils/statistik'
@@ -9,44 +9,89 @@ import * as api from '../api'
 import Bantuan from './Bantuan'
 import SlipGaji from './SlipGaji'
 import SuratKertas from './SuratKertas'
+import RekapDetail from './RekapDetail'
+import RiwayatDetail from './RiwayatDetail'
+
+// Pilihan PERIODE rekap kehadiran (murni tampilan — menyaring riwayat absensi).
+const PERIODE = [
+  ['semua', 'Semua'],
+  ['bulan', 'Bulan ini'],
+  ['30', '30 hari'],
+  ['tahun', 'Tahun ini'],
+]
+
+// Saring riwayat absensi sesuai periode terpilih (client-side).
+function saringPeriode(history, periode) {
+  if (periode === 'semua') return history
+  const d = new Date()
+  const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+  if (periode === 'bulan') {
+    const awal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    return history.filter((h) => h.tanggal >= awal)
+  }
+  if (periode === 'tahun') return history.filter((h) => h.tanggal >= `${d.getFullYear()}-01-01`)
+  if (periode === '30') {
+    const batas = new Date(d)
+    batas.setDate(batas.getDate() - 29)
+    const awal = iso(batas)
+    return history.filter((h) => h.tanggal >= awal)
+  }
+  return history
+}
 
 export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }) {
   const [bantuanOpen, setBantuanOpen] = useState(false)
   const [slipOpen, setSlipOpen] = useState(false)
   // Kartu Keamanan dilipat agar halaman tetap ringkas & mudah dipindai.
   const [bukaPin, setBukaPin] = useState(false)
+  // Filter periode rekap + kategori yang sedang dibuka detailnya.
+  const [periode, setPeriode] = useState('semua')
+  const [detailKategori, setDetailKategori] = useState(null) // 'Hadir' | 'Terlambat' | ...
+  const [detailRiwayat, setDetailRiwayat] = useState(null) // satu catatan → RiwayatDetail
   // Warna angka rekap per status — hierarki visual kekinian.
   const WARNA_STAT = {
     Hadir: 'text-emerald-600 dark:text-emerald-400',
     Terlambat: 'text-amber-600 dark:text-amber-400',
+    'Datang Terlambat': 'text-teal-600 dark:text-teal-400',
     Izin: 'text-sky-600 dark:text-sky-400',
-    'Izin Terlambat': 'text-teal-600 dark:text-teal-400',
     Alpha: 'text-rose-600 dark:text-rose-400',
   }
   const AKSEN_STAT = {
     Hadir: 'bg-emerald-500',
     Terlambat: 'bg-amber-500',
+    'Datang Terlambat': 'bg-teal-500',
     Izin: 'bg-sky-500',
-    'Izin Terlambat': 'bg-teal-500',
     Alpha: 'bg-rose-500',
   }
+  // Riwayat yang sudah disaring sesuai PERIODE terpilih.
+  const historyPeriode = useMemo(() => saringPeriode(history, periode), [history, periode])
   const stats = useMemo(() => {
-    const s = { Hadir: 0, Terlambat: 0, Izin: 0, Alpha: 0 }
-    history.forEach((h) => {
-      // Hari IZIN DATANG (nama baru "Izin Terlambat", nama lama "Izin Datang
-      // Siang") = KEHADIRAN: karyawan tetap masuk kerja, hanya jam masuknya
-      // lewat → dihitung HADIR (gaji harian & uang makan tetap dibayar), sama
-      // dengan laporan admin, slip gaji, dan kartu Statistik Mingguan.
-      const kunci = STATUS_IZIN_DATANG.includes(h.status) ? 'Hadir' : h.status
-      if (s[kunci] !== undefined) s[kunci]++
+    const s = { Hadir: 0, Terlambat: 0, 'Datang Terlambat': 0, Izin: 0, Alpha: 0 }
+    historyPeriode.forEach((h) => {
+      // Hari IZIN DATANG (status "Izin Terlambat"/"Izin Datang Siang") = KEHADIRAN:
+      // karyawan tetap masuk kerja (hanya jam masuknya lewat) → dihitung HADIR
+      // (gaji harian & uang makan tetap dibayar), dan dilaporkan TERPISAH sebagai
+      // petak "Datang Terlambat" agar mudah ditelusuri per tanggal.
+      if (STATUS_IZIN_DATANG.includes(h.status)) {
+        s.Hadir++
+        s['Datang Terlambat']++
+        return
+      }
+      if (s[h.status] !== undefined) s[h.status]++
     })
     return s
-  }, [history])
-  // Catatan: berapa di antara hari Hadir itu yang memakai izin datang.
-  const izinDatang = useMemo(
-    () => history.filter((h) => STATUS_IZIN_DATANG.includes(h.status)).length,
-    [history],
-  )
+  }, [historyPeriode])
+  // Catatan per kategori sesuai PERIODE — dipakai lembar rincian saat petak diketik.
+  const rekDetail = useMemo(() => {
+    if (!detailKategori) return []
+    if (detailKategori === 'Hadir') {
+      return historyPeriode.filter((h) => h.status === 'Hadir' || STATUS_IZIN_DATANG.includes(h.status))
+    }
+    if (detailKategori === 'Datang Terlambat') {
+      return historyPeriode.filter((h) => STATUS_IZIN_DATANG.includes(h.status))
+    }
+    return historyPeriode.filter((h) => h.status === detailKategori)
+  }, [detailKategori, historyPeriode])
 
   const inisial = user.nama
     .split(' ')
@@ -140,26 +185,61 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
 
       {/* ===== REKAP KEHADIRAN — petak statistik beraksen warna ===== */}
       <div className="card animate-rise mb-4" style={{ animationDelay: '50ms' }}>
-        <h2 className="judul-seksi mb-3">
-          <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-50 text-amber-500 dark:bg-amber-500/15">
-            <Award size={14} />
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <h2 className="judul-seksi">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-50 text-amber-500 dark:bg-amber-500/15">
+              <Award size={14} />
+            </span>
+            Rekap Kehadiran
+          </h2>
+          <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+            {historyPeriode.length} catatan
           </span>
-          Rekap Kehadiran
-          <span className="ml-auto text-[10px] font-semibold text-slate-400">{history.length} catatan</span>
-        </h2>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {Object.entries(stats).map(([k, v], i) => (
-            <div
-              key={k}
-              style={{ animationDelay: `${80 + i * 45}ms` }}
-              className={`stat-tile animate-rise !p-3 text-center ${WARNA_STAT[k] || 'text-slate-500'}`}
+        </div>
+        {/* Pilih periode — angka & rincian mengikuti rentang ini. */}
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+            <CalendarRange size={12} /> Periode
+          </span>
+          {PERIODE.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setPeriode(id)}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition active:scale-95 ${
+                periode === id
+                  ? 'bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-500/30'
+                  : 'bg-slate-100 text-slate-500 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400'
+              }`}
             >
-              <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${AKSEN_STAT[k] || 'bg-slate-300'}`} />
-              <p className="relative z-10 text-2xl font-black leading-none tabular-nums text-slate-800 dark:text-white">{v}</p>
-              <p className="relative z-10 mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{k}</p>
-            </div>
+              {label}
+            </button>
           ))}
         </div>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+          {Object.entries(stats).map(([k, v], i) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setDetailKategori(k)}
+              title={`Lihat rincian ${k}`}
+              style={{ animationDelay: `${80 + i * 45}ms` }}
+              className={`stat-tile animate-rise !p-2.5 text-center transition hover:-translate-y-0.5 ${WARNA_STAT[k] || 'text-slate-500'}`}
+            >
+              <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${AKSEN_STAT[k] || 'bg-slate-300'}`} />
+              <p className="relative z-10 text-xl font-black leading-none tabular-nums text-slate-800 dark:text-white sm:text-2xl">{v}</p>
+              <p className="relative z-10 mt-1 text-[9px] font-bold uppercase leading-tight tracking-wide text-slate-400">{k}</p>
+              <span className="relative z-10 mt-0.5 inline-flex items-center justify-center gap-0.5 text-[9px] font-bold text-indigo-400">
+                Rincian <ChevronRight size={10} />
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="mt-2.5 text-[10px] leading-relaxed text-slate-400">
+          Ketuk salah satu petak untuk melihat tanggal-tanggalnya pada periode terpilih.
+          &quot;Datang Terlambat&quot; = izin datang terlambat/siang — tetap dihitung Hadir pada
+          laporan &amp; slip gaji.
+        </p>
       </div>
 
       {/* ===== SISA CUTI — bar progres gradasi ===== */}
@@ -362,6 +442,15 @@ export default function Profil({ user = USER_DEFAULT, history, onLogout, toast }
       <p className="mt-5 text-center text-[11px] text-slate-400">
         NUBSEN v2.0 • Cukup Satu Klik!
       </p>
+
+      {/* Lembar RINCIAN rekap (dibuka dari petak Rekap Kehadiran) + detail satu absensi. */}
+      <RekapDetail
+        kategori={detailKategori}
+        records={rekDetail}
+        onClose={() => setDetailKategori(null)}
+        onBuka={(rec) => setDetailRiwayat(rec)}
+      />
+      <RiwayatDetail rec={detailRiwayat} onClose={() => setDetailRiwayat(null)} />
     </div>
   )
 }

@@ -310,6 +310,26 @@ export async function listPiket(employeeId) {
   return rows.map(piketToClient)
 }
 
+// Piket yang sudah DISETUJUI milik seorang karyawan pada satu tanggal (default:
+// hari ini). Dipakai untuk membuka absensi pada hari libur/tanggal merah: hanya
+// petugas piket yang boleh absen, dan absennya tetap dicatat sebagai "Hadir Libur".
+export async function piketDisetujuiHariIni(employeeId, tanggal = null) {
+  const tgl = tanggal || toISODate()
+  const r = await db.get(
+    `SELECT id, tanggal, jam_mulai, jam_selesai, keterangan FROM piket
+     WHERE employee_id = ? AND tanggal = ? AND status = 'Disetujui' LIMIT 1`,
+    [employeeId, tgl],
+  )
+  if (!r) return null
+  return {
+    id: r.id,
+    tanggal: r.tanggal,
+    jamMulai: r.jam_mulai || '',
+    jamSelesai: r.jam_selesai || '',
+    keterangan: r.keterangan || '',
+  }
+}
+
 // Daftar piket SELURUH karyawan untuk panel admin — plus penanda berapa piket
 // yang sudah disetujui (dipakai untuk menghitung biaya piket di slip).
 export async function listSemuaPiket() {
@@ -1046,6 +1066,40 @@ export async function tambahHariLibur(tanggal, nama) {
 export async function hapusHariLibur(tanggal) {
   const info = await db.run('DELETE FROM holidays WHERE tanggal = ?', [tanggal])
   return info.changes > 0
+}
+
+// Detail satu tanggal libur (nasional resmi / cuti bersama / khusus admin) → 
+// { tanggal, nama, sumber } | null. Dipakai penguncian absensi & tampilan banner.
+export async function detailHariLibur(tanggal) {
+  const r = await db.get('SELECT tanggal, nama, sumber FROM holidays WHERE tanggal = ?', [tanggal])
+  if (!r) return null
+  return { tanggal: r.tanggal, nama: r.nama, sumber: r.sumber === 'resmi' ? 'resmi' : 'admin' }
+}
+
+// Bolehkah karyawan ABSEN hari ini?
+//   * Hari kerja biasa            → BOLEH (absen normal).
+//   * Hari libur/tanggal merah
+//     ATAU hari di luar jadwal    → HANYA BOLEH bila ia bertugas PIKET
+//                                   (disetujui) hari itu; selain itu dikunci.
+// Mengembalikan { boleh, hariLibur, libur, piket, alasan }.
+export async function izinAbsenHariIni(employeeId, tanggal = null) {
+  const tgl = tanggal || toISODate()
+  const aktif = await hariKerjaAktif()
+  const diLuarJadwal = !aktif.includes(new Date(`${tgl}T00:00:00Z`).getUTCDay())
+  const libur = await detailHariLibur(tgl)
+  const hariLibur = !!libur || diLuarJadwal
+  if (!hariLibur) return { boleh: true, hariLibur: false, libur: null, piket: null, alasan: '' }
+  const piket = await piketDisetujuiHariIni(employeeId, tgl)
+  if (piket) return { boleh: true, hariLibur: true, libur, piket, alasan: '' }
+  return {
+    boleh: false,
+    hariLibur: true,
+    libur,
+    piket: null,
+    alasan: libur
+      ? `Hari ini libur (${libur.nama}). Absen dinonaktifkan — hanya petugas piket yang boleh absen.`
+      : 'Hari ini bukan hari kerja. Absen dinonaktifkan — hanya petugas piket yang boleh absen.',
+  }
 }
 // ---------- Panel Admin: laporan kehadiran (export Excel/PDF) ----------
 // Hari kerja = hari yang aktif pada pengaturan jadwal (default Senin–Jumat) dalam

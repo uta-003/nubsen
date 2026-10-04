@@ -3,6 +3,7 @@ import {
   Bell, Info, CalendarPlus, Clock4, CalendarCheck2, CheckCheck, Loader2, Megaphone, AlertTriangle, CalendarClock, Wallet, ChevronRight, Brush,
 } from 'lucide-react'
 import { getNotifikasi, tandaiNotifikasiDibaca } from '../api'
+import PesanDetail from './PesanDetail'
 
 const JENIS = {
   pengumuman: { Icon: Megaphone, warna: 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400', label: 'Pengumuman' },
@@ -35,7 +36,8 @@ export default function Notifikasi({ onBukaPengumuman }) {
   const [items, setItems] = useState([])
   const [belum, setBelum] = useState(0)
   const [memuat, setMemuat] = useState(true)
-  const [memproses, setMemproses] = useState(false)
+  const [memproses, setMemproses] = useState(null) // true (semua) | id item | null
+  const [detailId, setDetailId] = useState(null) // id notifikasi yang dibuka detailnya
 
   const muat = () =>
     getNotifikasi()
@@ -68,9 +70,27 @@ export default function Notifikasi({ onBukaPengumuman }) {
       await tandaiNotifikasiDibaca({ notifikasi: true })
       await muat()
     } finally {
-      setMemproses(false)
+      setMemproses(null)
     }
   }
+
+  // Tandai SATU notifikasi sudah dibaca — dipakai tombol di lembar detail.
+  const tandaiSatu = async (id) => {
+    if (memproses != null) return
+    setMemproses(id)
+    setItems((arr) => arr.map((n) => (n.id === id ? { ...n, dibaca: true } : n)))
+    setBelum((b) => Math.max(0, b - 1))
+    window.dispatchEvent(new CustomEvent('absenku:notif', { detail: { belumDibaca: Math.max(0, belum - 1) } }))
+    try {
+      await tandaiNotifikasiDibaca({ id })
+      await muat()
+    } finally {
+      setMemproses(null)
+    }
+  }
+
+  // Detail selalu mengikuti data terbaru (mis. setelah ditandai dibaca).
+  const detail = items.find((n) => n.id === detailId) || null
 
   return (
     <div className="animate-fade-in">
@@ -135,7 +155,11 @@ export default function Notifikasi({ onBukaPengumuman }) {
             return (
               <div
                 key={n.id}
-                className={`card flex items-start gap-3 p-4 ${
+                role="button"
+                tabIndex={0}
+                onClick={() => setDetailId(n.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetailId(n.id) } }}
+                className={`card flex cursor-pointer items-start gap-3 p-4 transition hover:-translate-y-0.5 hover:shadow-lg ${
                   !n.dibaca
                     ? penting
                       ? 'ring-1 ring-rose-200 dark:ring-rose-500/30'
@@ -158,14 +182,24 @@ export default function Notifikasi({ onBukaPengumuman }) {
                   {n.pesan && <p className="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{n.pesan}</p>}
                   <p className="mt-1 text-[10px] text-slate-400">{formatWaktu(n.dibuat)}</p>
                 </div>
-                {!n.dibaca && (
-                  <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${penting ? 'bg-rose-500' : 'bg-indigo-500'}`} />
-                )}
+                <span className="flex shrink-0 flex-col items-center gap-1.5 pt-0.5">
+                  {!n.dibaca && (
+                    <span className={`h-2 w-2 rounded-full ${penting ? 'bg-rose-500' : 'bg-indigo-500'}`} />
+                  )}
+                  <ChevronRight size={15} className="text-slate-300 dark:text-slate-600" />
+                </span>
               </div>
             )
           })}
         </div>
       )}
+
+      <PesanDetail
+        item={detail}
+        onClose={() => setDetailId(null)}
+        onTandai={() => { if (detail) tandaiSatu(detail.id) }}
+        memproses={memproses === detail?.id}
+      />
     </div>
   )
 }

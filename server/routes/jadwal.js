@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { getJadwal } from '../db.js'
-import { listHariLibur, izinAktifHariIni } from '../models.js'
+import { listHariLibur, izinAktifHariIni, piketDisetujuiHariIni } from '../models.js'
 import { wrap } from '../utils/wrap.js'
 
 const router = Router()
@@ -10,10 +10,13 @@ const router = Router()
 // ditambah daftar hari libur agar kalender karyawan ikut menandai libur admin.
 // `izinAktif` = pengajuan cuti/izin yang DISETUJUI dan mencakup hari ini →
 // Beranda menampilkan tanda "sedang cuti/izin" (tidak wajib absen, bukan Alpha).
+// `piketHariIni` = piket DISETUJUI hari ini (bila ada) → Beranda tetap membuka
+// tombol absen di hari libur untuk petugas piket.
 router.get('/', wrap(async (req, res) => {
   const data = await getJadwal(req.employeeId)
   data.libur = await listHariLibur()
   data.izinAktif = await izinAktifHariIni(req.employeeId)
+  data.piketHariIni = await piketDisetujuiHariIni(req.employeeId)
   res.json({ data })
 }))
 

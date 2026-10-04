@@ -15,9 +15,11 @@
 
 export const JENIS_NASIONAL = 'nasional' // libur nasional (tanggal merah)
 export const JENIS_CUTI = 'cuti' // cuti bersama
+export const JENIS_ADMIN = 'admin' // libur khusus yang ditetapkan admin di aplikasi
 export const LABEL_JENIS = {
   [JENIS_NASIONAL]: 'Libur Nasional',
   [JENIS_CUTI]: 'Cuti Bersama',
+  [JENIS_ADMIN]: 'Libur Khusus',
 }
 
 // [tanggal ISO, nama resmi, jenis]

@@ -3,6 +3,7 @@ import {
   Megaphone, Info, AlertTriangle, Loader2, RefreshCw, SearchX, Check, CheckCheck, CalendarClock, Bell, ChevronRight,
 } from 'lucide-react'
 import { getNotifikasi, tandaiNotifikasiDibaca } from '../api'
+import PesanDetail from './PesanDetail'
 
 const JENIS = {
   pengumuman: { Icon: Megaphone, warna: 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400', label: 'Pengumuman' },
@@ -31,6 +32,7 @@ export default function Pengumuman({ onBukaNotifikasi }) {
   const [memuat, setMemuat] = useState(true)
   const [penyaring, setPenyaring] = useState('semua')
   const [memproses, setMemproses] = useState(null) // id item yang sedang ditandai | 'semua'
+  const [detailId, setDetailId] = useState(null) // id pengumuman yang sedang dibuka detailnya
 
   const muat = () =>
     getNotifikasi()
@@ -78,6 +80,8 @@ export default function Pengumuman({ onBukaNotifikasi }) {
   }
 
   const terfilter = items.filter((n) => penyaring === 'semua' || n.jenis === penyaring)
+  // Detail selalu mengikuti data terbaru (mis. setelah ditandai dibaca).
+  const detail = items.find((n) => n.id === detailId) || null
 
   return (
     <div className="animate-fade-in">
@@ -176,7 +180,11 @@ export default function Pengumuman({ onBukaNotifikasi }) {
             return (
               <div
                 key={n.id}
-                className={`card animate-rise flex items-start gap-3 p-4 transition ${penting ? 'ring-1 ring-rose-200 dark:ring-rose-500/30' : ''} ${n.dibaca ? 'opacity-70' : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setDetailId(n.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetailId(n.id) } }}
+                className={`card animate-rise flex cursor-pointer items-start gap-3 p-4 transition hover:-translate-y-0.5 hover:shadow-lg ${penting ? 'ring-1 ring-rose-200 dark:ring-rose-500/30' : ''} ${n.dibaca ? 'opacity-70' : ''}`}
                 style={{ animationDelay: `${i * 60}ms` }}
               >
                 <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${warna}`}>
@@ -206,7 +214,7 @@ export default function Pengumuman({ onBukaNotifikasi }) {
                 {/* Tandai satu sebagai dibaca — hanya bila belum dibaca */}
                 {!n.dibaca && (
                   <button
-                    onClick={() => tandaiSatu(n.id)}
+                    onClick={(e) => { e.stopPropagation(); tandaiSatu(n.id) }}
                     disabled={memproses != null}
                     title="Tandai sudah dibaca"
                     aria-label="Tandai sudah dibaca"
@@ -220,6 +228,13 @@ export default function Pengumuman({ onBukaNotifikasi }) {
           })}
         </div>
       )}
+
+      <PesanDetail
+        item={detail}
+        onClose={() => setDetailId(null)}
+        onTandai={() => { if (detail) tandaiSatu(detail.id) }}
+        memproses={memproses === detail?.id}
+      />
     </div>
   )
 }

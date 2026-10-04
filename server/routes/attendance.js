@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { db } from '../db.js'
-import { getToday, catatCheckIn, catatCheckOut, listHistory, toClient, fotoAbsensi } from '../models.js'
+import { getToday, catatCheckIn, catatCheckOut, listHistory, toClient, fotoAbsensi, izinAbsenHariIni } from '../models.js'
 import { saveDataUrl } from '../utils/files.js'
 import { wrap } from '../utils/wrap.js'
 
@@ -41,6 +41,14 @@ router.post('/check-in', wrap(async (req, res) => {
   }
   if (existing?.check_in) {
     return res.status(409).json({ error: 'Anda sudah check-in hari ini.' })
+  }
+  // Penguncian hari libur: pada hari libur/tanggal merah (atau hari di luar
+  // jadwal kerja) absen masuk DITOLAK kecuali karyawan bertugas PIKET hari itu
+  // (disetujui). Petugas piket tetap dicatat sebagai "Hadir Libur" oleh
+  // catatCheckIn (kolom hari_libur = 1).
+  const izin = await izinAbsenHariIni(req.employeeId)
+  if (!izin.boleh) {
+    return res.status(403).json({ error: izin.alasan })
   }
   const row = await catatCheckIn({
     employeeId: req.employeeId,

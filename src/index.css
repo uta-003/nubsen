@@ -221,6 +221,44 @@
 }
 .animate-halo { animation: halo-pulse 2.8s ease-in-out infinite; }
 
+/* ============ Aksen absensi kekinian ============ */
+/* Cincin conic berputar mengelilingi tombol absen — gradasi melingkar dengan
+   lubang di tengah (mask) sehingga tampak seperti ring cahaya yang berputar. */
+.ring-conic {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(126, 151, 205, .95) 70deg,
+    rgba(70, 97, 154, .85) 120deg,
+    transparent 190deg,
+    transparent 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+}
+
+/* Kilau menyapu (sheen) pada kartu/petak — aksen premium saat disinggahi. */
+@keyframes sheen-sweep {
+  from { transform: translateX(-130%); }
+  to { transform: translateX(130%); }
+}
+.sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, .55) 50%, transparent 58%);
+  transform: translateX(-130%);
+  animation: sheen-sweep 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Denyut titik status "live" di judul kartu status. */
+@keyframes dot-ping {
+  0% { transform: scale(.6); opacity: .8; }
+  70%, 100% { transform: scale(2.2); opacity: 0; }
+}
+.animate-dot-ping { animation: dot-ping 1.8s cubic-bezier(0, 0, .2, 1) infinite; }
+
 /* ============ Animasi logo: bersih TANPA border/cincin/stroke ============ */
 /* Hanya glow cahaya lembut di belakang + logo mengambang. Cincin halo (dengan
    segmen navy gelap yang tampak seperti border hitam), ring sonar, titik orbit,
@@ -257,6 +295,8 @@
   .animate-rise, .animate-fade-in, .animate-slide-up, .bar-anim,
   .animate-floaty, .animate-spin-slower, .animate-pulse-slow,
   .logo-wrap, .logo-cahaya, .logo-melayang,
-  .aurora, .animate-halo, .wajah-dash, .wajah-berdenyut { animation: none; }
+  .aurora, .animate-halo, .wajah-dash, .wajah-berdenyut,
+  .animate-dot-ping { animation: none; }
+  .sheen::after { animation: none; }
   .logo-cahaya { opacity: .45; }
 }
