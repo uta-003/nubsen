@@ -1,0 +1,75 @@
+# ============================================================================
+#  Deploy otomatis ke Vercel (PRODUKSI) setiap push ke branch `main`.
+#
+#  Membuat push ke GitHub langsung ter-deploy tanpa menjalankan CLI lokal.
+#  Pola resmi Vercel: `vercel pull` -> `vercel build` -> `vercel deploy --prebuilt`
+#  (menjalankan build memakai pengaturan & variabel lingkungan dari dashboard).
+#
+#  SATU LANGKAH SEKALI SAJA — tambahkan repository secret di GitHub:
+#      Repo -> Settings -> Secrets and variables -> Actions -> New repository secret
+#      Nama : VERCEL_TOKEN
+#      Nilai: token dari https://vercel.com/account/tokens
+#
+#  VERCEL_ORG_ID & VERCEL_PROJECT_ID bukan rahasia (hanya penanda proyek) dan
+#  sudah diisi di bawah, disamakan dengan berkas .vercel/project.json lokal.
+#
+#  Selama secret VERCEL_TOKEN belum diisi, workflow ini DILEWATI dengan aman
+#  (tidak menghasilkan build merah).
+# ============================================================================
+name: Deploy Vercel (produksi)
+
+on:
+  push:
+    branches: [main]
+  # Tombol "Run workflow" manual dari tab Actions.
+  workflow_dispatch:
+
+# Deploy produksi tidak boleh tumpang tindih — batalkan yang masih berjalan.
+concurrency:
+  group: vercel-produksi-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VERCEL_ORG_ID: team_vsL5MOSrLlqCTyOziYPV3OTZ
+  VERCEL_PROJECT_ID: prj_z0gmve8JGeW9yYpRsBvLAKhlIBfV
+
+jobs:
+  deploy:
+    name: Build & deploy produksi
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+
+      - name: Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Cek ketersediaan token Vercel
+        id: cek
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then
+            echo "ada=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ada=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::VERCEL_TOKEN belum diisi — deploy dilewati. Tambahkan secret tersebut untuk mengaktifkan auto-deploy."
+          fi
+
+      - name: Pasang Vercel CLI
+        if: steps.cek.outputs.ada == 'true'
+        run: npm install --global vercel@latest
+
+      - name: Tarik pengaturan & env proyek
+        if: steps.cek.outputs.ada == 'true'
+        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Build produksi
+        if: steps.cek.outputs.ada == 'true'
+        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Deploy ke produksi
+        if: steps.cek.outputs.ada == 'true'
+        run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
