@@ -1,6 +1,57 @@
-import { useState } from 'react'
-import { Building2, MapPin, Navigation, Route, ExternalLink, Copy, Check } from 'lucide-react'
-import { KANTOR, statusGeofence, bboxSekitar } from '../utils/geo'
+import { useEffect, useRef, useState } from 'react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import { Building2, Navigation, Route, Copy, Check } from 'lucide-react'
+import { KANTOR, statusGeofence } from '../utils/geo'
+
+// Peta Leaflet (ubin OpenStreetMap). Leaflet dipakai — bukan iframe embed — supaya
+// atribusi bawaan ("Report a problem | © OpenStreetMap contributors …") bisa
+// dimatikan total dan tampilannya diatur sendiri: zoom in presisi di titik kantor,
+// penanda berdenyut, dan lingkaran radius absen.
+function Peta({ lat, lon, radiusM, nama }) {
+  const wadah = useRef(null)
+  const petaRef = useRef(null)
+
+  useEffect(() => {
+    if (!wadah.current || petaRef.current) return
+    const peta = L.map(wadah.current, {
+      center: [lat, lon],
+      zoom: 18, // zoom in presisi (radius absen hanya ±20 m)
+      zoomControl: true,
+      scrollWheelZoom: false, // jangan ikut menggulir saat halaman di-scroll di HP
+      attributionControl: false, // ← teks atribusi bawaan dihapus
+    })
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(peta)
+    // Lingkaran batas absen (geofence) supaya radiusnya terlihat jelas di peta.
+    L.circle([lat, lon], {
+      radius: radiusM,
+      color: '#7E97CD',
+      weight: 1.5,
+      fillColor: '#7E97CD',
+      fillOpacity: 0.22,
+    }).addTo(peta)
+    // Penanda titik kantor: divIcon (tanpa berkas gambar → bebas urusan aset bundler).
+    L.marker([lat, lon], {
+      icon: L.divIcon({
+        className: '',
+        html: '<span class="peta-titik"><span class="peta-titik-inti"></span></span>',
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      }),
+      keyboard: false,
+    }).addTo(peta)
+    petaRef.current = peta
+    // Ukuran wadah baru pasti setelah animasi masuk kartu selesai.
+    const timer = setTimeout(() => peta.invalidateSize(), 250)
+    return () => {
+      clearTimeout(timer)
+      peta.remove()
+      petaRef.current = null
+    }
+  }, [lat, lon, radiusM, nama])
+
+  return <div ref={wadah} className="peta-lapisan relative z-0 h-full w-full" />
+}
 
 // Kartu Info Kantor: identitas kantor + peta OpenStreetMap (iframe embed,
 // tanpa API key) + jarak live pengguna ke kantor + tombol arah & salin alamat.
@@ -34,16 +85,12 @@ export default function InfoKantor({ lokasi = null }) {
         </div>
       </div>
 
-      {/* Peta OpenStreetMap (embed, tanpa API key) — tinggi responsif */}
+      {/* Peta Leaflet + ubin OpenStreetMap — titik kantor & lingkaran radius absen.
+          Teks atribusi bawaan Leaflet/OSM dimatikan (lihat opsi attributionControl). */}
       <div className="relative h-52 w-full border-y border-slate-100 dark:border-slate-800">
-        <iframe
-          title={`Peta ${KANTOR.nama}`}
-          src={`https://www.openstreetmap.org/export/embed.html?bbox=${bboxSekitar(KANTOR.lat, KANTOR.lon)}&layer=mapnik&marker=${KANTOR.lat},${KANTOR.lon}`}
-          className="h-full w-full"
-          loading="lazy"
-        />
-        {/* Radius geofence 20 m terlalu kecil terlihat dari peta kota — badge info */}
-        <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-slate-900/80 px-3 py-1 text-[10px] font-bold text-white backdrop-blur">
+        <Peta lat={KANTOR.lat} lon={KANTOR.lon} radiusM={KANTOR.radiusM} nama={KANTOR.nama} />
+        {/* Radius geofence 20 m terlalu kecil terlihat tanpa penanda — badge info */}
+        <span className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full border border-white/25 bg-slate-900/80 px-3 py-1 text-[10px] font-bold text-white backdrop-blur">
           📍 Radius absen ±{KANTOR.radiusM} m
         </span>
       </div>

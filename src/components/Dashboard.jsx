@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MapPin, LogIn, LogOut, Navigation, Clock3, Loader2, CalendarCheck2, Bell, Copy, Check, TriangleAlert, Plane, Lock, Brush } from 'lucide-react'
+import { MapPin, LogIn, LogOut, Navigation, Clock3, Loader2, CalendarCheck2, Bell, Copy, Check, TriangleAlert, Plane, Lock, Brush, Fingerprint } from 'lucide-react'
 import { formatJam, formatTanggalLengkap, formatTanggalPendek, sapaanWaktu, durasiKerja, toISODate } from '../utils/date'
 import { ambilCuaca, sapaanCuaca } from '../utils/cuaca'
 import { detailLibur, labelJenisPendek, liburBerikutnya, JENIS_NASIONAL, JENIS_ADMIN } from '../utils/liburIndonesia'
@@ -459,28 +459,48 @@ export default function Dashboard({ user, today, history = [], onCheckIn, onChec
           </div>
         ) : (
           <div className="relative grid place-items-center">
-            {/* Halo gradasi berdenyut + cincin conic berputar — aksen kekinian */}
-            <span aria-hidden className="animate-halo absolute h-44 w-44 rounded-full bg-gradient-to-tr from-indigo-500/45 via-fuchsia-500/40 to-violet-500/45 blur-xl" />
-            <span aria-hidden className="ring-conic animate-spin-slower absolute h-44 w-44 rounded-full" />
+            {/* ===== Tombol absen "orb": sonar mengembang + tepi gradasi berputar =====
+                Dua cincin sonar bergantian bikin tombol terasa hidup; tepi conic
+                berputar memberi kesan cahaya mengelilingi orb. */}
+            <span aria-hidden className="sonar-ring pointer-events-none absolute inset-0 m-auto h-40 w-40 rounded-full border-2 border-indigo-300/60 dark:border-indigo-400/25" />
+            <span
+              aria-hidden
+              style={{ animationDelay: '1.5s' }}
+              className="sonar-ring pointer-events-none absolute inset-0 m-auto h-40 w-40 rounded-full border-2 border-indigo-300/60 dark:border-indigo-400/25"
+            />
+            {/* Cahaya lembut di belakang orb */}
+            <span aria-hidden className="animate-halo pointer-events-none absolute inset-0 m-auto h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(126,151,205,.65),transparent_68%)] blur-2xl" />
             {/* Piket disetujui hari ini → penanda bahwa absen dibuka khusus piket. */}
             {adaPiket && (
-              <span className="absolute -bottom-3 z-10 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 px-2.5 py-1 text-[10px] font-bold text-white shadow-md shadow-emerald-500/30">
+              <span className="absolute inset-x-0 -bottom-3 z-20 mx-auto w-fit inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 px-2.5 py-1 text-[10px] font-bold text-white shadow-md shadow-emerald-500/30">
                 <Brush size={11} /> Tugas Piket
               </span>
             )}
             <button
               onClick={() => prosesAbsen(sudahMasuk ? 'out' : 'in')}
-              className="animate-pulse-slow relative grid h-40 w-40 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-indigo-500 via-violet-600 to-fuchsia-600 text-white shadow-2xl shadow-indigo-500/40 ring-4 ring-white/40 transition active:scale-95 dark:ring-white/10"
+              className="animate-pulse-slow group relative z-10 grid h-40 w-40 place-items-center rounded-full p-[3px] transition active:scale-95"
             >
-              {/* Kilau kaca di atas tombol */}
-              <span aria-hidden className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_28%_22%,rgba(255,255,255,.5),transparent_46%)]" />
-              <div className="relative text-center">
-                <span className="block text-3xl">{sudahMasuk ? '🏃' : '✋'}</span>
-                <span className="mt-1 block text-base font-extrabold">
+              {/* Tepi gradasi berputar (conic) — cahaya mengelilingi tombol */}
+              <span aria-hidden className="animate-spin-slower absolute inset-0 rounded-full bg-[conic-gradient(from_0deg,#0A1D57,#7E97CD,#46619A,#0A1D57)]" />
+              {/* Permukaan orb: kaca terang di mode terang, gelap elegan di mode gelap */}
+              <span aria-hidden className="absolute inset-[3px] overflow-hidden rounded-full bg-gradient-to-br from-white via-slate-50 to-slate-200 dark:from-slate-800 dark:to-slate-900" />
+              {/* Pantulan cahaya dari kiri atas */}
+              <span
+                aria-hidden
+                className="absolute inset-[3px] overflow-hidden rounded-full bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,.95),transparent_52%)] dark:bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,.16),transparent_52%)]"
+              />
+              {/* Isi tombol: ikon bulat gradasi + label */}
+              <span className="relative z-10 grid place-items-center gap-1.5 text-center">
+                <span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-lg shadow-indigo-500/35 transition group-active:scale-90">
+                  {sudahMasuk ? <LogOut size={24} /> : <Fingerprint size={24} />}
+                </span>
+                <span className="text-[15px] font-black leading-none text-slate-800 dark:text-white">
                   {sudahMasuk ? 'Absen Pulang' : 'Absen Sekarang'}
                 </span>
-                <span className="text-[10px] font-medium opacity-80">Selfie + GPS</span>
-              </div>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Selfie + GPS
+                </span>
+              </span>
             </button>
           </div>
         )}

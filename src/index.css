@@ -222,42 +222,45 @@
 .animate-halo { animation: halo-pulse 2.8s ease-in-out infinite; }
 
 /* ============ Aksen absensi kekinian ============ */
-/* Cincin conic berputar mengelilingi tombol absen — gradasi melingkar dengan
-   lubang di tengah (mask) sehingga tampak seperti ring cahaya yang berputar. */
-.ring-conic {
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    rgba(126, 151, 205, .95) 70deg,
-    rgba(70, 97, 154, .85) 120deg,
-    transparent 190deg,
-    transparent 360deg
-  );
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
-}
-
-/* Kilau menyapu (sheen) pada kartu/petak — aksen premium saat disinggahi. */
-@keyframes sheen-sweep {
-  from { transform: translateX(-130%); }
-  to { transform: translateX(130%); }
-}
-.sheen::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, .55) 50%, transparent 58%);
-  transform: translateX(-130%);
-  animation: sheen-sweep 3.6s ease-in-out infinite;
-  pointer-events: none;
-}
-
 /* Denyut titik status "live" di judul kartu status. */
 @keyframes dot-ping {
   0% { transform: scale(.6); opacity: .8; }
   70%, 100% { transform: scale(2.2); opacity: 0; }
 }
 .animate-dot-ping { animation: dot-ping 1.8s cubic-bezier(0, 0, .2, 1) infinite; }
+
+/* ============ Tombol absen: sonar & orb ============ */
+/* Cincin "sonar" mengembang keluar dari balik tombol absen (2 lapis bergantian)
+   sehingga tombol tampak hidup dan mengundang untuk ditekan. */
+@keyframes sonar {
+  0% { transform: scale(.74); opacity: .7; }
+  70% { opacity: 0; }
+  100% { transform: scale(1.42); opacity: 0; }
+}
+.sonar-ring { animation: sonar 3s cubic-bezier(.2, .7, .3, 1) infinite both; }
+
+/* ============ Peta Leaflet (Beranda) ============ */
+/* Titik kantor: denyut lembut + inti gradasi warna brand. */
+.peta-titik { position: relative; display: block; width: 22px; height: 22px; }
+.peta-titik::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: rgba(126, 151, 205, .5);
+  animation: dot-ping 1.8s cubic-bezier(0, 0, .2, 1) infinite;
+}
+.peta-titik-inti {
+  position: absolute;
+  inset: 5px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #0A1D57, #7E97CD);
+  box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(15, 23, 42, .4);
+}
+/* Peta ikut meredup saat mode gelap supaya tidak menyilaukan. */
+.dark .peta-lapisan .leaflet-tile-pane { filter: brightness(.78) contrast(1.06) saturate(.85); }
+/* Atribusi bawaan peta disembunyikan (permintaan pemilik aplikasi). */
+.peta-lapisan .leaflet-control-attribution { display: none !important; }
 
 /* ============ Animasi logo: bersih TANPA border/cincin/stroke ============ */
 /* Hanya glow cahaya lembut di belakang + logo mengambang. Cincin halo (dengan
@@ -296,7 +299,7 @@
   .animate-floaty, .animate-spin-slower, .animate-pulse-slow,
   .logo-wrap, .logo-cahaya, .logo-melayang,
   .aurora, .animate-halo, .wajah-dash, .wajah-berdenyut,
-  .animate-dot-ping { animation: none; }
-  .sheen::after { animation: none; }
+  .animate-dot-ping, .sonar-ring { animation: none; }
+  .peta-titik::before { animation: none; opacity: .35; }
   .logo-cahaya { opacity: .45; }
 }

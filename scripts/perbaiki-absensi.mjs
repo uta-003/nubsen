@@ -31,17 +31,43 @@ const M = await import('../server/models.js')
 const { hitungStatusAbsen, STATUS_IZIN_DATANG, STATUS_PERLU_TINJAUAN } = M
 
 const TERAPKAN = process.argv.includes('--terapkan')
-const cari = process.argv.slice(2).filter((a) => !a.startsWith('--')).join(' ') || 'E. Nugraha Wicaksono'
+const SEMUA = process.argv.includes('--semua')
+const cari = process.argv.slice(2).filter((a) => !a.startsWith('--')).join(' ')
 const rupiah = (n) => `Rp${Math.round(Number(n) || 0).toLocaleString('id-ID')}`
 
-const karyawan = await db.get('SELECT id, nama FROM employees WHERE nama LIKE ?', [`%${cari}%`])
-if (!karyawan) {
-  console.error(`✖ Karyawan "${cari}" tidak ditemukan.`)
+// Baris absensi hanya boleh disentuh bila punya JAM check-in sungguhan. Aplikasi
+// menyimpan '-' untuk baris tanpa jam (mis. catatan Alpha buatan), dan '-' itu
+// TRUTHY — guard lama `if (!r.check_in)` meloloskannya sehingga status baris
+// Alpha berubah keliru menjadi "Perlu Tinjauan". Karena itu dipakai pola jam.
+const adaJam = (j) => /^\d{1,2}:\d{2}/.test(String(j ?? '').trim())
+
+// Daftar karyawan yang diproses: --semua = seluruh karyawan, selain itu satu nama.
+let daftar
+if (SEMUA) {
+  daftar = await db.all('SELECT id, nama FROM employees ORDER BY nama')
+  if (cari) console.log(`ℹ️  --semua dipakai → argumen "${cari}" diabaikan.`)
+} else {
+  const nama = cari || 'E. Nugraha Wicaksono'
+  const satu = await db.get('SELECT id, nama FROM employees WHERE nama LIKE ?', [`%${nama}%`])
+  if (!satu) {
+    console.error(`✖ Karyawan "${nama}" tidak ditemukan. Pakai --semua untuk memproses seluruh karyawan.`)
+    process.exit(1)
+  }
+  daftar = [satu]
+}
+if (!daftar.length) {
+  console.error('✖ Tidak ada karyawan pada database.')
   process.exit(1)
 }
-console.log(`\n=== PERBAIKI ABSENSI: #${karyawan.id} ${karyawan.nama} — mode ${TERAPKAN ? 'TERAPKAN ✍️' : 'PRATINJAU (kering)'} ===\n`)
 
 const aktif = new Set(await hariKerjaAktif())
+let totalUbah = 0
+let totalDampak = 0
+let totalDilewati = 0
+
+for (const karyawan of daftar) {
+console.log(`\n=== PERBAIKI ABSENSI: #${karyawan.id} ${karyawan.nama} — mode ${TERAPKAN ? 'TERAPKAN ✍️' : 'PRATINJAU (kering)'} ===\n`)
+
 const [rows, tarif] = await Promise.all([
   db.all('SELECT * FROM attendance WHERE employee_id = ? ORDER BY tanggal, id', [karyawan.id]),
   db.get('SELECT gaji_harian, uang_makan FROM employees WHERE id = ?', [karyawan.id]),
@@ -68,8 +94,9 @@ const keteranganHari = async (tanggal) => {
 let jumlahUbah = 0
 let dampak = 0
 for (const r of rows) {
-  if (!r.check_in) {
-    console.log(`⏭️  ${r.tanggal} (#${r.id}) dilewati — tanpa check-in (status ${r.status})`)
+  if (!adaJam(r.check_in)) {
+    totalDilewati += 1
+    console.log(`⏭️  ${r.tanggal} (#${r.id}) dilewati — tanpa jam check-in (status ${r.status})`)
     continue
   }
   const jadwal = await getJadwal(karyawan.id, r.tanggal)
@@ -117,6 +144,8 @@ for (const r of rows) {
   }
 }
 
+totalUbah += jumlahUbah
+totalDampak += dampak
 console.log(`\n${jumlahUbah} baris ${TERAPKAN ? 'DIPERBAIKI' : 'perlu perbaikan'} — dampak gaji ${TERAPKAN ? 'akhir' : 'indikasi'}: ${dampak >= 0 ? '+' : ''}${rupiah(dampak)}`)
 
 // ---------- Bukti angka akhir: laporan gaji per periode + slip karyawan ----------
@@ -129,5 +158,11 @@ for (const p of periode) {
   console.log(`\n— ${p.nama}${p.aktif ? ' (AKTIF)' : ''} ${p.dari}..${p.sampai}: hadir ${b.hadir}, terlambat ${b.terlambat}, hadir libur ${b.hadirLibur}, izin ${b.izin}, sakit ${b.sakit}, cuti ${b.cuti}, alpha ${b.alpha} | hari dibayar ${b.hariDibayar} | lembur ${b.lembur}j | piket ${b.piket} | TOTAL ${rupiah(b.total)}`)
   const slip = (await slipGajiKaryawan(karyawan.id, p.id))?.slip
   if (slip) console.log(`  slip karyawan: total ${rupiah(slip.total)} — ${slip.total === b.total ? 'COCOK dengan laporan ✓' : `BEDA dengan laporan ${rupiah(b.total)} ✗`}`)
+}
+}
+
+// Ringkasan lintas karyawan (hanya bila lebih dari satu yang diproses).
+if (daftar.length > 1) {
+  console.log(`\n===== RINGKASAN ${daftar.length} KARYAWAN: ${totalUbah} baris ${TERAPKAN ? 'DIPERBAIKI' : 'perlu perbaikan'}, ${totalDilewati} baris dilewati (tanpa jam), dampak gaji ${TERAPKAN ? 'akhir' : 'indikasi'}: ${totalDampak >= 0 ? '+' : ''}${rupiah(totalDampak)} =====`)
 }
 console.log('')

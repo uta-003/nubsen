@@ -1993,15 +1993,17 @@ function KelolaNotifikasi() {
 const rupiah = (n) => `Rp${Math.round(Number(n) || 0).toLocaleString('id-ID')}`
 
 // Hitung ulang satu baris gaji dari angka kehadiran + tarif saat ini.
-// Aturan uang makan: hari masuk TEPAT WAKTU (Hadir + Hadir Libur) DAN hari dengan
-// izin "datang terlambat/siang" (disetujui) mendapat uang makan — hanya Terlambat
-// TANPA izin yang tidak mendapat uang makan (gaji hariannya tetap dibayar).
+// Aturan uang makan: hari masuk + Hadir Libur mendapat uang makan, termasuk hari
+// dengan izin "datang terlambat/siang" (disetujui) — hari-hari itu SUDAH ada di
+// dalam `r.hadir` (lihat laporanKehadiran), jadi TIDAK ditambahkan lagi di sini.
+// Hanya Terlambat TANPA izin yang tidak mendapat uang makan (gaji hariannya tetap
+// dibayar). Dengan begitu angka panel ini PERSIS sama dengan slip gaji karyawan
+// (server: laporanGaji).
 // Piket: setiap piket DISETUJUI pada periode dibayar biayaPiket (pengaturan admin).
 function hitungBarisGaji(r) {
-  const izinDatang = r.izinDatang || 0
-  // Izin datang sudah termasuk pada r.izin (laporan kehadiran) → tidak dihitung dua kali.
+  const izinDatang = r.izinDatang || 0 // CATATAN jumlah hari saja, bukan tambahan hari
   const hariDibayar = r.hadir + r.terlambat + r.hadirLibur + r.izin + r.sakit + r.cuti
-  const hariMakan = r.hadir + r.hadirLibur + izinDatang
+  const hariMakan = r.hadir + r.hadirLibur
   const tanpaUangMakan = r.terlambat
   const subGaji = Math.round(hariDibayar * (Number(r.gajiHarian) || 0))
   const subMakan = Math.round(hariMakan * (Number(r.uangMakan) || 0))

@@ -94,15 +94,3 @@ export function statusGeofence(lat, lon) {
   const jarak = Math.round(haversineM(lat, lon, KANTOR.lat, KANTOR.lon))
   return { jarak, diLuarArea: jarak > KANTOR.radiusM }
 }
-
-// Kotak pembatas (bbox) untuk peta embed OpenStreetMap, urutan bakunya
-// `minLon,minLat,maxLon,maxLat`. `meter` = setengah lebar/tinggi kotak.
-// Dipakai agar peta tampil ZOOM IN presisi di titik kantor (radius absen hanya
-// ±20 m) — bukan tampilan sekota. Derajat bujur dibagi cos(lintang) supaya
-// kotaknya benar-benar persegi (1° bujur lebih pendek dari 1° lintang).
-export function bboxSekitar(lat, lon, meter = 160) {
-  const dLat = meter / 110574 // 1° lintang ≈ 110.574 m
-  const dLon = meter / (111320 * Math.cos((lat * Math.PI) / 180) || 1) // 1° bujur ≈ 111.320 m × cos(lat)
-  const bulat = (n) => Number(n.toFixed(6))
-  return [bulat(lon - dLon), bulat(lat - dLat), bulat(lon + dLon), bulat(lat + dLat)].join(',')
-}

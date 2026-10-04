@@ -1,11 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { HelpCircle, ChevronDown, X } from 'lucide-react'
 import { usePenutupKembali } from '../hooks/useTombolKembali'
+import { JADWAL_DEFAULT } from '../hooks/useAbsensi'
+import * as api from '../api'
 
 const FAQ = [
   {
     q: 'Bagaimana cara absen masuk & pulang?',
-    a: 'Buka Beranda → tekan tombol besar "Absen Sekarang". Kamera selfie akan terbuka — posisikan wajah dalam bingkai lalu foto. Absen masuk sebelum 08:15 berstatus Hadir; setelah itu Terlambat. Jangan lupa check-out sebelum pulang.',
+    // Jawaban ini bergantung pada JADWAL KERJA BIASA yang ditetapkan admin
+    // (Pengaturan Jadwal) — jadi jam batasnya tidak pernah basi/angka tetap.
+    a: (jadwal) => {
+      const batas = jadwal?.jamMasukBatas || JADWAL_DEFAULT.jamMasukBatas
+      const pulang = jadwal?.jamPulang || JADWAL_DEFAULT.jamPulang
+      const sabtu = jadwal?.mode !== 'shift' && jadwal?.jamMasukBatasSabtu && jadwal?.jamPulangSabtu
+        ? ` Khusus Sabtu: batas masuk ${jadwal.jamMasukBatasSabtu}, pulang ${jadwal.jamPulangSabtu}.`
+        : ''
+      return `Buka Beranda → tekan tombol besar "Absen Sekarang". Kamera selfie akan terbuka — posisikan wajah dalam bingkai lalu foto. Absen masuk sebelum ${batas} berstatus Hadir; setelah itu Terlambat. Jam batas ini otomatis mengikuti jadwal kerja biasa yang ditetapkan admin (jam pulang ${pulang}).${sabtu} Jangan lupa check-out sebelum pulang.`
+    },
   },
   {
     q: 'Kenapa muncul "Di luar area kantor"?',
@@ -48,6 +59,15 @@ const FAQ = [
 // Pusat Bantuan: modal FAQ akordeon — user tidak perlu tanya admin untuk hal dasar.
 export default function Bantuan({ open, onClose }) {
   const [buka, setBuka] = useState(null)
+  // Jadwal kerja aktif diambil saat panel dibuka supaya jam batas pada FAQ
+  // mengikuti pengaturan admin (bukan angka tetap 08:15).
+  const [jadwal, setJadwal] = useState(JADWAL_DEFAULT)
+  useEffect(() => {
+    if (!open) return
+    let batal = false
+    api.getJadwal().then((d) => { if (!batal && d) setJadwal(d) }).catch(() => { /* pakai default */ })
+    return () => { batal = true }
+  }, [open])
   // Tombol Back Android menutup Pusat Bantuan lebih dulu.
   usePenutupKembali(!!open, onClose)
   if (!open) return null
@@ -80,7 +100,7 @@ export default function Bantuan({ open, onClose }) {
               </button>
               {buka === i && (
                 <p className="border-t border-slate-100 px-4 py-3 text-xs leading-relaxed text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                  {f.a}
+                  {typeof f.a === 'function' ? f.a(jadwal) : f.a}
                 </p>
               )}
             </div>
