@@ -12,6 +12,7 @@ import {
   laporanKehadiran, laporanGaji,
   listHariLibur, tambahHariLibur, hapusHariLibur,
   listPeriodeGaji, tetapkanPeriodeGaji, aktifkanPeriodeGaji, hapusPeriodeGaji, rapikanPeriodeGaji,
+  tandaiPeriodeDibayar, sinkronPeriodeDenganAbsensi, absensiDiLuarPeriode,
   STATUS_KARYAWAN, statusKaryawanSah,
   notifToClient, kirimNotifikasi, listSemuaNotifikasi, hapusNotifikasi,
   kirimPengumuman, ubahPengumuman, hapusPengumuman,
@@ -345,6 +346,31 @@ router.post('/gaji/periode/rapikan', wrap(async (_req, res) => {
   res.json({ data: hasil })
 }))
 
+// GET /api/admin/gaji/periode/di-luar — tanggal absensi/pengajuan yang belum
+// tercakup periode mana pun (absensi "yatim" → slip jadi Rp0). Tab Gaji memakai
+// ini untuk menawarkan tombol sinkron.
+router.get('/gaji/periode/di-luar', wrap(async (_req, res) => {
+  res.json({ data: await absensiDiLuarPeriode() })
+}))
+
+// PUT /api/admin/gaji/periode/:id/bayar { dibayar: true|false } — tandai periode
+// sudah dibayarkan (stempel waktu) atau batalkan penandaannya.
+router.put('/gaji/periode/:id/bayar', wrap(async (req, res) => {
+  const dibayar = req.body?.dibayar !== false
+  const periode = await tandaiPeriodeDibayar(Number(req.params.id), dibayar)
+  if (!periode) return res.status(404).json({ error: 'Periode penggajian tidak ditemukan.' })
+  res.json({ data: periode })
+}))
+
+// POST /api/admin/gaji/periode/:id/sinkron — perluas rentang periode agar
+// menutupi seluruh absensi & pengajuan (tanpa menelan periode tetangga). Periode
+// yang sudah dibayar ditolak.
+router.post('/gaji/periode/:id/sinkron', wrap(async (req, res) => {
+  const hasil = await sinkronPeriodeDenganAbsensi(Number(req.params.id))
+  if (hasil.error) return res.status(400).json({ error: hasil.error })
+  res.json({ data: hasil })
+}))
+
 // ---------- Pemeriksa konsistensi data → hitungan gaji ----------
 // GET /api/admin/konsistensi — audit menyeluruh (hanya membaca).
 router.get('/konsistensi', wrap(async (_req, res) => {
@@ -375,8 +401,9 @@ router.put('/gaji/periode/:id/aktif', wrap(async (req, res) => {
 }))
 
 router.delete('/gaji/periode/:id', wrap(async (req, res) => {
-  const jumlah = await hapusPeriodeGaji(Number(req.params.id))
-  if (!jumlah) return res.status(404).json({ error: 'Periode penggajian tidak ditemukan.' })
+  const hasil = await hapusPeriodeGaji(Number(req.params.id))
+  if (hasil?.error) return res.status(400).json({ error: hasil.error })
+  if (!hasil) return res.status(404).json({ error: 'Periode penggajian tidak ditemukan.' })
   res.json({ data: { ok: true } })
 }))
 

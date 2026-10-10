@@ -1377,6 +1377,8 @@ function periodeToClient(row) {
   return {
     id: row.id, nama: row.nama, dari: row.dari, sampai: row.sampai,
     aktif: !!row.aktif, dibuat: row.created_at || null,
+    // Stempel waktu pembayaran (ISO) — NULL berarti belum dibayarkan.
+    dibayarPada: row.dibayar_pada || null,
   }
 }
 
@@ -1432,8 +1434,99 @@ export async function aktifkanPeriodeGaji(id) {
 }
 
 export async function hapusPeriodeGaji(id) {
+  // Periode yang sudah DIBAYAR dikunci — menghapusnya membuat slip karyawan
+  // hilang padahal uang sudah cair. Batalkan penandaan bayar dulu.
+  const p = periodeToClient(await db.get('SELECT * FROM payroll_periods WHERE id = ?', [id]))
+  if (p?.dibayarPada) {
+    return { error: `Periode "${p.nama}" sudah dibayarkan — batalkan penandaan bayar dulu sebelum menghapusnya.` }
+  }
   const info = await db.run('DELETE FROM payroll_periods WHERE id = ?', [id])
   return info.changes
+}
+
+// Tandai periode sebagai SUDAH DIBAYAR (stempel waktu) atau batalkan (NULL).
+// Dipakai tab Gaji agar admin tahu periode mana yang sudah cair.
+export async function tandaiPeriodeDibayar(id, dibayar) {
+  const ada = await db.get('SELECT id FROM payroll_periods WHERE id = ?', [id])
+  if (!ada) return null
+  await db.run('UPDATE payroll_periods SET dibayar_pada = ? WHERE id = ?', [dibayar ? new Date().toISOString() : null, id])
+  return periodeToClient(await db.get('SELECT * FROM payroll_periods WHERE id = ?', [id]))
+}
+
+// Sinkronkan rentang satu periode dengan rentang ABSANSI & pengajuan yang ada,
+// sehingga tidak ada absensi yang "yatim" di luar periode (slip jadi Rp0 padahal
+// karyawan ada catatan kerja/izin). Periode diperluas ke belakang sampai absensi
+// terawal dan ke depan sampai absensi terakhir — TANPA menelan periode tetangga
+// (dibatasi satu hari sebelum/sesudahnya). Periode yang sudah DIBAYAR tidak bisa
+// diubah (kembalikan { error }). Aman dipanggil berulang (idempoten).
+export async function sinkronPeriodeDenganAbsensi(id) {
+  const p = periodeToClient(await db.get('SELECT * FROM payroll_periods WHERE id = ?', [id]))
+  if (!p) return { error: 'Periode penggajian tidak ditemukan.' }
+  if (p.dibayarPada) {
+    return { error: `Periode "${p.nama}" sudah dibayarkan — batalkan penandaan bayar dulu sebelum mengubah rentangnya.` }
+  }
+  // Rentang terjauh absensi + pengajuan izin/cuti/sakit yang tidak ditolak +
+  // tanggal lembur & piket (keduanya ikut terhitung dalam gaji).
+  const rentang = await db.get(`
+    SELECT MIN(t) AS minT, MAX(t) AS maxT FROM (
+      SELECT MIN(tanggal) AS t FROM attendance
+      UNION ALL SELECT MAX(tanggal) AS t FROM attendance
+      UNION ALL SELECT MIN(mulai)  AS t FROM leaves WHERE status <> 'Ditolak'
+      UNION ALL SELECT MAX(selesai) AS t FROM leaves WHERE status <> 'Ditolak'
+      UNION ALL SELECT MIN(tanggal) AS t FROM overtime WHERE status <> 'Ditolak'
+      UNION ALL SELECT MAX(tanggal) AS t FROM overtime WHERE status <> 'Ditolak'
+      UNION ALL SELECT MIN(tanggal) AS t FROM piket WHERE status <> 'Ditolak'
+      UNION ALL SELECT MAX(tanggal) AS t FROM piket WHERE status <> 'Ditolak'
+    )`)
+  if (!rentang?.minT) return { error: 'Belum ada data absensi maupun pengajuan untuk disinkronkan.' }
+  const tambahHari = (tgl, n) => {
+    const d = new Date(`${tgl}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10)
+  }
+  // Batas aman agar perluasan tidak menelan periode sebelumnya/berikutnya.
+  const tetangga = await db.all('SELECT id, dari, sampai FROM payroll_periods WHERE id <> ?', [id])
+  const sebelum = tetangga.filter((x) => x.sampai < p.dari).sort((a, b) => b.sampai.localeCompare(a.sampai))[0]
+  const sesudah = tetangga.filter((x) => x.dari > p.sampai).sort((a, b) => a.dari.localeCompare(b.dari))[0]
+  const batasBawah = sebelum ? tambahHari(sebelum.sampai, 1) : rentang.minT
+  const batasAtas = sesudah ? tambahHari(sesudah.dari, -1) : rentang.maxT
+  let dariBaru = p.dari
+  let sampaiBaru = p.sampai
+  if (rentang.minT < dariBaru && rentang.minT >= batasBawah) dariBaru = rentang.minT
+  if (rentang.maxT > sampaiBaru && rentang.maxT <= batasAtas) sampaiBaru = rentang.maxT
+  if (dariBaru === p.dari && sampaiBaru === p.sampai) return { tidakBerubah: true, periode: p }
+  const bentrok = await periodeBertumpuk({ dari: dariBaru, sampai: sampaiBaru, kecualiId: p.id })
+  if (bentrok.length) {
+    return { error: `Perluasan akan bertumpuk dengan ${bentrok.map((b) => `"${b.nama}"`).join(', ')}. Rapikan periode yang bertumpuk lebih dulu.` }
+  }
+  await db.run('UPDATE payroll_periods SET dari = ?, sampai = ? WHERE id = ?', [dariBaru, sampaiBaru, p.id])
+  return {
+    dariLama: p.dari, sampaiLama: p.sampai, dariBaru, sampaiBaru,
+    periode: periodeToClient(await db.get('SELECT * FROM payroll_periods WHERE id = ?', [id])),
+  }
+}
+
+// Tanggal absensi/pengajuan yang belum tercakup SATU pun periode gaji — dipakai
+// tab Gaji untuk memberi peringatan "ada data di luar periode" dan menawarkan
+// tombol sinkron. Mengembalikan daftar tanggal + rentang keseluruhan.
+export async function absensiDiLuarPeriode() {
+  const periode = await listPeriodeGaji()
+  const tanggal = new Set()
+  for (const r of await db.all('SELECT DISTINCT tanggal FROM attendance')) tanggal.add(r.tanggal)
+  for (const r of await db.all("SELECT DISTINCT mulai, selesai FROM leaves WHERE status <> 'Ditolak'")) {
+    for (let d = new Date(`${r.mulai}T00:00:00Z`); d.toISOString().slice(0, 10) <= r.selesai; d.setUTCDate(d.getUTCDate() + 1)) {
+      tanggal.add(d.toISOString().slice(0, 10))
+    }
+  }
+  // Lembur & piket juga ikut terhitung dalam gaji — tanggalnya wajib tercakup
+  // (kecuali yang sudah ditolak, konsisten dengan leaves).
+  for (const r of await db.all("SELECT DISTINCT tanggal FROM overtime WHERE status <> 'Ditolak'")) tanggal.add(r.tanggal)
+  for (const r of await db.all("SELECT DISTINCT tanggal FROM piket WHERE status <> 'Ditolak'")) tanggal.add(r.tanggal)
+  const yatim = [...tanggal].filter((t) => !periode.some((p) => t >= p.dari && t <= p.sampai)).sort()
+  return {
+    tanggal: yatim,
+    min: yatim[0] || null,
+    max: yatim[yatim.length - 1] || null,
+    periodeAktif: periode.find((p) => p.aktif) || null,
+  }
 }
 
 // Rapikan periode yang bertumpuk: periode yang lebih dulu dipotong menjadi
@@ -1441,7 +1534,7 @@ export async function hapusPeriodeGaji(id) {
 // hanya dihitung sekali (milik periode TERBARU). Aman dijalankan berulang
 // (idempoten) dan mengembalikan rincian perubahan untuk ditampilkan admin.
 export async function rapikanPeriodeGaji() {
-  const rows = await db.all('SELECT id, nama, dari, sampai FROM payroll_periods ORDER BY id')
+  const rows = await db.all('SELECT id, nama, dari, sampai, dibayar_pada FROM payroll_periods ORDER BY id')
   const urut = [...rows].sort((a, b) => a.dari.localeCompare(b.dari) || a.id - b.id)
   const kurangiHari = (tgl, n) => {
     const d = new Date(`${tgl}T00:00:00Z`)
@@ -1453,6 +1546,11 @@ export async function rapikanPeriodeGaji() {
   for (const p of urut) {
     const berikut = urut.find((x) => x.dari > p.dari || (x.dari === p.dari && x.id > p.id))
     if (!berikut || p.sampai < berikut.dari) continue
+    // Periode sudah DIBAYAR rentangnya terkunci — jangan dipotong diam-diam.
+    if (p.dibayar_pada) {
+      dilewati.push({ id: p.id, nama: p.nama, dari: p.dari, sampai: p.sampai, alasan: 'sudah dibayarkan' })
+      continue
+    }
     const sampaiBaru = kurangiHari(berikut.dari, 1)
     if (sampaiBaru < p.dari) {
       // Rentangnya seluruhnya tertelan periode berikutnya → butuh keputusan admin.

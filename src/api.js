@@ -315,6 +315,12 @@ export const adminPeriodeGaji = () => admin('/gaji/periode')
 export const adminTetapkanPeriodeGaji = (d) => admin('/gaji/periode', { method: 'POST', body: d })
 export const adminAktifkanPeriodeGaji = (id) => admin(`/gaji/periode/${id}/aktif`, { method: 'PUT' })
 export const adminHapusPeriodeGaji = (id) => admin(`/gaji/periode/${id}`, { method: 'DELETE' })
+// Tandai periode sudah DIBAYAR (stempel waktu) atau batalkan (dibayar:false).
+export const adminBayarPeriodeGaji = (id, dibayar = true) => admin(`/gaji/periode/${id}/bayar`, { method: 'PUT', body: { dibayar } })
+// Perluas rentang periode agar menutupi seluruh absensi & pengajuan (sinkron).
+export const adminSinkronPeriodeGaji = (id) => admin(`/gaji/periode/${id}/sinkron`, { method: 'POST' })
+// Tanggal absensi/pengajuan yang belum tercakup periode mana pun.
+export const adminAbsensiDiLuarPeriode = () => admin('/gaji/periode/di-luar')
 // Potong periode yang rentangnya bertumpuk agar satu tanggal hanya masuk satu slip.
 export const adminRapikanPeriodeGaji = () => admin('/gaji/periode/rapikan', { method: 'POST' })
 // Pemeriksa konsistensi rantai data absensi → izin → lembur → gaji (+ rapikan).

@@ -147,6 +147,9 @@ const KOLOM_TAMBAHAN = [
   // Shift kerja karyawan (1 atau 2) — hanya dipakai saat jadwal mode 'shift'.
   // NULL = belum ditentukan; server memakai Shift 1 sebagai bawaan.
   ['employees', 'shift INTEGER'],
+  // Status BAYAR periode penggajian: stempel waktu (ISO) saat admin menandai
+  // periode sudah dibayarkan; NULL = belum dibayar. Dipakai tab Gaji.
+  ['payroll_periods', 'dibayar_pada TEXT'],
 ]
 
 let janjiInit = null

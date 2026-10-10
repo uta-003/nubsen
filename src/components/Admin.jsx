@@ -2210,6 +2210,10 @@ function Gaji() {
   const [periode, setPeriode] = useState([])
   const [namaPeriode, setNamaPeriode] = useState('')
   const [prosesPeriode, setProsesPeriode] = useState(false)
+  // Tanggal absensi/pengajuan di luar semua periode (absensi "yatim") + status
+  // proses untuk aksi bayar & sinkron agar tombol bisa menampilkan spinner.
+  const [diLuar, setDiLuar] = useState(null)
+  const [prosesBayar, setProsesBayar] = useState(false)
 
   // muat(d, s) memakai rentang EKSPLISIT agar laporan tidak pernah memakai nilai
   // state yang belum tersinkron (mis. saat langsung mengikuti periode aktif).
@@ -2222,12 +2226,16 @@ function Gaji() {
       .finally(() => setMemuat(false))
   }
 
+  // Muat daftar tanggal absensi/pengajuan yang belum tercakup periode mana pun.
+  const muatDiLuar = () => api.adminAbsensiDiLuarPeriode().then(setDiLuar).catch(() => setDiLuar(null))
+
   // Daftar periode diambil LEBIH DULU: bila ada periode aktif, laporan langsung
   // memakai rentang periode itu (sama dengan periode pada slip gaji karyawan).
   useEffect(() => {
     api.adminKaryawan()
       .then((list) => setDaftarDept([...new Set(list.map((k) => k.departemen || '-'))].filter(Boolean).sort()))
       .catch(() => {})
+    muatDiLuar()
     api.adminPeriodeGaji()
       .then((list) => {
         setPeriode(list)
@@ -2291,6 +2299,7 @@ function Gaji() {
     }
   }
   const hapusPeriode = async (p) => {
+    if (p.dibayarPada) { setPesan({ ok: false, teks: 'Periode ini sudah dibayarkan — batalkan penandaan bayar dulu sebelum menghapusnya.' }); return }
     if (!confirm(`Hapus periode "${p.nama}"? Slip gaji karyawan pada periode ini tidak lagi bisa dipilih.`)) return
     setProsesPeriode(true)
     try {
@@ -2329,6 +2338,54 @@ function Gaji() {
           ? `Periode dirapikan — ${hasil.perubahan.length} perubahan: ${rincian}. Tanggal yang bertumpuk kini hanya masuk periode terbaru.`
           : 'Tidak ada periode yang bertumpuk — tidak ada yang perlu diubah.',
       })
+    } catch (e) {
+      setPesan({ ok: false, teks: e.message })
+    } finally {
+      setProsesPeriode(false)
+    }
+  }
+
+  // ---------- Status BAYAR periode ----------
+  const ubahBayar = async (p, dibayar) => {
+    if (dibayar && !confirm(`Tandai periode \"${p.nama}\" (${formatTanggalPendek(p.dari)}–${formatTanggalPendek(p.sampai)}) sebagai SUDAH DIBAYARKAN?\n\nSetelah ditandai, rentang periode ini terkunci (tidak bisa diubah/dihapus) sampai Anda membatalkan penandaannya.`)) return
+    setProsesBayar(true)
+    try {
+      const baru = await api.adminBayarPeriodeGaji(p.id, dibayar)
+      setPeriode(await api.adminPeriodeGaji())
+      muatDiLuar()
+      setPesan({
+        ok: true,
+        teks: dibayar
+          ? `Periode \"${baru.nama}\" ditandai SUDAH DIBAYAR pada ${formatWaktuLengkap(baru.dibayarPada)}.`
+          : `Penandaan bayar periode \"${baru.nama}\" dibatalkan — rentang bisa diubah lagi.`,
+      })
+    } catch (e) {
+      setPesan({ ok: false, teks: e.message })
+    } finally {
+      setProsesBayar(false)
+    }
+  }
+
+  // Sinkronkan rentang periode aktif dengan seluruh absensi & pengajuan yang ada,
+  // sehingga tidak ada catatan kerja/izin yang jatuh di luar periode (slip Rp0).
+  const sinkronPeriode = async () => {
+    const p = periodeAktif
+    if (!p) return
+    setProsesPeriode(true)
+    try {
+      const h = await api.adminSinkronPeriodeGaji(p.id)
+      setPeriode(await api.adminPeriodeGaji())
+      muatDiLuar()
+      if (h.tidakBerubah) {
+        setPesan({ ok: true, teks: `Periode \"${p.nama}\" sudah mencakup seluruh absensi & pengajuan — tidak ada yang perlu diperluas.` })
+      } else {
+        setDari(h.dariBaru); setSampai(h.sampaiBaru)
+        muat(h.dariBaru, h.sampaiBaru)
+        setPesan({
+          ok: true,
+          teks: `Periode \"${h.periode.nama}\" diperluas ${h.dariLama}→${h.dariBaru} & ${h.sampaiLama}→${h.sampaiBaru} sehingga menutupi seluruh absensi. Laporan disegarkan.`,
+        })
+      }
     } catch (e) {
       setPesan({ ok: false, teks: e.message })
     } finally {
@@ -2421,10 +2478,42 @@ function Gaji() {
             {daftarDept.map((d) => <option key={d} value={d === '-' ? '' : d}>{d}</option>)}
           </select>
         </div>
-        <button onClick={muat} disabled={memuat} className="btn-primary col-span-2 !py-2.5 sm:col-span-1">
+        <button onClick={() => muat()} disabled={memuat} className="btn-primary col-span-2 !py-2.5 sm:col-span-1">
           {memuat ? <Loader2 size={16} className="animate-spin" /> : <Filter size={16} />} Tampilkan
         </button>
       </div>
+
+      {/* Peringatan absensi di luar semua periode — data "yatim" tidak pernah
+          muncul di slip mana pun sehingga karyawan bisa tidak dibayar padahal
+          punya catatan kerja/izin. Tawarkan sinkron (perluas periode aktif). */}
+      {diLuar?.tanggal?.length > 0 && (
+        <div className="mb-4 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-[11px] leading-relaxed text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+          <p className="flex items-start gap-2 font-bold">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            {diLuar.tanggal.length} tanggal absensi/pengajuan berada DI LUAR semua periode gaji
+          </p>
+          <p className="mt-1">
+            Rentang {formatTanggalPendek(diLuar.min)} – {formatTanggalPendek(diLuar.max)}. Tanggal ini tidak tercakup slip mana pun sehingga tidak ikut terhitung.
+            {periodeAktif && !periodeAktif.dibayarPada && ' Perluas periode aktif agar menutupi seluruh absensi di bawah.'}
+            {periodeAktif?.dibayarPada && ' Periode aktif sudah dibayarkan — batalkan penandaan bayar dulu untuk memperluas rentangnya.'}
+          </p>
+          <ul className="mt-1.5 max-h-24 space-y-0.5 overflow-y-auto pl-5">
+            {diLuar.tanggal.slice(0, 30).map((t) => (
+              <li key={t} className="list-disc">{formatTanggalPendek(t)}</li>
+            ))}
+            {diLuar.tanggal.length > 30 && <li className="list-none font-semibold">…dan {diLuar.tanggal.length - 30} tanggal lain.</li>}
+          </ul>
+          {periodeAktif && (
+            <button
+              onClick={sinkronPeriode}
+              disabled={prosesPeriode || !!periodeAktif.dibayarPada}
+              className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-1.5 text-[11px] font-bold text-white transition active:scale-95 disabled:opacity-50"
+            >
+              {prosesPeriode ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Sinkronkan periode aktif dengan absensi
+            </button>
+          )}
+        </div>
+      )}
 
       <PeriksaData setPesan={setPesan} />
 
@@ -2489,21 +2578,37 @@ function Gaji() {
         {periode.length > 0 && (
           <ul className="mt-3 space-y-2">
             {periode.map((p) => (
-              <li key={p.id} className="flex items-center justify-between gap-2 rounded-2xl bg-slate-50 px-3 py-2 dark:bg-slate-800">
+              <li key={p.id} className={`flex items-center justify-between gap-2 rounded-2xl px-3 py-2 ${p.dibayarPada ? 'bg-emerald-50/70 ring-1 ring-emerald-200 dark:bg-emerald-500/[.07] dark:ring-emerald-500/25' : 'bg-slate-50 dark:bg-slate-800'}`}>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-bold text-slate-700 dark:text-slate-200">
                     {p.nama}
                     {p.aktif && <span className="ml-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">AKTIF</span>}
+                    {p.dibayarPada
+                      ? <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white"><Check size={10} /> LUNAS</span>
+                      : <span className="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">BELUM DIBAYAR</span>}
                   </p>
                   <p className="text-[10px] text-slate-400">{formatTanggalPendek(p.dari)} – {formatTanggalPendek(p.sampai)}</p>
+                  {p.dibayarPada && (
+                    <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Dibayar {formatWaktuLengkap(p.dibayarPada)}</p>
+                  )}
                 </div>
                 <div className="flex shrink-0 gap-1.5">
+                  {/* Tandai bayar / batalkan — periode terkunci rentangnya saat LUNAS. */}
+                  {p.dibayarPada ? (
+                    <button onClick={() => ubahBayar(p, false)} disabled={prosesBayar} className="grid h-8 w-8 place-items-center rounded-xl bg-amber-50 text-amber-600 transition active:scale-90 disabled:opacity-40 dark:bg-amber-500/15 dark:text-amber-400" aria-label="Batalkan penandaan bayar" title="Batalkan penandaan bayar">
+                      {prosesBayar ? <Loader2 size={14} className="animate-spin" /> : <Undo2 size={14} />}
+                    </button>
+                  ) : (
+                    <button onClick={() => ubahBayar(p, true)} disabled={prosesBayar} className="grid h-8 w-8 place-items-center rounded-xl bg-indigo-50 text-indigo-600 transition active:scale-90 disabled:opacity-40 dark:bg-indigo-500/15 dark:text-indigo-400" aria-label="Tandai sudah dibayar" title="Tandai sudah dibayar">
+                      {prosesBayar ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
+                    </button>
+                  )}
                   {!p.aktif && (
                     <button onClick={() => aktifkanPeriode(p.id)} disabled={prosesPeriode} className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-50 text-emerald-600 transition active:scale-90 disabled:opacity-40 dark:bg-emerald-500/15 dark:text-emerald-400" aria-label="Aktifkan periode">
                       <Check size={14} />
                     </button>
                   )}
-                  <button onClick={() => hapusPeriode(p)} disabled={prosesPeriode} className="grid h-8 w-8 place-items-center rounded-xl bg-rose-50 text-rose-500 transition active:scale-90 disabled:opacity-40 dark:bg-rose-500/15" aria-label="Hapus periode">
+                  <button onClick={() => hapusPeriode(p)} disabled={prosesPeriode || !!p.dibayarPada} title={p.dibayarPada ? 'Periode sudah dibayar — batalkan penandaan bayar dulu' : 'Hapus periode'} className="grid h-8 w-8 place-items-center rounded-xl bg-rose-50 text-rose-500 transition active:scale-90 disabled:opacity-30 dark:bg-rose-500/15" aria-label="Hapus periode">
                     <Trash2 size={14} />
                   </button>
                 </div>

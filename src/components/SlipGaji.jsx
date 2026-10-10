@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react'
 import {
   X, Wallet, Loader2, Download, TriangleAlert, Utensils, Clock4,
-  CalendarRange, TrendingUp, Info,
+  CalendarRange, TrendingUp, Info, CheckCircle2,
 } from 'lucide-react'
 import * as api from '../api'
 import { usePenutupKembali } from '../hooks/useTombolKembali'
@@ -161,6 +161,7 @@ export default function SlipGaji({ open, onClose, user, toast }) {
               <p className="mt-0.5 text-[11px] text-white/80">
                 {formatTanggalPendek(periode.dari)} s.d. {formatTanggalPendek(periode.sampai)}
                 {periode.aktif && <span className="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold">AKTIF</span>}
+                {periode.dibayarPada && <span className="ml-1 rounded-full bg-emerald-400/90 px-2 py-0.5 text-[10px] font-bold text-white">LUNAS</span>}
               </p>
               <p className="mt-3 text-2xl font-extrabold">{rupiah(slip?.total ?? 0)}</p>
               <p className="text-[11px] text-white/80">Total diterima — {slip?.nama || user?.nama}</p>
@@ -202,6 +203,14 @@ export default function SlipGaji({ open, onClose, user, toast }) {
                 <p className="font-extrabold text-indigo-600 dark:text-indigo-300">{rupiah(slip?.total ?? 0)}</p>
               </div>
             </div>
+
+            {/* Status bayar — muncul setelah admin menandai periode LUNAS. */}
+            {periode.dibayarPada && (
+              <p className="mt-3 rounded-2xl bg-emerald-50 px-3.5 py-3 text-[11px] font-semibold leading-relaxed text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                <CheckCircle2 size={12} className="mr-1 inline" />
+                Gaji periode ini sudah DIBAYARKAN pada {formatTanggalPendek(String(periode.dibayarPada).slice(0, 10))}.
+              </p>
+            )}
 
             {/* Kehadiran pada periode ini */}
             <p className="mt-3 rounded-2xl bg-slate-50 px-3.5 py-3 text-[11px] leading-relaxed text-slate-500 dark:bg-slate-800 dark:text-slate-400">
