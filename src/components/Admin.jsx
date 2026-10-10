@@ -6,6 +6,7 @@ import { MIME } from '../utils/berkas'
 import { unduhBerkas, pesanHasilUnduh } from '../utils/unduh'
 import * as api from '../api'
 import { formatTanggalPendek, formatWaktuLengkap, toISODate } from '../utils/date'
+import { formatRupiah, parseNumeric, useNumericInput } from '../utils/form-helpers'
 import ModalTolak from './ModalTolak'
 import PratinjauLampiran from './PratinjauLampiran'
 import GrafikTren from './GrafikTren'
@@ -959,7 +960,9 @@ function Ringkasan() {
 function KelolaKaryawan() {
   const kosong = {
     nama: '', nip: '', jabatan: '', departemen: '', email: '', telepon: '', lokasiKerja: '', cutiTahunan: 12,
-    gajiHarian: 0, uangMakan: 0, tarifLembur: 0, pin: '', isAdmin: false,
+    // Tarif rupiah disimpan sebagai string terformat ("150.000") — dikirim ke
+    // server sebagai angka lewat parseNumeric saat simpan (lihat form-helpers).
+    gajiHarian: '', uangMakan: '', tarifLembur: '', pin: '', isAdmin: false,
     // Status kepegawaian — dipilih admin (Karyawan Tetap / Karyawan Kontrak).
     statusKaryawan: 'Karyawan Tetap',
     // Shift kerja ('' | '1' | '2') — dipakai saat jadwal mode 'shift'.
@@ -981,15 +984,29 @@ function KelolaKaryawan() {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
+  // Input angka Gaji/Uang Makan/Tarif Lembur: hanya digit diterima, nilai
+  // selalu tampil berformat ribuan — bisa diketik di ponsel maupun desktop
+  // (type="number" di beberapa peramban menolak ketikan).
+  const inputGaji = useNumericInput(form.gajiHarian, (v) => set('gajiHarian', v))
+  const inputMakan = useNumericInput(form.uangMakan, (v) => set('uangMakan', v))
+  const inputLembur = useNumericInput(form.tarifLembur, (v) => set('tarifLembur', v))
+
   const simpan = async (e) => {
     e.preventDefault()
     setProses(true)
+    // Form menyimpan tarif sebagai string terformat ("150.000") — kirim angkanya.
+    const badan = {
+      ...form,
+      gajiHarian: parseNumeric(form.gajiHarian),
+      uangMakan: parseNumeric(form.uangMakan),
+      tarifLembur: parseNumeric(form.tarifLembur),
+    }
     try {
       if (editId) {
-        await api.adminUbahKaryawan(editId, form)
+        await api.adminUbahKaryawan(editId, badan)
         setPesan({ ok: true, teks: 'Data karyawan diperbarui.' })
       } else {
-        await api.adminTambahKaryawan(form)
+        await api.adminTambahKaryawan(badan)
         setPesan({ ok: true, teks: 'Karyawan baru ditambahkan (PIN default 123456 bila kosong).' })
       }
       setForm(kosong)
@@ -1009,7 +1026,7 @@ function KelolaKaryawan() {
     setForm({
       nama: k.nama, nip: k.nip || '', jabatan: k.jabatan || '', departemen: k.departemen || '',
       email: k.email, telepon: k.telepon || '', lokasiKerja: k.lokasiKerja || '', cutiTahunan: k.cutiTahunan,
-      gajiHarian: k.gajiHarian ?? 0, uangMakan: k.uangMakan ?? 0, tarifLembur: k.tarifLembur ?? 0, pin: '', isAdmin: k.isAdmin,
+      gajiHarian: formatRupiah(k.gajiHarian ?? 0), uangMakan: formatRupiah(k.uangMakan ?? 0), tarifLembur: formatRupiah(k.tarifLembur ?? 0), pin: '', isAdmin: k.isAdmin,
       statusKaryawan: k.statusKaryawan || 'Karyawan Tetap',
       shift: k.shift ? String(k.shift) : '',
     })
@@ -1076,9 +1093,9 @@ function KelolaKaryawan() {
               </p>
             </div>
             <div><label className="label">Cuti/Tahun</label><input type="number" min="0" className="input" value={form.cutiTahunan} onChange={(e) => set('cutiTahunan', Number(e.target.value))} /></div>
-            <div><label className="label">Gaji Harian (Rp)</label><input type="number" min="0" className="input" value={form.gajiHarian} onChange={(e) => set('gajiHarian', Number(e.target.value))} placeholder="cth. 150000" /></div>
-            <div><label className="label">Uang Makan/Hari (Rp)</label><input type="number" min="0" className="input" value={form.uangMakan} onChange={(e) => set('uangMakan', Number(e.target.value))} placeholder="cth. 20000" /></div>
-            <div><label className="label">Tarif Lembur/jam (Rp)</label><input type="number" min="0" className="input" value={form.tarifLembur} onChange={(e) => set('tarifLembur', Number(e.target.value))} placeholder="cth. 25000" /></div>
+            <div><label className="label">Gaji Harian (Rp)</label><input {...inputGaji} className="input" placeholder="cth. 150.000" /></div>
+            <div><label className="label">Uang Makan/Hari (Rp)</label><input {...inputMakan} className="input" placeholder="cth. 20.000" /></div>
+            <div><label className="label">Tarif Lembur/jam (Rp)</label><input {...inputLembur} className="input" placeholder="cth. 25.000" /></div>
             <div><label className="label">{editId ? 'PIN Baru (opsional)' : 'PIN (default 123456)'}</label><input className="input" maxLength={6} value={form.pin} onChange={(e) => set('pin', e.target.value.replace(/\D/g, ''))} placeholder="••••••" /></div>
             <label className="flex items-center gap-2 self-end pb-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
               <input type="checkbox" checked={form.isAdmin} onChange={(e) => set('isAdmin', e.target.checked)} className="h-4 w-4 rounded" /> Jadikan Admin
